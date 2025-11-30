@@ -1,0 +1,308 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider     = "postgresql"
+  url          = env("POSTGRES_URL")
+  relationMode = "prisma"
+}
+
+// 用户等级枚举
+enum UserGrade {
+  V0
+  V1
+  V2
+  V3
+  V4
+  V5
+}
+
+model User {
+  id         String      @id @default(uuid())
+  email      String?     @unique @db.VarChar(64) // 唯一的电子邮件字段，改为可选
+  password   String?     @db.VarChar(64)         // 可选的密码字段
+  phone      String?     @unique @db.VarChar(20) // 可选的手机号字段
+  name       String      @db.VarChar(50)
+  created_at DateTime    @default(now())
+  updated_at DateTime    @updatedAt
+  balance    Int         @default(0)             // 余额
+  grade      UserGrade   @default(V0)            // 用户等级，根据支付记录自动更新
+  point      Point[]                             // 用户与积分账户的关系
+  weiRecord  WeiRecord[]
+  payments   PaymentRecord[]                     // 用户支付记录 
+  
+  // 微信登录相关字段
+  wechatOpenId    String?     @unique @db.VarChar(64)  // 微信OpenID，唯一
+  wechatUnionId   String?     @db.VarChar(64)          // 微信UnionID
+  wechatNickname  String?     @db.VarChar(100)         // 微信昵称
+  wechatAvatar    String?     @db.Text                 // 微信头像URL
+  isFirstLogin    Boolean     @default(true)           // 是否是第一次登录
+  
+  // 邀请码相关字段
+  invite_code     String?     @unique @db.VarChar(8)   // 8位邀请码，唯一
+  invited_by      String?                              // 被谁邀请（邀请码）
+  
+  // 关联关系
+  inviteRecords   InviteRecord[] @relation("Inviter")  // 邀请的用户列表
+  invitedByRecord InviteRecord? @relation("Invitee")   // 被谁邀请的记录
+  
+  @@index([invite_code])
+  @@index([invited_by])
+}
+
+model Point {
+  id              Int       @id @default(autoincrement())  // 积分账户ID，自增主键
+  user_id         String                                   // 外键，关联用户
+  amount          Int                                      // 积分变动值，正值为增加，负值为减少
+  type            String                                   // 类型: "充值" | "消费" | "系统发放"
+  reason          String?                                  // 积分变动原因
+  created_at      DateTime  @default(now())                // 创建时间
+  user            User      @relation(fields: [user_id], references: [id])
+
+  @@index([user_id, created_at(sort: Desc)])
+}
+
+model AudioWork {
+  id            String   @id @default(uuid())
+  audio_task_id String   @unique
+  title         String   @default("") @db.VarChar(50)
+  description   String   @default("") @db.VarChar(255)
+  script        String
+  audio_url     String   @default("")
+  model_info    Json     @default("{}")
+  is_deleted    Boolean  @default(false)
+  created_at    DateTime @default(now())
+  updated_at    DateTime @updatedAt
+  user_id       String
+  user_name     String
+
+  @@index([user_id, is_deleted, created_at(sort: Desc)])
+  @@index([is_deleted, created_at(sort: Desc)])
+}
+
+enum ContentType {
+  TEXT
+  AUDIO
+  IMAGE
+  VIDEO
+}
+enum FileFormat {
+  // Text formats
+  PLAIN_TEXT
+  MD
+  PDF
+  DOC
+  // Audio formats
+  MP3
+  WAV
+  M4A
+  AAC
+  // Image formats
+  PNG
+  JPG
+  JPEG
+  SVG
+  WEBP
+  // Video formats
+  MP4
+  MOV
+  AVI
+  WEBM
+}
+enum TaskStatus {
+  SUCCESS
+  FAILED
+  QUEUEING
+  PROCESSING
+}
+model CreateTask {
+  id           String      @id @default(uuid())
+  user_id      String
+  content_type ContentType
+  file_format  FileFormat // for simple text while is not a file format, fill with PLAIN_TEXT
+  content      String // url if it's a file or text if it's a text
+  status       TaskStatus
+  is_deleted   Boolean  @default(false)
+  task_info    Json @default("{}") // Additional task metadata like model info, processing parameters, etc.
+  created_at   DateTime @default(now())
+  updated_at   DateTime @updatedAt
+
+  @@index([user_id, content_type, created_at(sort: Desc)])
+}
+
+model Account {
+  id              String    @id @default(uuid())           // 账户ID
+  user_id         String                                   // 外键，关联用户
+  balance         Int       @default(0)                    // 总余额，包括所有代币
+  gift_tokens     Int       @default(0)                 // 赠送代币余额
+  recharge_tokens Int       @default(0)                 // 充值代币余额
+  earned_tokens   Int       @default(0)                  // 赚取的代币余额
+  created_at      DateTime  @default(now())                // 创建时间
+  updated_at      DateTime  @updatedAt                     // 更新时间
+  grade           String    @default("REGULAR")            // 会员等级（REGULAR、VIP、SVIP）
+  // user            User      @relation(fields: [user_id], references: [id]) // 与用户的关系
+  gifts           GiftRecord[]
+  recharges       RechargeRecord[]
+  transactions    TransactionRecord[]
+}
+
+model GiftRecord {
+  id              Int       @id @default(autoincrement())   // 赠送记录ID，自增主键
+  account_id      String                                       // 外键，关联账户
+  amount          Int       @default(0)                        // 赠送的代币数量
+  created_at      DateTime  @default(now())                 // 创建时间
+  type            String
+  account         Account   @relation(fields: [account_id], references: [id]) // 与账户的关系
+}
+
+model RechargeRecord {
+  id              Int      @id @default(autoincrement())
+  account_id      String
+  amount          Int      @default(0) 
+  created_at      DateTime @default(now())
+  order_number    String   @unique                        // 订单号，唯一
+  source          String                                  // 充值来源（如：支付宝、微信、银行卡等）
+  status          String   @default("PENDING")            // 充值状态（如：PENDING, SUCCESS, FAILED）
+  account         Account  @relation(fields: [account_id], references: [id]) // 与账户的关系
+}
+
+model TransactionRecord {
+  id             Int      @id @default(autoincrement())
+  account_id     String
+  price          Int      @default(0) 
+  created_at     DateTime @default(now())
+  type           String
+  account        Account   @relation(fields: [account_id], references: [id]) // 与账户的关系
+}
+
+model Video {
+  id          String   @id @default(cuid())   // 视频ID，使用cuid生成唯一标识符
+  video_url   String   @db.Text               // 视频URL，非空
+  audio_url   String?  @db.Text               // 音频URL，可选
+  video_id    String   @db.Text               // 视频外站ID
+  title       String   @db.Text               // 标题
+  content     String?  @db.Text               // 视频文案，可选
+  metadata    Json?    @db.Json                // 元数据，JSON格式，可选
+  subtitles   Json?    @db.Json                // 字幕，JSON格式，可选
+  scene       Json?    @db.Json                // 场景，JSON格式，可选
+  summary     String?  @db.Text               // 摘要，可选
+  user_id     String                         // 用户ID，可选
+  status      String
+  source      String
+  created_at  DateTime  @default(now())                // 创建时间
+  updated_at  DateTime  @updatedAt                     // 更新时间
+
+  @@index([user_id, created_at(sort: Desc)])
+}
+
+model WeiRecord {
+  id            Int      @id @default(autoincrement())
+  phone         String?  @db.VarChar(20)
+  product_id    String   @db.VarChar(64)
+  product_name  String?  @db.VarChar(255)
+  product_url   String?  @db.Text
+  image_caption String?  @db.Text
+  report        String?  @db.Text
+  created_at    DateTime @default(now())
+  is_deleted    Boolean  @default(false)
+  status        String   @default("PROCESSING")
+  user_id       String                                // 外键，关联用户
+  user          User     @relation(fields: [user_id], references: [id])
+
+  @@index([phone, is_deleted, created_at(sort: Desc)])
+  @@index([user_id, is_deleted, created_at(sort: Desc)])
+}
+
+// 支付方式枚举
+enum PaymentType {
+  alipay    // 支付宝
+  wxpay     // 微信支付
+  qqpay     // QQ钱包
+  tenpay    // 财付通
+}
+
+// 支付状态枚举
+enum PaymentStatus {
+  PENDING   // 待支付
+  SUCCESS   // 支付成功
+  FAILED    // 支付失败
+  REFUNDED  // 已退款
+  CANCELLED // 已取消
+}
+
+model PaymentRecord {
+  id            String        @id @default(uuid())
+  userId        String        // 用户ID
+  amount        Decimal       @db.Decimal(10, 2)  // 支付金额，保留2位小数
+  productName   String        @db.VarChar(255)    // 商品名称
+  paymentType   PaymentType   // 支付方式
+  status        PaymentStatus // 支付状态
+  createTime    DateTime      @default(now())     // 创建时间
+  updateTime    DateTime      @updatedAt          // 更新时间
+  
+  // ZPAY相关字段
+  outTradeNo    String        @unique             // 商户订单号，唯一
+  tradeNo       String?       @db.VarChar(64)     // ZPAY订单号
+  buyer         String?       @db.VarChar(100)    // 支付者账号
+  
+  // 充值相关字段
+  pointAmount   Int           @default(0)         // 充值获得的积分数量
+  rechargeType  String        @default("POINT")   // 充值类型：POINT(积分充值)
+  
+  // 关联用户
+  user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  // 索引
+  @@index([userId, status, createTime(sort: Desc)])
+  @@index([outTradeNo])
+  @@index([tradeNo])
+  @@index([status, createTime(sort: Desc)])
+  @@index([paymentType, status])
+  @@index([rechargeType, status])
+}
+
+model InviteRecord {
+  id              String   @id @default(uuid())
+  inviter_id      String                           // 邀请人ID
+  invitee_id      String                           // 被邀请人ID
+  invite_code     String                           // 使用的邀请码
+  created_at      DateTime @default(now())
+  
+  // 关联关系
+  inviter         User     @relation("Inviter", fields: [inviter_id], references: [id])
+  invitee         User     @relation("Invitee", fields: [invitee_id], references: [id])
+  
+  @@index([inviter_id])
+  @@index([invitee_id])
+  @@unique([invitee_id]) // 每个用户只能被邀请一次
+}
+
+// 商品详情页违规案例表
+model ProductViolation {
+  id                    Int      @id @default(autoincrement())
+  case_name             String   @db.VarChar(200)               // 案例名称
+  violation_type        String   @db.VarChar(50)                // 违规类型
+  platform              String   @db.VarChar(50)                // 涉及平台
+  company               String   @db.VarChar(200)               // 违规企业
+  penalty_amount        String   @db.VarChar(100)               // 处罚金额（原始格式）
+  penalty_amount_num    Decimal  @db.Decimal(15, 2)             // 处罚金额（数值格式）
+  penalty_measures      String   @db.VarChar(200)               // 处罚措施
+  violation_details     String   @db.Text                       // 违规详情
+  legal_basis           String   @db.VarChar(500)               // 处罚依据
+  data_source           String   @db.VarChar(100)               // 数据来源
+  publish_date          String   @db.VarChar(20)                // 发布时间
+  region                String   @db.VarChar(100)               // 所属地区
+  severity              String   @db.VarChar(20)                // 严重程度
+  detail_page_violation String   @db.VarChar(100)               // 详情页违规类型
+  created_at            DateTime @default(now())                // 创建时间
+  
+  // 索引
+  @@index([violation_type])
+}

@@ -1,0 +1,35 @@
+{
+  "rules": [
+    // Philosophy
+    "Prefer incremental progress over big bangs.",
+    "Study existing code before implementing.",
+    "Choose pragmatic solutions over dogmatic rules.",
+    "Favor clear, boring code over clever tricks.",
+    "Each function/class should have a single responsibility.",
+    "Avoid premature abstractions.",
+
+    // Process
+    "Break complex work into 3-5 stages with a clear plan.",
+    "Update stage status as you progress.",
+    "Remove the plan file when all stages are done.",
+    "Stop after 3 failed attempts and reassess.",
+
+    // Technical Standards
+    "Prefer composition over inheritance.",
+    "Use dependency injection, not singletons.",
+    "Keep data flow explicit.",
+
+    // Error Handling
+    "Fail fast with descriptive messages.",
+    "Include context for debugging.",
+    "Never silently swallow exceptions.",
+
+    // Decision Framework
+    "Prioritize testability, readability, consistency, simplicity, reversibility.",
+    
+    // Project Integration
+    "Follow existing project conventions and libraries.",
+    "Do not introduce new tools without strong justification.",
+    "Reuse existing test patterns and utilities."
+  ]
+}
