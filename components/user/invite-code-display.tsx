@@ -77,7 +77,7 @@ export function InviteCodeDisplay() {
           <div className="flex-1">
             <div className="flex items-center space-x-2">
               <div className="flex-1 px-3 py-2 bg-muted border rounded-md font-mono text-lg tracking-wider text-card-foreground">
-                https://eye.ultimateai.vip/?code={stats.inviteCode}
+                https://ai.ultimateai.vip/?code={stats.inviteCode}
               </div>
               <button
                 onClick={copyToClipboard}
