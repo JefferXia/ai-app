@@ -137,7 +137,7 @@ export const Forge: React.FC<ForgeProps> = ({ project, onComplete, onReset, onTo
            <div className="bg-stone-950 p-6 rounded border border-stone-800 mb-8">
              <div className="text-xs text-stone-500 uppercase tracking-widest mb-2">Elevator Pitch</div>
              <p className="font-serif text-lg text-stone-300 italic">
-               "{project.elevatorPitch}"
+               &ldquo;{project.elevatorPitch}&rdquo;
              </p>
            </div>
 
@@ -172,7 +172,7 @@ export const Forge: React.FC<ForgeProps> = ({ project, onComplete, onReset, onTo
             </div>
           )}
         </div>
-        <p className="text-stone-400">输入一个核心词，我们将通过"3+3+3"阶梯脑暴，提炼出具有商业价值的选题。</p>
+        <p className="text-stone-400">输入一个核心词，我们将通过&ldquo;3+3+3&ldquo;阶梯脑暴，提炼出具有商业价值的选题。</p>
         {!isAuth && (
           <div className="mt-4 p-4 bg-red-900/20 border border-red-900/50 rounded text-red-400 text-sm">
             请先登录以使用定位熔炉功能

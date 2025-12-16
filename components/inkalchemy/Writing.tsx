@@ -20,7 +20,7 @@ export const Writing: React.FC<WritingProps> = ({ project, updateChapter, onNext
   useEffect(() => {
     setContent(currentChapter?.content || '');
     setAiFeedback(null);
-  }, [project.currentChapterId]);
+  }, [project.currentChapterId, currentChapter?.content]);
 
   const handleAnalysis = async (type: AnalysisType) => {
     if (!content.trim()) return;

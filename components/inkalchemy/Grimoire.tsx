@@ -33,7 +33,7 @@ export const Grimoire: React.FC<GrimoireProps> = ({ project, onRemoveFavorite })
 
             {ideas.length === 0 && (
                 <div className="p-8 border border-dashed border-stone-800 rounded text-center text-stone-600 text-sm">
-                    暂无收藏的选题。<br/>在"定位熔炉"中点击星星图标收藏。
+                    暂无收藏的选题。<br/>在&ldquo;定位熔炉&rsquo;中点击星星图标收藏。
                 </div>
             )}
 
@@ -70,7 +70,7 @@ export const Grimoire: React.FC<GrimoireProps> = ({ project, onRemoveFavorite })
 
             {structures.length === 0 && (
                 <div className="p-8 border border-dashed border-stone-800 rounded text-center text-stone-600 text-sm">
-                    暂无收藏的架构。<br/>在"骨架搭建"中点击星星图标收藏。
+                    暂无收藏的架构。<br/>在&ldquo;骨架搭建&rsquo;中点击星星图标收藏。
                 </div>
             )}
 
@@ -112,7 +112,7 @@ export const Grimoire: React.FC<GrimoireProps> = ({ project, onRemoveFavorite })
 
             {snippets.length === 0 && (
                 <div className="p-8 border border-dashed border-stone-800 rounded text-center text-stone-600 text-sm">
-                    暂无收藏的片段。<br/>在"价值填充"中点击星星图标收藏。
+                    暂无收藏的片段。<br/>在&ldquo;价值填充&rsquo;中点击星星图标收藏。
                 </div>
             )}
 
@@ -131,7 +131,7 @@ export const Grimoire: React.FC<GrimoireProps> = ({ project, onRemoveFavorite })
                         <h3 className="font-bold text-stone-200 mb-1">{item.content.title}</h3>
                         <div className="text-xs text-amber-600 mb-3">{item.content.description}</div>
                         <div className="p-3 bg-stone-950 rounded text-stone-400 text-sm italic font-serif border-l-2 border-stone-700">
-                            "{item.content.text?.substring(0, 150)}{item.content.text && item.content.text.length > 150 ? '...' : ''}"
+                            &ldquo;{item.content.text?.substring(0, 150)}{item.content.text && item.content.text.length > 150 ? '...' : ''}&rdquo;
                         </div>
                     </div>
                 ))}

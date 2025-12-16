@@ -53,7 +53,7 @@ export const Structure: React.FC<StructureProps> = ({ project, onComplete, onTog
 
     const timer = setTimeout(fetchRecommendation, 500);
     return () => clearTimeout(timer);
-  }, [project.topic, project.selectedIdea, project.elevatorPitch, project.templateType]);
+  }, [project.topic, project.selectedIdea, project.elevatorPitch, project.templateType, recommendation, outline.length]);
 
   const handleGenerateOutline = async () => {
     if (!selectedTemplate) return;

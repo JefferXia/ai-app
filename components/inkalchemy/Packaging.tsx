@@ -11,7 +11,7 @@ export const Packaging: React.FC<PackagingProps> = ({ project }) => {
   const [assets, setAssets] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
 
-  const firstChapterContent = project.outline[0]?.content || "（第一章暂无内容，请先在写作阶段填充内容）";
+  const firstChapterContent = project.outline[0]?.content || '（第一章暂无内容，请先在写作阶段填充内容）';
 
   useEffect(() => {
     const fetchAssets = async () => {
@@ -28,7 +28,7 @@ export const Packaging: React.FC<PackagingProps> = ({ project }) => {
     if (project.outline[0]?.content && assets.length === 0) {
       fetchAssets();
     }
-  }, [project]);
+  }, [project.topic, project.outline, firstChapterContent, assets.length]);
 
   return (
     <div className="p-8 max-w-5xl mx-auto h-full overflow-y-auto">
@@ -93,7 +93,7 @@ export const Packaging: React.FC<PackagingProps> = ({ project }) => {
                  </div>
               ) : (
                  <div className="text-stone-500 text-sm p-4 border border-dashed border-stone-800 rounded text-center">
-                    第一章内容太少，无法生成测试标题。请返回写作。
+                    第一章内容太少，无法生成测试标题。请返回写作阶段。
                  </div>
               )}
            </div>

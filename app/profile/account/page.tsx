@@ -35,7 +35,7 @@ export default function AccountPage() {
       setAccountRecords(pointData);
       setLoading(false);
     })();
-  }, []);
+  }, [userInfo.id]);
 
   return (
     <>
