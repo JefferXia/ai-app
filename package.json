@@ -57,7 +57,7 @@
     "markmap-common": "^0.17.0",
     "markmap-lib": "^0.17.0",
     "markmap-view": "^0.17.0",
-    "next": "15.0.1",
+    "next": "15.0.7",
     "next-auth": "5.0.0-beta.25",
     "next-themes": "^0.3.0",
     "openai": "^4.68.1",
