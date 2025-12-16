@@ -1,6 +1,16 @@
 import React, { useState } from 'react';
 import { Step, BookProject } from './types';
-import { Book, Hammer, Feather, Package, Flame, Lock, Star, ChevronLeft, ChevronRight } from 'lucide-react';
+import {
+  Book,
+  Hammer,
+  Feather,
+  Package,
+  Flame,
+  Lock,
+  Star,
+  ChevronLeft,
+  ChevronRight,
+} from 'lucide-react';
 
 interface LayoutProps {
   currentStep: Step;
@@ -8,6 +18,14 @@ interface LayoutProps {
   projectName?: string;
   project: BookProject;
   onStepChange: (step: Step) => void;
+  autoSave?: boolean;
+  onSave?: () => void;
+  onSaveAs?: () => void;
+  onLoad?: () => void;
+  onExport?: () => void;
+  onImport?: () => void;
+  onToggleAutoSave?: () => void;
+  onShowStorageInfo?: () => void;
 }
 
 const steps: { id: Step; label: string; icon: React.ReactNode }[] = [
@@ -17,8 +35,23 @@ const steps: { id: Step; label: string; icon: React.ReactNode }[] = [
   { id: 'packaging', label: '产品包装', icon: <Package className="w-4 h-4" /> },
 ];
 
-export const Layout: React.FC<LayoutProps> = ({ currentStep, children, projectName, project, onStepChange }) => {
+export const Layout: React.FC<LayoutProps> = ({
+  currentStep,
+  children,
+  projectName,
+  project,
+  onStepChange,
+  autoSave = true,
+  onSave,
+  onSaveAs,
+  onLoad,
+  onExport,
+  onImport,
+  onToggleAutoSave,
+  onShowStorageInfo,
+}) => {
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const [showToolbar, setShowToolbar] = useState(false);
 
   const isStepAccessible = (stepId: Step) => {
     if (stepId === 'grimoire') return true;
@@ -53,12 +86,12 @@ export const Layout: React.FC<LayoutProps> = ({ currentStep, children, projectNa
           </div>
           {!isCollapsed && (
             <div className="flex flex-col overflow-hidden">
-               <span className="font-serif font-bold text-base text-stone-100 group-hover:text-amber-500 transition-colors whitespace-nowrap truncate">
-                 InkAlchemy
-               </span>
-               <span className="text-[10px] font-bold text-stone-500 uppercase tracking-[0.2em] group-hover:text-stone-300 transition-colors whitespace-nowrap">
-                 文字炼金
-               </span>
+              <span className="font-serif font-bold text-base text-stone-100 group-hover:text-amber-500 transition-colors whitespace-nowrap truncate">
+                InkAlchemy
+              </span>
+              <span className="text-[10px] font-bold text-stone-500 uppercase tracking-[0.2em] group-hover:text-stone-300 transition-colors whitespace-nowrap">
+                文字炼金
+              </span>
             </div>
           )}
         </div>
@@ -84,7 +117,9 @@ export const Layout: React.FC<LayoutProps> = ({ currentStep, children, projectNa
               >
                 <div className="shrink-0">{step.icon}</div>
                 {!isCollapsed && (
-                  <span className={`text-sm font-medium whitespace-nowrap ${isActive ? 'text-amber-500' : ''}`}>
+                  <span
+                    className={`text-sm font-medium whitespace-nowrap ${isActive ? 'text-amber-500' : ''}`}
+                  >
                     {step.label}
                   </span>
                 )}
@@ -106,28 +141,117 @@ export const Layout: React.FC<LayoutProps> = ({ currentStep, children, projectNa
           <button
             onClick={() => onStepChange('grimoire')}
             className={`w-full flex items-center gap-3 px-4 py-3 rounded-md transition-all duration-300 text-left group ${
-                currentStep === 'grimoire'
+              currentStep === 'grimoire'
                 ? 'bg-purple-900/20 text-purple-400 border border-purple-900/50'
                 : 'text-stone-500 hover:bg-stone-800 hover:text-purple-400'
             } ${isCollapsed ? 'justify-center px-2' : ''}`}
           >
-             <div className="shrink-0"><Star className={`w-4 h-4 ${currentStep === 'grimoire' ? 'fill-purple-400' : ''}`} /></div>
-             {!isCollapsed && (
-                <span className="text-sm font-medium whitespace-nowrap">灵感库</span>
-             )}
+            <div className="shrink-0">
+              <Star
+                className={`w-4 h-4 ${currentStep === 'grimoire' ? 'fill-purple-400' : ''}`}
+              />
+            </div>
+            {!isCollapsed && (
+              <span className="text-sm font-medium whitespace-nowrap">
+                灵感库
+              </span>
+            )}
           </button>
         </nav>
 
-        <div className={`p-6 border-t border-stone-800 ${isCollapsed ? 'hidden' : 'block'}`}>
+        <div
+          className={`p-6 border-t border-stone-800 ${isCollapsed ? 'hidden' : 'block'}`}
+        >
           <div className="text-xs font-serif text-stone-500 mb-1">当前项目</div>
-          <div className="text-sm font-bold text-stone-200 truncate" title={projectName}>
-            {projectName || "新项目"}
+          <div
+            className="text-sm font-bold text-stone-200 truncate"
+            title={projectName}
+          >
+            {projectName || '新项目'}
           </div>
         </div>
       </aside>
 
       {/* Main Content */}
       <main className="flex-1 flex flex-col h-[calc(100vh-64px)] md:h-screen overflow-hidden bg-stone-950 relative">
+        {/* 工具栏 */}
+        {/* <div className="absolute bottom-4 right-4 z-50">
+          <button
+            onClick={() => setShowToolbar(!showToolbar)}
+            className="bg-stone-800 hover:bg-stone-700 text-stone-300 px-4 py-2 rounded border border-stone-700 transition-colors"
+          >
+            ⚙️ 项目
+          </button>
+
+          {showToolbar && (
+            <div className="absolute top-12 right-0 bg-stone-900 border border-stone-700 rounded-lg p-4 min-w-[200px] shadow-xl">
+              <div className="space-y-2 text-sm">
+                <div className="flex items-center justify-between mb-3">
+                  <span className="text-stone-400">自动保存</span>
+                  <button
+                    onClick={onToggleAutoSave}
+                    className={`w-10 h-5 rounded-full transition-colors ${
+                      autoSave ? 'bg-green-600' : 'bg-stone-700'
+                    }`}
+                  >
+                    <div
+                      className={`w-4 h-4 bg-white rounded-full transition-transform ${
+                        autoSave ? 'translate-x-5' : 'translate-x-0.5'
+                      }`}
+                    />
+                  </button>
+                </div>
+
+                <button
+                  onClick={onSave}
+                  className="w-full text-left px-3 py-2 hover:bg-stone-800 rounded transition-colors"
+                >
+                  💾 保存当前项目
+                </button>
+
+                <button
+                  onClick={onSaveAs}
+                  className="w-full text-left px-3 py-2 hover:bg-stone-800 rounded transition-colors"
+                >
+                  📝 另存为
+                </button>
+
+                <button
+                  onClick={onLoad}
+                  className="w-full text-left px-3 py-2 hover:bg-stone-800 rounded transition-colors"
+                >
+                  📂 加载项目
+                </button>
+
+                <div className="border-t border-stone-700 my-2"></div>
+
+                <button
+                  onClick={onExport}
+                  className="w-full text-left px-3 py-2 hover:bg-stone-800 rounded transition-colors"
+                >
+                  📤 导出JSON
+                </button>
+
+                <button
+                  onClick={onImport}
+                  className="w-full text-left px-3 py-2 hover:bg-stone-800 rounded transition-colors"
+                >
+                  📥 导入JSON
+                </button>
+
+                <div className="border-t border-stone-700 my-2"></div>
+
+                <button
+                  onClick={onShowStorageInfo}
+                  className="w-full text-left px-3 py-2 hover:bg-stone-800 rounded transition-colors"
+                >
+                  💿 存储信息
+                </button>
+              </div>
+            </div>
+          )}
+        </div> */}
+
         {children}
       </main>
     </div>

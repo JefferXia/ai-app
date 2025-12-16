@@ -63,7 +63,7 @@ export async function callLLM(
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${apiKey}`,
         'HTTP-Referer': process.env.HTTP_REFERER || 'https://ai.ultimateai.vip',
-        'X-Title': 'InkAlchemy',
+        'X-Title': process.env.APP_NAME || 'InkAlchemy',
       },
       body: JSON.stringify(requestBody),
     });
