@@ -17,7 +17,24 @@ export const authConfig = {
       let isOnRegister = nextUrl.pathname.startsWith("/register");
       let isOnLogin = nextUrl.pathname.startsWith("/login");
       const callbackUrl = nextUrl.searchParams.get('callbackUrl');
-      const redirectUrl = callbackUrl ? new URL(callbackUrl).pathname : '/';
+
+      // 安全地解析callbackUrl
+      let redirectUrl = '/';
+      if (callbackUrl) {
+        try {
+          // 如果callbackUrl是绝对URL，取其pathname
+          if (callbackUrl.startsWith('http')) {
+            redirectUrl = new URL(callbackUrl).pathname;
+          } else {
+            // 如果是相对路径，直接使用
+            redirectUrl = callbackUrl.startsWith('/') ? callbackUrl : `/${callbackUrl}`;
+          }
+        } catch (error) {
+          // 如果解析失败，使用默认路径
+          console.warn('Invalid callbackUrl:', callbackUrl);
+          redirectUrl = '/';
+        }
+      }
 
       if (isLoggedIn && (isOnLogin || isOnRegister)) {
         return Response.redirect(new URL(redirectUrl, nextUrl));

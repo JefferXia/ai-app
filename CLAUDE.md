@@ -5,6 +5,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Project Overview
 
 **极效火眼** is a streamlined AI platform featuring:
+
 - Basic user authentication (email/password + WeChat OAuth)
 - Payment system with ZPAY integration
 - User account management with invite codes
@@ -52,12 +53,14 @@ npx prisma db push
 ```
 
 Primary database schema files:
+
 - `db/schema.ts` - Drizzle schema (active)
 - `prisma/schema.prisma` - Prisma schema (legacy, some models still referenced)
 
 ## Key Architecture
 
 ### App Structure (`app/`)
+
 ```
 app/
 ├── (auth)/              # Authentication pages (login, register)
@@ -76,6 +79,7 @@ app/
 ```
 
 ### Core Services (`lib/`)
+
 - `lib/payment.ts` - ZPAY payment processing
 - `lib/prisma.ts` - Prisma database client
 - `lib/db.ts` - Drizzle database client (legacy)
@@ -83,7 +87,9 @@ app/
 - `lib/invite.ts` - Invite code management
 
 ### Database Models (Prisma)
+
 Key models in `prisma/schema.prisma`:
+
 - **User** - User accounts with WeChat OAuth, invite codes
 - **Account** - Token-based account system (gift/recharge/earned tokens)
 - **PaymentRecord** - ZPAY payment transactions
@@ -93,7 +99,9 @@ Key models in `prisma/schema.prisma`:
 - **InviteRecord** - Referral tracking
 
 ### API Routes Pattern
+
 Most API routes follow a consistent pattern:
+
 - Authentication via `auth()` from NextAuth
 - Drizzle queries via `db/queries.ts`
 - Response format: `{ success: boolean, data?: any, error?: string }`
@@ -102,31 +110,30 @@ Most API routes follow a consistent pattern:
 
 The application integrates with multiple external services (see `.env.local` for keys):
 
-### AI Services
-- **OpenAI** - Text generation (via ai-search.fun endpoint)
-- **Minimax** - Audio generation
-- **Groq** - LLM inference
-- **Reecho** - TTS (async generation)
-
 ### Payment
+
 - **ZPAY** - Multi-payment gateway (alipay, wxpay, qqpay, tenpay)
 
 ### Cloud Services
+
 - **Tencent COS** - File storage
 - **Tencent ASR** - Speech recognition
 - **Vercel Postgres** - Database hosting
 
 ### Communication
+
 - **Twilio** - SMS verification
 - **Volc SMS** - SMS service (Chinese market)
 
 ### WeChat Integration
+
 - OAuth login (see `app/api/wx-login/route.ts`)
 - App ID/Secret in `.env.local`
 
 ## Authentication System
 
 NextAuth.js with two providers:
+
 1. **Credentials** - Email/password authentication
 2. **WeChat** - OAuth via custom implementation
 
@@ -136,6 +143,7 @@ Session strategy: JWT (default)
 ## Cursor Rules
 
 The project follows these development principles (`.cursorrules`):
+
 - Prefer incremental progress over big bangs
 - Study existing code before implementing
 - Choose pragmatic solutions over dogmatic rules
@@ -149,6 +157,7 @@ The project follows these development principles (`.cursorrules`):
 ## Common Development Tasks
 
 ### Adding a New API Route
+
 1. Create route in `app/api/{feature}/route.ts`
 2. Use `auth()` for authentication
 3. Import database client from `lib/prisma.ts`
@@ -156,19 +165,24 @@ The project follows these development principles (`.cursorrules`):
 5. Add proper error handling and validation (Zod recommended)
 
 ### Working with Database
+
 The project uses Prisma ORM:
+
 - Schema: `prisma/schema.prisma`
 - Client: `lib/prisma.ts`
 - Generate client: `npx prisma generate`
 
 ### Payment Integration
+
 ZPAY integration is in `lib/payment.ts`:
+
 - Create: `/api/payment/create`
 - Query: `/api/payment/query`
 - Refund: `/api/payment/refund`
 - Callbacks: `/api/payment/notify`, `/api/payment/return`
 
 ### WeChat OAuth Flow
+
 1. User clicks WeChat login
 2. Redirect to `app/api/wx-login/route.ts`
 3. Exchange code for access token
@@ -178,6 +192,7 @@ ZPAY integration is in `lib/payment.ts`:
 ## Environment Variables
 
 Key environment variables (`.env.local`):
+
 ```bash
 # Database
 POSTGRES_URL=postgresql://...
@@ -224,6 +239,7 @@ WECHAT_APP_SECRET=...
 ## Testing Payment Integration
 
 For local testing of ZPAY:
+
 1. Use ngrok to expose local server: `ngrok http 3000`
 2. Update ZPAY_NOTIFY_URL and ZPAY_RETURN_URL in .env.local
 3. Use small test amounts (0.01 CNY)
@@ -232,6 +248,7 @@ For local testing of ZPAY:
 ## Deleted Modules
 
 The following modules have been removed to simplify the codebase:
+
 - Content creation features (text, audio, video)
 - PromptKeeper marketplace
 - AI integration services

@@ -56,22 +56,9 @@ export async function GET(request: NextRequest) {
           userId: existingUser.id,
           redirect: false,
         });
-        
-        // 重定向到登录成功页面
-        // const redirectUrl = new URL('/login', request.url);
-        // redirectUrl.searchParams.set('wechat_user', JSON.stringify({
-        //   openid: userInfo.openid,
-        //   nickname: userInfo.nickname,
-        //   headimgurl: userInfo.headimgurl,
-        //   unionid: userInfo.unionid,
-        //   action: 'login',
-        //   userId: existingUser.id,
-        //   phone: existingUser.phone,
-        //   isFirstLogin: false,
-        //   inviteCode: existingUser.invite_code,
-        // }));
-        const redirectUrl = new URL('/', request.url);
 
+        // 重定向到首页
+        const redirectUrl = new URL('/inkalchemy', request.url);
         return NextResponse.redirect(redirectUrl);
       } catch (error) {
         console.error('NextAuth signIn error:', error);
@@ -88,7 +75,7 @@ export async function GET(request: NextRequest) {
             wechatNickname: userInfo.nickname,
             wechatAvatar: userInfo.headimgurl,
             isFirstLogin: true, // 新用户是第一次登录
-            balance: state ? 200 : 100, // 新用户赠送200积分
+            balance: state ? 200 : 100, // 新用户赠送200积分（通过邀请码注册）
             point: {
               create: {
                 amount: state ? 200 : 100,
@@ -140,7 +127,7 @@ export async function GET(request: NextRequest) {
           //   isFirstLogin: true,
           //   inviteCode: newCode,
           // }));
-          const redirectUrl = new URL('/', request.url);
+          const redirectUrl = new URL('/inkalchemy', request.url);
 
           return NextResponse.redirect(redirectUrl);
         } catch (error) {

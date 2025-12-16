@@ -380,3 +380,26 @@ export function extractProductId(url: string): string | null {
     return null
   }
 }
+
+/**
+ * 客户端工具函数
+ */
+
+/**
+ * 生成客户端时间戳
+ * 只在客户端执行，避免水合错误
+ */
+export function getClientTimestamp(): number {
+  if (typeof window === 'undefined') {
+    // 服务器端返回固定值
+    return 0;
+  }
+  return Date.now();
+}
+
+/**
+ * 生成唯一ID
+ */
+export function generateClientId(prefix: string = 'id'): string {
+  return `${prefix}-${getClientTimestamp()}`;
+}
