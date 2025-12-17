@@ -3,6 +3,7 @@ import { TEMPLATES } from './constants';
 import { generateOutline, recommendTemplate } from './inkalchemyService';
 import { BookProject, Chapter, FavoriteItem } from './types';
 import { LayoutTemplate, Play, Check, Loader2, ArrowRight, RotateCcw, ArrowLeft, RefreshCw, Copy, Image as ImageIcon, Download, Sparkles, Star } from 'lucide-react';
+import { toPng } from 'html-to-image';
 
 interface StructureProps {
   project: BookProject;
@@ -113,24 +114,20 @@ export const Structure: React.FC<StructureProps> = ({ project, onComplete, onTog
     setExporting(true);
 
     try {
-      const html2canvas = (window as any).html2canvas;
-      if (html2canvas) {
-        const canvas = await html2canvas(contentRef.current, {
-          scale: 2,
-          backgroundColor: '#0c0a09',
-          useCORS: true,
-          logging: false
-        });
+      const dataUrl = await toPng(contentRef.current, {
+        cacheBust: true,
+        backgroundColor: '#0c0a09',
+        pixelRatio: 2,
+        quality: 1
+      });
 
-        const link = document.createElement('a');
-        link.download = `InkAlchemy_Outline_${project.topic.substring(0, 10)}.png`;
-        link.href = canvas.toDataURL('image/png');
-        link.click();
-      } else {
-        alert("Image generation library not loaded.");
-      }
+      const link = document.createElement('a');
+      link.download = `InkAlchemy_Outline_${project.topic.substring(0, 10)}.png`;
+      link.href = dataUrl;
+      link.click();
     } catch (err) {
       console.error("Export failed", err);
+      alert("导出失败，请重试");
     } finally {
       setExporting(false);
     }
