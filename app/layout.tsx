@@ -12,15 +12,15 @@ import Script from 'next/script';
 const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
-  metadataBase: new URL('https://eye.ultimateai.vip'),
-  title: '极效火眼 - AI驱动的网页任务助手',
+  metadataBase: new URL('https://ai.ultimateai.vip'),
+  title: 'AI驱动的网页任务助手',
   description:
     '洞若观火，为你洞察繁杂的网页信息。AI驱动的浏览器扩展，智能提取各类网页内容，并进行分析和处理。',
   keywords:
     '浏览器扩展,Chrome扩展,网页信息提取,AI工具,内容识别,违规检测,监控竞品,舆情跟踪',
   authors: [{ name: '光环效应(杭州)人工智能应用技术有限公司' }],
   openGraph: {
-    title: '极效火眼 - AI驱动的网页任务助手',
+    title: 'AI驱动的网页任务助手',
     description:
       '洞若观火，为你洞察繁杂的网页信息。AI驱动的浏览器扩展，智能提取各类网页内容，并进行分析和处理。',
     type: 'website',
@@ -74,7 +74,7 @@ export default async function RootLayout({
             c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};
             t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;
             y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);
-          })(window, document, "clarity", "script", "t7gm22grjv");`}
+          })(window, document, "clarity", "script", "umyqfla71q");`}
         </Script>
 
         <Script
