@@ -4,19 +4,23 @@ import { SYSTEM_INSTRUCTION } from '@/components/inkalchemy/constants';
 
 export async function POST(request: NextRequest) {
   try {
-    const { idea } = await request.json();
+    const { idea, model } = await request.json();
 
     const prompt = `用户选择了这个选题："${idea}"。
-    请逼问用户，如果读者只给10秒，为什么要买这本书？
-    请生成一个JSON对象，包含：
-    - title (优化后的主标题)
-    - subtitle (极具吸引力的副标题)
-    - conflict (核心冲突/痛点，一句话描述)
-    - elevatorPitch (10秒推销词)`;
+请逼问用户，如果读者只给10秒，为什么要买这本书？
 
-    const result = await generateJSON(
+严格按以下JSON格式输出：
+{
+  "title": "优化后的主标题",
+  "subtitle": "极具吸引力的副标题",
+  "conflict": "核心冲突/痛点，一句话描述",
+  "elevatorPitch": "10秒推销词"
+}`;
+
+    const result = await generateJSON<{ title: string; subtitle: string; conflict: string; elevatorPitch: string }>(
       prompt,
-      SYSTEM_INSTRUCTION
+      SYSTEM_INSTRUCTION,
+      { model }
     );
 
     return NextResponse.json({ success: true, data: result });

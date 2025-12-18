@@ -35,6 +35,7 @@ export interface BookProject {
   outline: Chapter[];
   currentChapterId: string | null;
   favorites: FavoriteItem[];
+  selectedModel?: string; // AI model used for this project
 }
 
 export type Step = 'forge' | 'structure' | 'writing' | 'packaging' | 'grimoire';

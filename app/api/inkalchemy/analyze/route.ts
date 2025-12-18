@@ -4,7 +4,7 @@ import { SYSTEM_INSTRUCTION } from '@/components/inkalchemy/constants';
 
 export async function POST(request: NextRequest) {
   try {
-    const { text, type } = await request.json();
+    const { text, type, model } = await request.json();
 
     let prompt = "";
 
@@ -20,7 +20,8 @@ export async function POST(request: NextRequest) {
 
     const feedback = await generateText(
       fullPrompt,
-      SYSTEM_INSTRUCTION
+      SYSTEM_INSTRUCTION,
+      { model }
     );
 
     return NextResponse.json({ success: true, data: feedback });

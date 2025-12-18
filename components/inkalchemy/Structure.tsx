@@ -37,7 +37,8 @@ export const Structure: React.FC<StructureProps> = ({ project, onComplete, onTog
           const result = await recommendTemplate(
               project.topic,
               project.selectedIdea.type,
-              project.elevatorPitch
+              project.elevatorPitch,
+              project.selectedModel
           );
           if (result && result.recommendedTemplateId) {
               setRecommendation({
@@ -61,7 +62,7 @@ export const Structure: React.FC<StructureProps> = ({ project, onComplete, onTog
     setLoading(true);
     const templateName = TEMPLATES.find(t => t.id === selectedTemplate)?.name || '';
     try {
-      const generatedOutline = await generateOutline(project.topic, project.elevatorPitch, templateName);
+      const generatedOutline = await generateOutline(project.topic, project.elevatorPitch, templateName, project.selectedModel);
 
       const formattedChapters: Chapter[] = generatedOutline.chapters.map((c: any, index: number) => ({
         id: c.id ? String(c.id) : `ch-${index}`,

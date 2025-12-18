@@ -17,7 +17,7 @@ export const Packaging: React.FC<PackagingProps> = ({ project }) => {
     const fetchAssets = async () => {
       setLoading(true);
       try {
-        const res = await generateMarketingAssets(project.topic, firstChapterContent);
+        const res = await generateMarketingAssets(project.topic, firstChapterContent, project.selectedModel);
         setAssets(res.assets || []);
       } catch (error) {
         console.error('Marketing assets error:', error);

@@ -27,7 +27,7 @@ export const Writing: React.FC<WritingProps> = ({ project, updateChapter, onNext
     setAnalyzing(true);
     setAiFeedback(null);
     try {
-      const feedback = await analyzeContent(content, type);
+      const feedback = await analyzeContent(content, type, project.selectedModel);
       setAiFeedback(feedback);
     } catch (error) {
       console.error('Analyze error:', error);
