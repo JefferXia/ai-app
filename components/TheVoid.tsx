@@ -51,9 +51,18 @@ const TheVoid = () => {
       <div className="w-full max-w-2xl text-center space-y-12">
         {!answer && !loading && (
           <div className="animate-fade-in-up">
-            <h1 className="text-sm tracking-[0.5em] text-gray-600 mb-12 uppercase">
-              Aletheia Protocol
-            </h1>
+            <div className="mb-16 flex flex-col items-center">
+              <div className="relative">
+                <span className="text-6xl md:text-7xl font-light tracking-widest text-transparent bg-clip-text bg-gradient-to-b from-gray-300 via-gray-500 to-gray-700" style={{ fontFamily: '"Noto Serif SC", "Songti SC", serif' }}>
+                  禅问
+                </span>
+                <div className="absolute -inset-4 bg-gradient-to-r from-transparent via-gray-800/20 to-transparent blur-xl -z-10" />
+              </div>
+              <div className="mt-4 w-16 h-px bg-gradient-to-r from-transparent via-gray-600 to-transparent" />
+              <p className="mt-3 text-[10px] tracking-[0.4em] text-gray-700 uppercase">
+                Zen Ask
+              </p>
+            </div>
             <form onSubmit={handleSubmit} className="relative group">
               <input
                 type="text"
