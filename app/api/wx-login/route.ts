@@ -58,7 +58,7 @@ export async function GET(request: NextRequest) {
         });
 
         // 重定向到首页
-        const redirectUrl = new URL('/inkalchemy', request.url);
+        const redirectUrl = new URL('/ideashredder', request.url);
         return NextResponse.redirect(redirectUrl);
       } catch (error) {
         console.error('NextAuth signIn error:', error);
@@ -127,7 +127,7 @@ export async function GET(request: NextRequest) {
           //   isFirstLogin: true,
           //   inviteCode: newCode,
           // }));
-          const redirectUrl = new URL('/inkalchemy', request.url);
+          const redirectUrl = new URL('/ideashredder', request.url);
 
           return NextResponse.redirect(redirectUrl);
         } catch (error) {
