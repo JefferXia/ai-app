@@ -39,30 +39,23 @@ const RECHARGE_PACKAGES = [
   {
     id: 'begin',
     name: '优惠体验包',
-    price: 4.9,
+    price: 9.9,
     points: 100,
-    description: '升级为付费会员查看完整报告',
-  },
-  {
-    id: 'basic',
-    name: '安心体验包',
-    price: 49,
-    points: 1000,
-    description: '适合商家体验，可检测10次',
+    description: '适合初次体验',
   },
   {
     id: 'pro',
-    name: '专业运营包',
+    name: '强大专业包',
     price: 99,
     points: 2000,
-    description: '适合全平台商家，可检测20次',
+    description: '适合经常使用的用户',
   },
   {
     id: 'enterprise',
-    name: '团队保障包',
+    name: '尊贵团队包',
     price: 299,
-    points: 10000,
-    description: '适合电商团队/代运营公司，可检测100次',
+    points: 8000,
+    description: '适合团队/公司日常使用',
   },
 ];
 
@@ -316,7 +309,7 @@ export function RechargeForm({
 
   // 显示套餐选择界面
   return (
-    <Card className="w-full max-w-6xl mx-auto bg-muted">
+    <Card className="w-full max-w-4xl mx-auto bg-muted">
       <CardHeader className="text-center">
         <CardTitle className="flex items-center justify-center gap-2">
           <Coins className="h-6 w-6 text-yellow-600" />
@@ -330,7 +323,7 @@ export function RechargeForm({
             <Label className="text-lg font-medium dark:text-zinc-200">
               选择充值套餐
             </Label>
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               {RECHARGE_PACKAGES.map((pkg) => (
                 <div
                   key={pkg.id}

@@ -51,7 +51,7 @@ export function Navbar({ user }: { user: User | undefined }) {
   // 营销页面导航栏（首页）
   // if (isHomePage) {
   return (
-    <nav className="fixed top-5 right-5 z-50">
+    <nav className="fixed top-2 right-2 z-50">
       <UserSection user={user} />
     </nav>
   );

@@ -62,11 +62,11 @@ export function UserNav({ user }: { user: User }) {
         >
           我的账户
         </DropdownMenuItem>
-        <DropdownMenuItem
+        {/* <DropdownMenuItem
           onSelect={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
         >
           切换主题色
-        </DropdownMenuItem>
+        </DropdownMenuItem> */}
         <DropdownMenuSeparator />
         <DropdownMenuItem asChild>
           <button

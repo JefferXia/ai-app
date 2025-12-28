@@ -4,7 +4,7 @@ import { RechargeForm } from '@/components/recharge/RechargeForm';
 
 export default function RechargePage() {
   return (
-    <div className="max-w-6xl px-4 py-8 pt-24 mx-auto sm:px-6 lg:px-8">
+    <div className="max-w-4xl px-4 py-8 pt-24 mx-auto sm:px-6 lg:px-8">
       <div className="sm:flex sm:flex-col sm:align-center">
         <h1 className="text-4xl font-extrabold sm:text-center sm:text-5xl">
           积分充值
