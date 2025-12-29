@@ -25,6 +25,7 @@ export interface UserProfile {
 
 export interface ArchiveItem extends AnalysisResult {
   createdAt: number;
+  isUnlocked?: boolean; // 是否已解锁资源包
 }
 
 export interface CanvasData {

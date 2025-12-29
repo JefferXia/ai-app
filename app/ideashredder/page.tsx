@@ -14,17 +14,7 @@ import {
   AppState,
   LOADING_MESSAGES,
 } from '@/components/ideashredder/types';
-import { saveToArchive } from '@/lib/ideashredderStorage';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogFooter,
-} from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
-import { Zap, Coins, CreditCard, X } from 'lucide-react';
+import { saveToArchive, getArchive } from '@/lib/ideashredderStorage';
 
 const IdeaShredderPage: React.FC = () => {
   const [state, setState] = useState<AppState>('idle');
@@ -33,11 +23,6 @@ const IdeaShredderPage: React.FC = () => {
   const [loadingMessageIndex, setLoadingMessageIndex] = useState(0);
   const [showArchive, setShowArchive] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
-  const [showRechargeDialog, setShowRechargeDialog] = useState(false);
-  const [rechargeInfo, setRechargeInfo] = useState<{
-    balance: number;
-    need: number;
-  }>({ balance: 0, need: 10000 });
   const [isLoading, setIsLoading] = useState(true);
 
   const router = useRouter();
@@ -82,13 +67,6 @@ const IdeaShredderPage: React.FC = () => {
       const data = await response.json();
 
       if (!response.ok) {
-        if (response.status === 402 && data.balance !== undefined) {
-          // 积分不足，显示充值对话框
-          setRechargeInfo({ balance: data.balance, need: data.need });
-          setShowRechargeDialog(true);
-          setState('idle');
-          return;
-        }
         throw new Error(data.error || '分析失败');
       }
 
@@ -116,15 +94,18 @@ const IdeaShredderPage: React.FC = () => {
     }
   };
 
-  const handleSelectArchive = (item: AnalysisResult) => {
+  const handleSelectArchive = async (item: AnalysisResult) => {
+    // 从存档中恢复解锁状态
+    const archive = await getArchive();
+    const archiveItem = archive.find((a) => a.id === item.id);
+    if (archiveItem?.isUnlocked) {
+      // 如果已解锁，需要在 result 中标记
+      (item as any).isUnlocked = true;
+    }
     setResult(item);
     setLang('zh'); // 默认使用中文
     setState('result');
     setShowArchive(false);
-  };
-
-  const handleRecharge = () => {
-    router.push('/recharge');
   };
 
   // 显示加载状态
@@ -225,75 +206,6 @@ const IdeaShredderPage: React.FC = () => {
       {showSettings && (
         <Settings lang={lang} onClose={() => setShowSettings(false)} />
       )}
-
-      {/* 积分不足充值对话框 */}
-      <Dialog open={showRechargeDialog} onOpenChange={setShowRechargeDialog}>
-        <DialogContent className="sm:max-w-md bg-slate-900 border-slate-700">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-white">
-              <Zap className="w-5 h-5 text-amber-400" />
-              {lang === 'zh' ? '积分不足' : 'Insufficient Points'}
-            </DialogTitle>
-            <DialogDescription className="text-slate-400">
-              {lang === 'zh'
-                ? '您的积分不足以完成此次分析，请充值后再试。'
-                : 'Your points are insufficient for this analysis. Please recharge and try again.'}
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="flex flex-col gap-4 py-4">
-            {/* 当前积分 */}
-            <div className="flex items-center justify-between p-3 bg-slate-800 rounded-lg">
-              <div className="flex items-center gap-2">
-                <Coins className="w-5 h-5 text-amber-400" />
-                <span className="text-slate-300">
-                  {lang === 'zh' ? '当前积分' : 'Current Points'}
-                </span>
-              </div>
-              <span className="text-xl font-bold text-white">
-                {rechargeInfo.balance.toLocaleString()}
-              </span>
-            </div>
-
-            {/* 需要积分 */}
-            <div className="flex items-center justify-between p-3 bg-slate-800 rounded-lg">
-              <div className="flex items-center gap-2">
-                <Zap className="w-5 h-5 text-indigo-400" />
-                <span className="text-slate-300">
-                  {lang === 'zh' ? '需要积分' : 'Points Needed'}
-                </span>
-              </div>
-              <span className="text-xl font-bold text-indigo-400">
-                {rechargeInfo.need.toLocaleString()}
-              </span>
-            </div>
-
-            {/* 差值 */}
-            <div className="text-center text-sm text-slate-500">
-              {lang === 'zh'
-                ? `还需 ${(rechargeInfo.need - rechargeInfo.balance).toLocaleString()} 积分`
-                : `Need ${(rechargeInfo.need - rechargeInfo.balance).toLocaleString()} more points`}
-            </div>
-          </div>
-
-          <DialogFooter className="flex flex-col sm:flex-row gap-2">
-            <Button
-              variant="outline"
-              onClick={() => setShowRechargeDialog(false)}
-              className="border-slate-600 text-slate-300 hover:bg-slate-800"
-            >
-              {lang === 'zh' ? '取消' : 'Cancel'}
-            </Button>
-            <Button
-              onClick={handleRecharge}
-              className="bg-indigo-500 hover:bg-indigo-600 text-white"
-            >
-              <CreditCard className="w-4 h-4 mr-2" />
-              {lang === 'zh' ? '立即充值' : 'Recharge Now'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </Layout>
   );
 };

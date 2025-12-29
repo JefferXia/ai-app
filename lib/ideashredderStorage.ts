@@ -47,6 +47,17 @@ export async function getArchiveItem(id: string): Promise<ArchiveItem | null> {
   return archive.find(item => item.id === id) || null;
 }
 
+// 更新存档项的解锁状态
+export async function updateArchiveUnlockStatus(id: string, isUnlocked: boolean): Promise<void> {
+  if (typeof window === 'undefined') return;
+  
+  const archive = await getArchive();
+  const updatedArchive = archive.map(item => 
+    item.id === id ? { ...item, isUnlocked } : item
+  );
+  localStorage.setItem(STORAGE_KEYS.ARCHIVE, JSON.stringify(updatedArchive));
+}
+
 // 保存用户资料
 export async function saveProfile(profile: UserProfile): Promise<void> {
   if (typeof window === 'undefined') return;

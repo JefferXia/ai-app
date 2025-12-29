@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { callLLM } from '@/lib/llm';
-import { addPoint, checkPoint } from '@/lib/db';
 import { getUserById } from '@/db/queries';
 import { auth } from '@/app/(auth)/auth';
 
@@ -20,30 +19,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: '请输入至少5个字符的想法描述' }, { status: 400 });
     }
 
-    // 检查用户积分
+    // 验证用户存在（不再扣费）
     const user = await getUserById(userId);
     if (!user) {
       return NextResponse.json({ error: '用户不存在' }, { status: 404 });
     }
-
-    const COST = 100; // 每次分析消耗100积分
-    const currentBalance = await checkPoint(userId);
-
-    if (currentBalance < COST) {
-      return NextResponse.json({
-        error: '积分不足',
-        balance: currentBalance,
-        need: COST
-      }, { status: 402 });
-    }
-
-    // 扣减积分
-    const transactionData = await addPoint(
-      user.id,
-      -1 * COST,
-      'CONSUME',
-      `消耗积分-想法粉碎机分析`
-    );
 
     const systemPrompt = lang === 'zh'
       ? `你是"想法粉碎机"，一个专门对创业想法进行残酷批判的AI分析工具。
@@ -134,7 +114,6 @@ Return JSON format:
     return NextResponse.json({
       success: true,
       data: analysisResult,
-      balance: transactionData?.[0]?.balance,
     });
   } catch (error: any) {
     console.error('Idea analysis failed:', error);

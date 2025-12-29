@@ -311,18 +311,15 @@ export function RechargeForm({
   return (
     <Card className="w-full max-w-4xl mx-auto bg-muted">
       <CardHeader className="text-center">
-        <CardTitle className="flex items-center justify-center gap-2">
+        {/* <CardTitle className="flex items-center justify-center gap-2">
           <Coins className="h-6 w-6 text-yellow-600" />
           立即购买优惠套餐
-        </CardTitle>
+        </CardTitle> */}
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* 充值套餐选择 */}
           <div className="space-y-4">
-            <Label className="text-lg font-medium dark:text-zinc-200">
-              选择充值套餐
-            </Label>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               {RECHARGE_PACKAGES.map((pkg) => (
                 <div

@@ -43,8 +43,13 @@ import {
   UserProfile,
 } from './types';
 import { Gauge } from './Gauge';
-import { getProfile } from '@/lib/ideashredderStorage';
+import {
+  getProfile,
+  updateArchiveUnlockStatus,
+  getArchive,
+} from '@/lib/ideashredderStorage';
 import { toPng } from 'html-to-image';
+import { useRouter } from 'next/navigation';
 
 interface ResultDashboardProps {
   result: AnalysisResult;
@@ -268,9 +273,13 @@ export function ResultDashboard({
   onShowSettings,
 }: ResultDashboardProps) {
   const t = translations[lang];
+  const router = useRouter();
   const [isUnlocked, setIsUnlocked] = useState(false);
-  const [showPayment, setShowPayment] = useState(false);
-  const [isProcessingPayment, setIsProcessingPayment] = useState(false);
+  const [isUnlocking, setIsUnlocking] = useState(false);
+  const [unlockError, setUnlockError] = useState<{
+    balance: number;
+    need: number;
+  } | null>(null);
   const [activeDoc, setActiveDoc] = useState<DocType | null>(null);
   const [isDownloading, setIsDownloading] = useState(false);
   const [markdownDocs, setMarkdownDocs] = useState<Record<string, string>>({});
@@ -292,19 +301,51 @@ export function ResultDashboard({
       setUserProfile(profile);
     };
     loadProfile();
-  }, []);
 
-  const handleUnlockRequest = () => {
-    setShowPayment(true);
-  };
+    // 从存档中恢复解锁状态
+    const checkUnlockStatus = async () => {
+      const archive = await getArchive();
+      const item = archive.find((item) => item.id === result.id);
+      const shouldUnlock = item?.isUnlocked || (result as any).isUnlocked;
+      // 明确设置解锁状态，避免状态残留
+      setIsUnlocked(!!shouldUnlock);
+    };
+    checkUnlockStatus();
+  }, [result.id, result]);
 
-  const handlePay = () => {
-    setIsProcessingPayment(true);
-    setTimeout(() => {
-      setIsProcessingPayment(false);
-      setShowPayment(false);
+  const handleUnlockRequest = async () => {
+    setIsUnlocking(true);
+    setUnlockError(null);
+
+    try {
+      const response = await fetch('/api/idea-shredder/unlock', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ analysisId: result.id }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        if (response.status === 402 && data.balance !== undefined) {
+          // 积分不足
+          setUnlockError({ balance: data.balance, need: data.need });
+          setIsUnlocking(false);
+          return;
+        }
+        throw new Error(data.error || '解锁失败');
+      }
+
+      // 解锁成功
       setIsUnlocked(true);
-    }, 1500);
+      // 更新存档中的解锁状态
+      await updateArchiveUnlockStatus(result.id, true);
+    } catch (error: any) {
+      console.error('Unlock failed:', error);
+      alert(error.message || t.failed);
+    } finally {
+      setIsUnlocking(false);
+    }
   };
 
   const handleGenerate = async (type: DocType) => {
@@ -964,12 +1005,22 @@ export function ResultDashboard({
                   </div>
                   <button
                     onClick={handleUnlockRequest}
-                    className="group bg-indigo-600 hover:bg-indigo-500 text-white font-black px-16 py-6 rounded-[2.5rem] transition-all flex items-center gap-5 shadow-[0_25px_60px_-10px_rgba(79,70,229,0.5)] mx-auto hover:scale-105 active:scale-95 text-lg"
+                    disabled={isUnlocking}
+                    className="group bg-indigo-600 hover:bg-indigo-500 text-white font-black px-16 py-6 rounded-[2.5rem] transition-all flex items-center gap-5 shadow-[0_25px_60px_-10px_rgba(79,70,229,0.5)] mx-auto hover:scale-105 active:scale-95 text-lg disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    <Unlock className="w-7 h-7" /> {t.unlock}{' '}
-                    <span className="bg-indigo-900/40 px-4 py-1.5 rounded-2xl text-base ml-3 font-mono">
-                      {t.payPrice}
-                    </span>
+                    {isUnlocking ? (
+                      <>
+                        <Loader2 className="w-7 h-7 animate-spin" />{' '}
+                        {lang === 'zh' ? '解锁中...' : 'Unlocking...'}
+                      </>
+                    ) : (
+                      <>
+                        <Unlock className="w-7 h-7" /> {t.unlock}{' '}
+                        <span className="bg-indigo-900/40 px-4 py-1.5 rounded-2xl text-base ml-3 font-mono">
+                          {t.payPrice}
+                        </span>
+                      </>
+                    )}
                   </button>
                 </div>
               </div>
@@ -1019,47 +1070,59 @@ export function ResultDashboard({
         )}
       </div>
 
-      {showPayment && (
+      {unlockError && (
         <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/95 backdrop-blur-xl animate-in fade-in duration-300">
           <div className="bg-slate-900 border border-slate-800 rounded-[3rem] w-full max-w-md p-12 relative shadow-[0_50px_150px_rgba(0,0,0,0.8)] text-center space-y-10 border-t-white/5">
             <button
-              onClick={() => setShowPayment(false)}
+              onClick={() => setUnlockError(null)}
               className="absolute top-8 right-8 text-slate-500 hover:text-white transition-colors"
             >
               <X className="w-8 h-8" />
             </button>
             <h4 className="text-3xl font-black text-white tracking-tight">
-              {t.paymentTitle}
+              {lang === 'zh' ? '积分不足' : 'Insufficient Points'}
             </h4>
-            <div className="bg-white p-7 rounded-3xl inline-block mx-auto shadow-2xl ring-[12px] ring-indigo-500/10">
-              <QrCode className="w-52 h-52 text-black" />
-            </div>
-            <div className="flex flex-col gap-2">
-              <div className="flex items-center justify-center gap-3 text-slate-300 font-bold text-lg">
-                <CreditCard className="w-6 h-6 text-indigo-400" />
-                <span>
-                  {lang === 'zh'
-                    ? `微信/支付宝 扫描支付 ${t.payPrice}`
-                    : `Scan to pay ${t.payPrice}`}
+            <div className="space-y-4">
+              <div className="flex items-center justify-between p-4 bg-slate-800 rounded-xl">
+                <span className="text-slate-300">
+                  {lang === 'zh' ? '当前积分' : 'Current Points'}
+                </span>
+                <span className="text-xl font-bold text-white">
+                  {unlockError.balance.toLocaleString()}
                 </span>
               </div>
-              <p className="text-slate-500 text-xs font-medium">
+              <div className="flex items-center justify-between p-4 bg-slate-800 rounded-xl">
+                <span className="text-slate-300">
+                  {lang === 'zh' ? '需要积分' : 'Points Needed'}
+                </span>
+                <span className="text-xl font-bold text-indigo-400">
+                  {unlockError.need.toLocaleString()}
+                </span>
+              </div>
+              <p className="text-slate-500 text-sm">
                 {lang === 'zh'
-                  ? '支付完成后系统将自动为您呈现全部战略方案文档'
-                  : 'After payment, all strategic documents will be automatically displayed'}
+                  ? `还需 ${(unlockError.need - unlockError.balance).toLocaleString()} 积分`
+                  : `Need ${(unlockError.need - unlockError.balance).toLocaleString()} more points`}
               </p>
             </div>
-            <button
-              onClick={handlePay}
-              disabled={isProcessingPayment}
-              className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-black py-6 rounded-[1.8rem] transition-all flex items-center justify-center gap-3 shadow-2xl active:scale-95 disabled:opacity-50 text-xl"
-            >
-              {isProcessingPayment ? (
-                <Loader2 className="animate-spin w-7 h-7" />
-              ) : (
-                t.payConfirm
-              )}
-            </button>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setUnlockError(null)}
+                className="flex-1 px-6 py-3 rounded-xl bg-slate-800 text-slate-300 hover:text-white transition-colors"
+              >
+                {lang === 'zh' ? '取消' : 'Cancel'}
+              </button>
+              <button
+                onClick={() => {
+                  setUnlockError(null);
+                  window.open('/recharge', '_blank');
+                }}
+                className="flex-1 px-6 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold transition-colors flex items-center justify-center gap-2"
+              >
+                <CreditCard className="w-5 h-5" />
+                {lang === 'zh' ? '立即充值' : 'Recharge Now'}
+              </button>
+            </div>
           </div>
         </div>
       )}
