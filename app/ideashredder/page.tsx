@@ -9,7 +9,11 @@ import { IdeaInput } from '@/components/ideashredder/IdeaInput';
 import { ResultDashboard } from '@/components/ideashredder/ResultDashboard';
 import { Archive } from '@/components/ideashredder/Archive';
 import { Settings } from '@/components/ideashredder/Settings';
-import { AnalysisResult, AppState, LOADING_MESSAGES } from '@/components/ideashredder/types';
+import {
+  AnalysisResult,
+  AppState,
+  LOADING_MESSAGES,
+} from '@/components/ideashredder/types';
 import { saveToArchive } from '@/lib/ideashredderStorage';
 import {
   Dialog,
@@ -30,7 +34,10 @@ const IdeaShredderPage: React.FC = () => {
   const [showArchive, setShowArchive] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showRechargeDialog, setShowRechargeDialog] = useState(false);
-  const [rechargeInfo, setRechargeInfo] = useState<{ balance: number; need: number }>({ balance: 0, need: 10000 });
+  const [rechargeInfo, setRechargeInfo] = useState<{
+    balance: number;
+    need: number;
+  }>({ balance: 0, need: 10000 });
   const [isLoading, setIsLoading] = useState(true);
 
   const router = useRouter();
@@ -186,6 +193,8 @@ const IdeaShredderPage: React.FC = () => {
             lang={lang}
             onReset={handleReset}
             onCopy={handleCopy}
+            onShowArchive={() => setShowArchive(true)}
+            onShowSettings={() => setShowSettings(true)}
           />
         )}
       </div>

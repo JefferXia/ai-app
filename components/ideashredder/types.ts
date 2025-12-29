@@ -27,6 +27,18 @@ export interface ArchiveItem extends AnalysisResult {
   createdAt: number;
 }
 
+export interface CanvasData {
+  key_partners: string;
+  key_activities: string;
+  key_resources: string;
+  value_propositions: string;
+  customer_relationships: string;
+  channels: string;
+  customer_segments: string;
+  cost_structure: string;
+  revenue_streams: string;
+}
+
 export type AppState = 'idle' | 'analyzing' | 'result';
 
 export interface LoadingMessage {
