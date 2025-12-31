@@ -491,13 +491,13 @@ export function ResultDashboard({
       content: result.pivot_pitch,
       color: 'from-blue-500/20 to-indigo-500/20 border-blue-500/30',
     },
-    {
-      key: 'social',
-      title: lang === 'zh' ? '🛡️ 社会证明' : '🛡️ Social Proof',
-      icon: Shield,
-      content: result.social_proof,
-      color: 'from-emerald-500/20 to-teal-500/20 border-emerald-500/30',
-    },
+    // {
+    //   key: 'social',
+    //   title: lang === 'zh' ? '🛡️ 社会证明' : '🛡️ Social Proof',
+    //   icon: Shield,
+    //   content: result.social_proof,
+    //   color: 'from-emerald-500/20 to-teal-500/20 border-emerald-500/30',
+    // },
   ];
 
   const PreviewItem = ({
@@ -600,7 +600,7 @@ export function ResultDashboard({
 
               {/* 内容 */}
               {isExpanded && (
-                <div className="p-4 pt-0">
+                <div className="p-4">
                   <div className="relative group">
                     {section.key === 'pivot' ? (
                       <div className="text-slate-300 leading-relaxed">
@@ -716,51 +716,6 @@ export function ResultDashboard({
               <div className="bg-slate-800/40 p-8 rounded-3xl border border-white/5 text-slate-200 leading-relaxed text-lg font-medium shadow-inner">
                 {formatPivotPitch(result.pivot_pitch)}
               </div>
-            </section>
-
-            <section className="grid md:grid-cols-2 gap-8">
-              <div>
-                <h4 className="text-slate-500 text-[10px] font-black uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
-                  <Fingerprint className="w-3 h-3" /> {t.productNames}
-                </h4>
-                <ul className="space-y-3">
-                  {result.starter_pack.product_names.map((n, i) => (
-                    <li
-                      key={i}
-                      className="flex items-center gap-2 text-emerald-400 font-mono font-bold text-lg"
-                    >
-                      <CheckCircle2 className="w-5 h-5" /> {n}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-              <div>
-                <h4 className="text-slate-500 text-[10px] font-black uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
-                  <Quote className="w-3 h-3" /> {t.slogan}
-                </h4>
-                <div className="text-2xl font-black italic text-white leading-snug tracking-tight">
-                  &quot;{result.starter_pack.slogan}&quot;
-                </div>
-              </div>
-            </section>
-
-            <section>
-              <h4 className="text-red-500/80 text-[10px] font-black uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
-                <AlertTriangle className="w-3 h-3" /> {t.mvpCut}
-              </h4>
-              <ul className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                {result.starter_pack.mvp_features.map((f, i) => (
-                  <li
-                    key={i}
-                    className="flex items-center gap-3 bg-red-950/10 border border-red-900/20 p-4 rounded-xl text-slate-400 line-through decoration-red-600/50"
-                  >
-                    <span className="text-red-500 font-bold opacity-60">
-                      #{i + 1}
-                    </span>{' '}
-                    {f}
-                  </li>
-                ))}
-              </ul>
             </section>
 
             <div className="pt-10 border-t border-slate-800 space-y-8">

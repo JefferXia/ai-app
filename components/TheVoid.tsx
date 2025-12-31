@@ -48,21 +48,21 @@ const TheVoid = () => {
     <>
       {/* 注入动画样式 */}
       <style dangerouslySetInnerHTML={{ __html: bookStyles }} />
-      <div className="min-h-screen bg-black text-gray-200 flex flex-col items-center justify-center p-4 font-serif">
-        <div className="w-full max-w-2xl text-center space-y-12">
+      <div className="min-h-screen bg-black text-gray-200 flex flex-col items-center justify-center p-4 md:p-6 font-serif">
+        <div className="w-full max-w-2xl text-center space-y-6 md:space-y-12">
           {!answer && !loading && (
             <div className="animate-fade-in-up">
-              <div className="mb-16 flex flex-col items-center">
+              <div className="mb-8 md:mb-16 flex flex-col items-center">
                 <div className="relative">
                   <span
-                    className="text-6xl md:text-7xl font-light tracking-widest text-transparent bg-clip-text bg-gradient-to-b from-gray-300 via-gray-500 to-gray-700"
+                    className="text-4xl sm:text-6xl md:text-7xl font-light tracking-widest text-transparent bg-clip-text bg-gradient-to-b from-gray-300 via-gray-500 to-gray-700"
                     style={{
                       fontFamily: '"Noto Serif SC", "Songti SC", serif',
                     }}
                   >
                     禅问
                   </span>
-                  <div className="absolute -inset-4 bg-gradient-to-r from-transparent via-gray-800/20 to-transparent blur-xl -z-10" />
+                  <div className="absolute -inset-2 md:-inset-4 bg-gradient-to-r from-transparent via-gray-800/20 to-transparent blur-xl -z-10" />
                 </div>
                 <div className="mt-4 w-16 h-px bg-gradient-to-r from-transparent via-gray-600 to-transparent" />
                 <p className="mt-3 text-[10px] tracking-[0.4em] text-gray-700 uppercase">
@@ -75,83 +75,87 @@ const TheVoid = () => {
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
                   placeholder="在此输入你的困惑..."
-                  className="w-full bg-transparent border-b border-gray-800 text-2xl md:text-3xl py-4 text-center focus:outline-none focus:border-gray-500 transition-all duration-500 placeholder-gray-800"
+                  className="w-full bg-transparent border-b border-gray-800 text-lg sm:text-xl md:text-3xl py-3 md:py-4 text-center focus:outline-none focus:border-gray-500 transition-all duration-500 placeholder-gray-800"
                   autoFocus
                 />
                 <button
                   type="submit"
-                  className="absolute right-0 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity duration-300 text-gray-500 hover:text-white"
+                  className="absolute right-0 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 md:opacity-100 transition-opacity duration-300 text-gray-500 hover:text-white"
                 >
-                  <ArrowRight size={24} />
+                  <ArrowRight size={20} className="md:w-6 md:h-6" />
                 </button>
               </form>
             </div>
           )}
           {loading && (
             <div className="flex flex-col items-center animate-pulse">
-              <Sparkles className="w-8 h-8 text-gray-600 animate-spin-slow" />
-              <p className="mt-4 text-sm tracking-widest text-gray-700">
+              <Sparkles className="w-6 h-6 md:w-8 md:h-8 text-gray-600 animate-spin-slow" />
+              <p className="mt-4 text-xs md:text-sm tracking-widest text-gray-700">
                 正在查阅典籍...
               </p>
             </div>
           )}
           {answer && (
             <div className="animate-fade-in-slow">
-              <div className="pt-4 mb-8 relative inline-block text-left">
+              <div className="pt-2 md:pt-4 mb-6 md:mb-8 relative inline-block text-left max-w-full">
                 <span
-                  className="pointer-events-none select-none absolute top-0 -left-4 text-5xl md:text-6xl text-gray-300 leading-none font-semibold"
+                  className="pointer-events-none select-none absolute top-0 -left-2 md:-left-4 text-3xl sm:text-4xl md:text-6xl text-gray-300 leading-none font-semibold"
                   style={{ fontFamily: '"Noto Serif SC", "Songti SC", serif' }}
                 >
-                  “
+                  &ldquo;
                 </span>
-                <blockquote className="relative text-2xl md:text-4xl leading-relaxed font-light text-white drop-shadow-lg px-2">
+                <blockquote className="relative text-lg sm:text-xl md:text-4xl leading-relaxed font-light text-white drop-shadow-lg px-4 md:px-2">
                   {answer}
                 </blockquote>
                 <span
-                  className="pointer-events-none select-none absolute -bottom-6 -right-4 text-5xl md:text-6xl text-gray-300 leading-none font-semibold"
+                  className="pointer-events-none select-none absolute -bottom-4 md:-bottom-6 -right-2 md:-right-4 text-3xl sm:text-4xl md:text-6xl text-gray-300 leading-none font-semibold"
                   style={{ fontFamily: '"Noto Serif SC", "Songti SC", serif' }}
                 >
-                  ”
+                  &rdquo;
                 </span>
               </div>
 
               {bookCard && (
-                <div className="mt-12 animate-fade-in-slower relative">
-                  <div className="relative bg-white rounded-lg shadow-2xl border border-gray-300 open-book flex">
+                <div className="mt-8 md:mt-12 animate-fade-in-slower relative">
+                  <div className="relative bg-white rounded-lg shadow-2xl border border-gray-300 open-book flex flex-col md:flex-row">
                     {/* 左页内容 */}
-                    <div className="w-1/2 p-12 relative z-10">
-                      <div className="space-y-8">
+                    <div className="w-full md:w-1/2 p-6 sm:p-8 md:p-12 relative z-10">
+                      <div className="space-y-4 md:space-y-8">
                         {/* 标题 */}
                         <div>
-                          <h3 className="text-3xl font-bold text-amber-900 mb-4 leading-tight">
+                          <h3 className="text-xl sm:text-2xl md:text-3xl font-bold text-amber-900 mb-3 md:mb-4 leading-tight">
                             《{bookCard.title}》
                           </h3>
                           <div className="h-px bg-gradient-to-r from-amber-400 via-amber-500 to-amber-400" />
                         </div>
 
                         {/* 书籍信息 */}
-                        <div className="space-y-4">
+                        <div className="space-y-3 md:space-y-4">
                           <div className="text-amber-800">
-                            <span className="text-amber-600 font-semibold text-sm tracking-wide">
+                            <span className="text-amber-600 font-semibold text-xs md:text-sm tracking-wide">
                               作者
                             </span>
-                            <p className="text-lg mt-1">{bookCard.author}</p>
+                            <p className="text-base md:text-lg mt-1">
+                              {bookCard.author}
+                            </p>
                           </div>
                           <div className="text-amber-800">
-                            <span className="text-amber-600 font-semibold text-sm tracking-wide">
+                            <span className="text-amber-600 font-semibold text-xs md:text-sm tracking-wide">
                               章节
                             </span>
-                            <p className="text-lg mt-1">{bookCard.chapter}</p>
+                            <p className="text-base md:text-lg mt-1">
+                              {bookCard.chapter}
+                            </p>
                           </div>
                         </div>
 
                         {/* 指路明灯 */}
-                        <div className="mt-12">
-                          <div className="bg-amber-50 border-l-4 border-amber-500 pl-6 py-5 rounded-r-lg">
-                            <p className="text-xs tracking-[0.3em] text-amber-600 mb-3 font-medium">
+                        <div className="mt-6 md:mt-12">
+                          <div className="bg-amber-50 border-l-4 border-amber-500 pl-4 md:pl-6 py-4 md:py-5 rounded-r-lg">
+                            <p className="text-xs tracking-[0.3em] text-amber-600 mb-2 md:mb-3 font-medium">
                               指路明灯
                             </p>
-                            <p className="text-gray-700 text-sm text-left leading-relaxed">
+                            <p className="text-gray-700 text-xs md:text-sm text-left leading-relaxed">
                               {bookCard.recommendation_reason}
                             </p>
                           </div>
@@ -160,9 +164,9 @@ const TheVoid = () => {
                     </div>
 
                     {/* 右页内容 */}
-                    <div className="w-1/2 p-12 border-l border-gray-200 relative z-10">
+                    <div className="w-full md:w-1/2 p-6 sm:p-8 md:p-12 md:border-l border-gray-200 border-t md:border-t-0 relative z-10">
                       <div className="relative h-full flex items-start">
-                        <p className="text-gray-800 text-lg leading-loose font-serif first-letter:text-7xl first-letter:font-bold first-letter:float-left first-letter:mr-3 first-letter:mt-1 first-letter:text-amber-700">
+                        <p className="text-gray-800 text-sm sm:text-base md:text-lg leading-loose font-serif first-letter:text-4xl sm:first-letter:text-5xl md:first-letter:text-7xl first-letter:font-bold first-letter:float-left first-letter:mr-2 md:first-letter:mr-3 first-letter:mt-1 first-letter:text-amber-700">
                           {bookCard.original_quote}
                         </p>
                       </div>
@@ -171,18 +175,18 @@ const TheVoid = () => {
                 </div>
               )}
 
-              <div className="mt-16 flex flex-col items-center">
+              <div className="mt-8 md:mt-16 flex flex-col items-center">
                 <button
                   onClick={() => {
                     setAnswer(null);
                     setUiAction(null);
                     setBookCard(null);
                   }}
-                  className="group relative overflow-hidden px-8 py-4 text-sm font-medium tracking-wider text-white bg-gradient-to-r from-gray-800 to-gray-700 hover:from-gray-700 hover:to-gray-600 rounded-lg border border-gray-600 hover:border-gray-500 transition-all duration-300 shadow-lg hover:shadow-xl"
+                  className="group relative overflow-hidden px-6 md:px-8 py-3 md:py-4 text-xs md:text-sm font-medium tracking-wider text-white bg-gradient-to-r from-gray-800 to-gray-700 hover:from-gray-700 hover:to-gray-600 rounded-lg border border-gray-600 hover:border-gray-500 transition-all duration-300 shadow-lg hover:shadow-xl"
                 >
                   <span className="relative z-10 flex items-center gap-2">
                     <svg
-                      className="w-4 h-4 transform group-hover:-rotate-12 transition-transform duration-300"
+                      className="w-3 h-3 md:w-4 md:h-4 transform group-hover:-rotate-12 transition-transform duration-300"
                       fill="none"
                       stroke="currentColor"
                       viewBox="0 0 24 24"
@@ -247,6 +251,13 @@ const bookStyles = `
       transparent 100%
     );
     z-index: 10;
+    display: none;
+  }
+
+  @media (min-width: 768px) {
+    .open-book:after {
+      display: block;
+    }
   }
 
   @keyframes fadeInUp {

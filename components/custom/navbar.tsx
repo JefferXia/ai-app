@@ -30,7 +30,12 @@ export function Navbar({ user }: { user: User | undefined }) {
   const pathname = usePathname();
 
   // 定义不需要显示导航栏的页面路径
-  const hiddenPaths = ['/login', '/register'];
+  const hiddenPaths = [
+    '/login',
+    '/register',
+    '/profile/account',
+    '/profile/invite',
+  ];
   const shouldHideNavbar = hiddenPaths.includes(pathname);
 
   if (shouldHideNavbar) return null;

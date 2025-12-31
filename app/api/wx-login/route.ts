@@ -75,10 +75,10 @@ export async function GET(request: NextRequest) {
             wechatNickname: userInfo.nickname,
             wechatAvatar: userInfo.headimgurl,
             isFirstLogin: true, // 新用户是第一次登录
-            balance: state ? 200 : 100, // 新用户赠送200积分（通过邀请码注册）
+            balance: state ? 100 : 50, // 新用户赠送100积分（通过邀请码注册）
             point: {
               create: {
-                amount: state ? 200 : 100,
+                amount: state ? 100 : 50,
                 type: 'SYSTEM',
                 reason: '新用户注册赠送积分'
               }
