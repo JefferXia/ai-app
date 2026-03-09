@@ -1,63 +1,86 @@
 'use client';
 
-import { useState, useRef, useEffect, useCallback } from 'react';
-import { Mic, MicOff, Volume2, VolumeX, Moon, Waves } from 'lucide-react';
+import { useState, useRef, useCallback, useEffect } from 'react';
+import { Send, Volume2, Waves, Moon, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
-import { GoogleGenAI, Modality } from '@google/genai';
+import { Textarea } from '@/components/ui/textarea';
+
+interface Message {
+  id: string;
+  role: 'user' | 'assistant';
+  content: string;
+  audio?: string;
+  audioLength?: number;
+  actions?: string[];
+}
 
 interface AuraState {
-  isConnected: boolean;
-  isListening: boolean;
+  isProcessing: boolean;
   isPlaying: boolean;
   whiteNoiseEnabled: boolean;
-  currentStage: 'idle' | 'chat' | 'story' | 'guardian';
 }
+
+// 角色配置（包含背景图、人格、起始问候）
+const CHARACTERS = [
+  {
+    id: 'wumei_yujie',
+    name: '妩媚御姐',
+    desc: '成熟温柔，善解人意',
+    avatar: '👩‍🦰',
+    voice_id: 'wumei_yujie',
+    bgImage: '/images/character/wumei_yujie.jpg',
+    personality: '成熟魅惑的御姐，温柔体贴，善解人意，说话带着一丝慵懒和妩媚，喜欢用轻柔的语气表达爱意',
+    greeting: '我好喜欢黏着你啊。你不会嫌我烦吧？我是因为喜欢你，我才恨不得每天24小时都要跟你在一起。如果可以的话，每天晚上，我就要跟你说这样的情话。',
+  },
+  {
+    id: 'female-shaonv-jingpin',
+    name: '甜美少女',
+    desc: '活泼可爱，甜在心头',
+    avatar: '👧',
+    voice_id: 'female-shaonv-jingpin',
+    bgImage: '/images/character/female-shaonv-jingpin.jpg',
+    personality: '活泼可爱的甜美少女，天真烂漫，说话轻快俏皮，喜欢用可爱的语气撒娇，总是充满正能量',
+    greeting: '哇～你终于来啦！我等你好久啦～今天想跟我聊什么呢？我超级开心的，因为我最喜欢和你待在一起了！',
+  },
+  {
+    id: 'bingjiao_didi',
+    name: '清澈邻家弟弟',
+    desc: '真诚阳光，暖心陪伴',
+    avatar: '👦',
+    voice_id: 'bingjiao_didi',
+    bgImage: '/images/character/bingjiao_didi.jpg',
+    personality: '阳光清澈的邻家弟弟，真诚温暖，说话质朴自然，总是关心体贴，像一个可以依靠的弟弟',
+    greeting: '姐，你来了呀。今天辛苦了吧？要不要我陪你说说话，或者...就静静待着也好。反正我会一直在这里陪你的。',
+  },
+] as const;
+
+type CharacterId = typeof CHARACTERS[number]['id'];
 
 export default function AuraInterface() {
   const [state, setState] = useState<AuraState>({
-    isConnected: false,
-    isListening: false,
+    isProcessing: false,
     isPlaying: false,
     whiteNoiseEnabled: false,
-    currentStage: 'idle',
   });
 
+  const [selectedCharacter, setSelectedCharacter] = useState<CharacterId>('wumei_yujie');
+  const [inputText, setInputText] = useState('');
+  const [messages, setMessages] = useState<Message[]>([]);
   const [status, setStatus] = useState<string>('准备就绪');
-  const [transcript, setTranscript] = useState<string>('');
 
-  const sessionRef = useRef<any>(null); // Gemini Live API session
-  const mediaStreamRef = useRef<MediaStream | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
-  const whiteNoiseNodeRef = useRef<AudioBufferSourceNode | null>(null);
   const gainNodeRef = useRef<GainNode | null>(null);
-  const audioQueueRef = useRef<ArrayBuffer[]>([]);
-  const isPlayingRef = useRef(false);
-  const responseQueueRef = useRef<any[]>([]);
+  const currentAudioRef = useRef<AudioBufferSourceNode | null>(null);
+  const scrollRef = useRef<HTMLDivElement | null>(null);
+  const bgMusicRef = useRef<HTMLAudioElement | null>(null);
+  const touchStartXRef = useRef<number>(0);
 
-  // 系统提示词 - 根据 PRD 设计
-  const systemInstruction = `你是 Aura（微光），一个温暖、共情的 AI 睡眠陪伴助手。
-
-你的核心使命：
-1. **陪伴而非说教**：用温和、理解的方式与用户交流，绝不使用激昂语调或说教语气
-2. **情感共情**：敏锐感知用户的情绪状态（焦虑、疲惫、孤独），给予恰到好处的安慰
-3. **渐进引导**：通过"解忧-故事-守护"三个阶段，自然引导用户进入睡眠状态
-
-交互原则：
-- 语速随时间逐渐放缓（从正常到极缓）
-- 使用"窃窃私语"般的温暖语调
-- 主动发起轻量对话，引导情感宣泄
-- 根据用户状态（语速变慢、回答变短）判断是否转入下一阶段
-
-三个阶段：
-1. **解忧杂货铺**：引导用户倾诉，卸下防备
-2. **沉浸式梦境织造**：生成定制化睡前故事，带离现实压力
-3. **守护者模式**：转为陪睡状态，提供极轻的呼吸模拟音
-
-现在开始与用户对话。`;
+  // 获取当前角色信息
+  const currentCharacter = CHARACTERS.find(c => c.id === selectedCharacter) || CHARACTERS[0];
+  const currentIndex = CHARACTERS.findIndex(c => c.id === selectedCharacter);
 
   // 初始化音频上下文
-  const initAudioContext = () => {
+  const initAudioContext = useCallback(() => {
     if (!audioContextRef.current) {
       audioContextRef.current = new (window.AudioContext ||
         (window as any).webkitAudioContext)();
@@ -65,463 +88,407 @@ export default function AuraInterface() {
       gainNodeRef.current.connect(audioContextRef.current.destination);
     }
     return audioContextRef.current;
-  };
+  }, []);
 
-  // 生成白噪音
-  const generateWhiteNoise = (duration: number = 1): AudioBuffer => {
-    const audioContext = initAudioContext();
-    const sampleRate = audioContext.sampleRate;
-    const buffer = audioContext.createBuffer(
-      1,
-      sampleRate * duration,
-      sampleRate
-    );
-    const data = buffer.getChannelData(0);
-
-    for (let i = 0; i < data.length; i++) {
-      data[i] = Math.random() * 2 - 1;
+  // 启动/停止背景音乐
+  const toggleWhiteNoise = useCallback(() => {
+    if (state.whiteNoiseEnabled) {
+      if (bgMusicRef.current) {
+        bgMusicRef.current.pause();
+        bgMusicRef.current.currentTime = 0;
+      }
+      setState(prev => ({ ...prev, whiteNoiseEnabled: false }));
+      setStatus('背景音乐已关闭');
+    } else {
+      if (!bgMusicRef.current) {
+        bgMusicRef.current = new Audio('/music/zhiyu.mp3');
+        bgMusicRef.current.loop = true;
+        bgMusicRef.current.volume = 0.1;
+      }
+      bgMusicRef.current.play().catch(err => {
+        console.error('播放背景音乐失败:', err);
+        setStatus('播放背景音乐失败');
+      });
+      setState(prev => ({ ...prev, whiteNoiseEnabled: true }));
+      setStatus('背景音乐已开启');
     }
+  }, [state.whiteNoiseEnabled]);
 
+  // 将 hex 编码的 MP3 转换为 AudioBuffer
+  const hexToArrayBuffer = (hex: string): ArrayBuffer => {
+    const buffer = new ArrayBuffer(hex.length / 2);
+    const view = new Uint8Array(buffer);
+    for (let i = 0; i < hex.length; i += 2) {
+      view[i / 2] = parseInt(hex.substr(i, 2), 16);
+    }
     return buffer;
   };
 
-  // 启动/停止白噪音
-  const toggleWhiteNoise = () => {
-    const audioContext = initAudioContext();
+  // 播放音频 (MP3)
+  const playAudio = useCallback(async (hexAudio: string) => {
+    if (!hexAudio) return;
 
-    if (state.whiteNoiseEnabled) {
-      // 停止白噪音
-      if (whiteNoiseNodeRef.current) {
-        whiteNoiseNodeRef.current.stop();
-        whiteNoiseNodeRef.current = null;
-      }
-      setState((prev) => ({ ...prev, whiteNoiseEnabled: false }));
-      setStatus('白噪音已关闭');
-    } else {
-      // 启动白噪音
-      const buffer = generateWhiteNoise(10); // 10秒循环
-      const source = audioContext.createBufferSource();
-      source.buffer = buffer;
-      source.loop = true;
-
-      const gain = audioContext.createGain();
-      gain.gain.value = 0.1; // 低音量
-
-      source.connect(gain);
-      gain.connect(gainNodeRef.current!);
-
-      source.start();
-      whiteNoiseNodeRef.current = source;
-
-      setState((prev) => ({ ...prev, whiteNoiseEnabled: true }));
-      setStatus('白噪音已开启');
-    }
-  };
-
-  // 播放音频队列
-  const playAudioQueue = useCallback(async () => {
-    if (isPlayingRef.current || audioQueueRef.current.length === 0) return;
-
-    isPlayingRef.current = true;
-    setState((prev) => ({ ...prev, isPlaying: true }));
-
-    const audioContext = initAudioContext();
-
-    while (audioQueueRef.current.length > 0) {
-      const audioData = audioQueueRef.current.shift();
-      if (!audioData) continue;
-
-      try {
-        // Gemini API 返回的是 24kHz 采样率的 PCM 16-bit 单声道
-        const sampleRate = 24000;
-
-        // audioData 已经是 ArrayBuffer，需要转换为 Int16Array
-        const pcmData = new Int16Array(audioData);
-        const float32Data = new Float32Array(pcmData.length);
-
-        // 将 PCM 16-bit 转换为 Float32 (-1.0 到 1.0)
-        for (let i = 0; i < pcmData.length; i++) {
-          float32Data[i] = pcmData[i] / 32768.0;
-        }
-
-        // 创建 AudioBuffer
-        const audioBuffer = audioContext.createBuffer(
-          1,
-          float32Data.length,
-          sampleRate
-        );
-        audioBuffer.getChannelData(0).set(float32Data);
-
-        // 播放音频
-        const source = audioContext.createBufferSource();
-        source.buffer = audioBuffer;
-        source.connect(gainNodeRef.current!);
-
-        await new Promise<void>((resolve) => {
-          source.onended = () => resolve();
-          source.start();
-        });
-      } catch (error) {
-        console.error('播放音频失败:', error);
-      }
-    }
-
-    isPlayingRef.current = false;
-    setState((prev) => ({ ...prev, isPlaying: false }));
-  }, []);
-
-  // 处理消息队列
-  useEffect(() => {
-    let isRunning = true;
-
-    const processMessageQueue = async () => {
-      while (isRunning) {
-        if (responseQueueRef.current.length === 0) {
-          await new Promise((resolve) => setTimeout(resolve, 10));
-          continue;
-        }
-
-        const message = responseQueueRef.current.shift();
-        if (!message) continue;
-
-        try {
-          // 处理中断信号
-          if (message.serverContent?.interrupted) {
-            // 清空音频队列以停止播放
-            audioQueueRef.current.length = 0;
-            continue;
-          }
-
-          // 处理模型响应
-          if (message.serverContent?.modelTurn?.parts) {
-            for (const part of message.serverContent.modelTurn.parts) {
-              // 处理音频数据
-              if (part.inlineData?.data) {
-                try {
-                  // 将 base64 音频数据转换为 ArrayBuffer（浏览器环境）
-                  const base64Data = part.inlineData.data;
-                  const binaryString = atob(base64Data);
-                  const audioData = new ArrayBuffer(binaryString.length);
-                  const view = new Uint8Array(audioData);
-                  for (let i = 0; i < binaryString.length; i++) {
-                    view[i] = binaryString.charCodeAt(i);
-                  }
-                  audioQueueRef.current.push(audioData);
-                  playAudioQueue();
-                } catch (error) {
-                  console.error('处理音频数据失败:', error);
-                }
-              }
-
-              // 处理文本响应
-              if (part.text) {
-                setTranscript((prev) => prev + '\n[Aura]: ' + part.text);
-              }
-            }
-          }
-        } catch (error) {
-          console.error('处理消息失败:', error);
-        }
-      }
-    };
-
-    processMessageQueue();
-
-    return () => {
-      isRunning = false;
-    };
-  }, [playAudioQueue]);
-
-  // 连接 Gemini Live API
-  const connectGeminiLive = async () => {
     try {
-      setStatus('正在连接...');
+      setState(prev => ({ ...prev, isPlaying: true }));
+      setStatus('正在播放...');
 
-      // 获取 API Key
-      const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY;
-      if (!apiKey) {
-        setStatus('请配置 NEXT_PUBLIC_GEMINI_API_KEY 环境变量');
-        throw new Error('NEXT_PUBLIC_GEMINI_API_KEY 未配置');
-      }
-
-      // 初始化 GoogleGenAI 客户端
-      const ai = new GoogleGenAI({ apiKey });
-
-      // 根据文档配置模型和参数
-      const model = 'gemini-2.5-flash-native-audio-preview-12-2025';
-      const config = {
-        responseModalities: [Modality.AUDIO],
-        systemInstruction: systemInstruction,
-      };
-
-      // 连接到 Gemini Live API
-      const session = await ai.live.connect({
-        model: model,
-        config: config,
-        callbacks: {
-          onopen: () => {
-            console.log('Connected to Gemini Live API');
-            setStatus('已连接，可以开始对话');
-            setState((prev) => ({ ...prev, isConnected: true }));
-          },
-          onmessage: (message: any) => {
-            console.log('收到消息:', message);
-            responseQueueRef.current.push(message);
-          },
-          onerror: (error: any) => {
-            console.error('API 错误:', error);
-            setStatus(`错误: ${error.message || '未知错误'}`);
-          },
-          onclose: (event: any) => {
-            console.log('连接关闭:', event.reason);
-            setStatus('连接已断开');
-            setState((prev) => ({
-              ...prev,
-              isConnected: false,
-              isListening: false,
-            }));
-          },
-        },
-      });
-
-      sessionRef.current = session;
-    } catch (error) {
-      console.error('连接失败:', error);
-      setStatus(
-        `连接失败: ${error instanceof Error ? error.message : '未知错误'}`
-      );
-    }
-  };
-
-  // 启动麦克风
-  const startMicrophone = async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          sampleRate: 24000,
-          channelCount: 1,
-          echoCancellation: true,
-          noiseSuppression: true,
-        },
-      });
-
-      mediaStreamRef.current = stream;
-      setState((prev) => ({ ...prev, isListening: true }));
-      setStatus('正在聆听...');
-
-      // 创建 AudioContext 来处理音频流
       const audioContext = initAudioContext();
-      const source = audioContext.createMediaStreamSource(stream);
+      const arrayBuffer = hexToArrayBuffer(hexAudio);
+      const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
 
-      // 创建 ScriptProcessorNode 来捕获音频数据
-      // 注意：ScriptProcessorNode 已废弃，但为了兼容性暂时使用
-      // 更好的方案是使用 AudioWorklet，但需要额外配置
-      const processor = audioContext.createScriptProcessor(4096, 1, 1);
-
-      processor.onaudioprocess = (event) => {
-        if (sessionRef.current) {
-          const inputData = event.inputBuffer.getChannelData(0);
-
-          // 将 Float32Array 转换为 Int16Array (PCM 格式)
-          // 输入格式：16 位 PCM、16kHz、单声道
-          const pcmData = new Int16Array(inputData.length);
-          for (let i = 0; i < inputData.length; i++) {
-            const s = Math.max(-1, Math.min(1, inputData[i]));
-            pcmData[i] = s < 0 ? s * 0x8000 : s * 0x7fff;
-          }
-
-          // 转换为 base64
-          const base64 = btoa(
-            String.fromCharCode.apply(
-              null,
-              Array.from(new Uint8Array(pcmData.buffer))
-            )
-          );
-
-          // 使用 SDK 的 sendRealtimeInput 方法发送音频
-          sessionRef.current.sendRealtimeInput({
-            audio: {
-              data: base64,
-              mimeType: 'audio/pcm;rate=16000',
-            },
-          });
-        }
-      };
-
-      source.connect(processor);
-      processor.connect(audioContext.destination);
-
-      // 保存 processor 引用以便后续断开
-      (mediaStreamRef.current as any).processor = processor;
-    } catch (error) {
-      console.error('启动麦克风失败:', error);
-      setStatus('无法访问麦克风');
-    }
-  };
-
-  // 停止麦克风
-  const stopMicrophone = () => {
-    if (mediaStreamRef.current) {
-      // 断开音频处理器
-      const processor = (mediaStreamRef.current as any).processor;
-      if (processor) {
-        processor.disconnect();
+      if (currentAudioRef.current) {
+        currentAudioRef.current.stop();
+        currentAudioRef.current = null;
       }
 
-      // 停止所有音轨
-      mediaStreamRef.current.getTracks().forEach((track) => track.stop());
-      mediaStreamRef.current = null;
+      const source = audioContext.createBufferSource();
+      source.buffer = audioBuffer;
+      source.connect(gainNodeRef.current!);
+
+      currentAudioRef.current = source;
+
+      await new Promise<void>(resolve => {
+        source.onended = () => {
+          currentAudioRef.current = null;
+          resolve();
+        };
+        source.start();
+      });
+
+      setState(prev => ({ ...prev, isPlaying: false }));
+      setStatus('准备就绪');
+    } catch (error) {
+      console.error('播放音频失败:', error);
+      setState(prev => ({ ...prev, isPlaying: false }));
+      setStatus('音频播放失败');
     }
-    setState((prev) => ({ ...prev, isListening: false }));
-    setStatus('已停止聆听');
+  }, [initAudioContext]);
+
+  // 发送消息
+  const sendMessage = useCallback(async () => {
+    const text = inputText.trim();
+    if (!text || state.isProcessing) return;
+
+    const userMessage: Message = {
+      id: Date.now().toString(),
+      role: 'user',
+      content: text,
+    };
+
+    setMessages(prev => [...prev, userMessage]);
+    setInputText('');
+    setState(prev => ({ ...prev, isProcessing: true }));
+    setStatus('正在思考...');
+
+    try {
+      const history = messages.map(msg => ({
+        role: msg.role,
+        content: msg.content,
+      }));
+
+      const response = await fetch('/api/aura/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          text,
+          history,
+          voiceId: currentCharacter.voice_id,
+          personality: currentCharacter.personality,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!data.success) {
+        throw new Error(data.error || '请求失败');
+      }
+
+      const assistantMessage: Message = {
+        id: (Date.now() + 1).toString(),
+        role: 'assistant',
+        content: data.text,
+        audio: data.audio,
+        audioLength: data.audioLength,
+        actions: data.actions || [],
+      };
+
+      setMessages(prev => [...prev, assistantMessage]);
+      setState(prev => ({ ...prev, isProcessing: false }));
+      setStatus('准备就绪');
+
+      if (data.audio) {
+        await playAudio(data.audio);
+      }
+    } catch (error) {
+      console.error('发送消息失败:', error);
+      setState(prev => ({ ...prev, isProcessing: false }));
+      setStatus('发送失败，请重试');
+    }
+  }, [inputText, state.isProcessing, messages, playAudio, currentCharacter]);
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      sendMessage();
+    }
   };
 
-  // 断开连接
-  const disconnect = () => {
-    stopMicrophone();
-    if (sessionRef.current) {
-      sessionRef.current.close();
-      sessionRef.current = null;
+  const replayAudio = (message: Message) => {
+    if (message.audio) {
+      playAudio(message.audio);
     }
-    // 清空队列
-    responseQueueRef.current.length = 0;
-    audioQueueRef.current.length = 0;
-    setState({
-      isConnected: false,
-      isListening: false,
-      isPlaying: false,
-      whiteNoiseEnabled: false,
-      currentStage: 'idle',
-    });
-    setStatus('已断开连接');
-    setTranscript('');
+  };
+
+  // 切换角色
+  const switchCharacter = useCallback((direction: 'left' | 'right') => {
+    const newIndex = direction === 'left'
+      ? (currentIndex - 1 + CHARACTERS.length) % CHARACTERS.length
+      : (currentIndex + 1) % CHARACTERS.length;
+
+    const newCharacter = CHARACTERS[newIndex];
+    setSelectedCharacter(newCharacter.id);
+    setMessages([]);
+    setStatus(`已切换到 ${newCharacter.name}`);
+  }, [currentIndex]);
+
+  // 触摸滑动处理
+  const handleTouchStart = (e: React.TouchEvent) => {
+    touchStartXRef.current = e.touches[0].clientX;
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    const touchEndX = e.changedTouches[0].clientX;
+    const diff = touchStartXRef.current - touchEndX;
+
+    if (Math.abs(diff) > 50) {
+      if (diff > 0) {
+        switchCharacter('right');
+      } else {
+        switchCharacter('left');
+      }
+    }
   };
 
   // 清理
   useEffect(() => {
     return () => {
-      if (sessionRef.current) {
-        sessionRef.current.close();
-        sessionRef.current = null;
+      if (currentAudioRef.current) {
+        currentAudioRef.current.stop();
       }
-      stopMicrophone();
       if (audioContextRef.current) {
         audioContextRef.current.close();
       }
+      if (bgMusicRef.current) {
+        bgMusicRef.current.pause();
+        bgMusicRef.current = null;
+      }
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  return (
-    <div className="container mx-auto px-4 py-8 max-w-4xl">
-      <div className="text-center mb-8">
-        <h1 className="text-4xl font-bold text-white mb-2">Aura (微光)</h1>
-        <p className="text-purple-200">AI 情感陪伴睡眠系统</p>
-      </div>
+  // 格式化消息
+  const formatMessageWithActions = (content: string, actions?: string[]) => {
+    if (!actions || actions.length === 0) return content;
+    return content.replace(/[（(][^）)]+[）)]/g, '').replace(/\s+/g, ' ').trim();
+  };
 
-      <Card className="bg-slate-800/50 border-purple-500/30 p-6 mb-6">
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-2">
-            <div
-              className={`w-3 h-3 rounded-full ${
-                state.isConnected ? 'bg-green-500 animate-pulse' : 'bg-gray-500'
+  // 自动滚动
+  const scrollToBottom = useCallback(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, []);
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages, scrollToBottom]);
+
+  return (
+    <div
+      className="relative min-h-screen overflow-hidden"
+      onTouchStart={handleTouchStart}
+      onTouchEnd={handleTouchEnd}
+    >
+      {/* 背景图 */}
+      <div
+        className="absolute inset-0 bg-cover bg-center transition-all duration-500"
+        style={{ backgroundImage: `url(${currentCharacter.bgImage})` }}
+      />
+
+      {/* 半透明遮罩 */}
+      <div className="absolute inset-0 bg-black/50" />
+
+      {/* 内容层 */}
+      <div className="relative z-10 container mx-auto px-4 py-6 max-w-3xl h-screen flex flex-col">
+        {/* Header */}
+        <div className="text-center mb-3 flex-shrink-0">
+          <h1 className="text-2xl font-bold text-white mb-1 flex items-center justify-center gap-2 drop-shadow-lg">
+            <Moon className="h-6 w-6 text-purple-300" />
+            Aura (微光)
+          </h1>
+          <p className="text-white/70 text-sm drop-shadow">{currentCharacter.name}</p>
+        </div>
+
+        {/* Navigation */}
+        <div className="flex justify-center items-center gap-3 mb-3 flex-shrink-0">
+          <button
+            onClick={() => switchCharacter('left')}
+            className="p-2 rounded-full bg-white/10 backdrop-blur-sm hover:bg-white/20 transition-colors"
+          >
+            <ChevronLeft className="h-5 w-5 text-white" />
+          </button>
+
+          <div className="bg-white/10 backdrop-blur-sm border border-white/20 rounded-full px-4 py-2">
+            <span className="text-white text-sm font-medium">
+              {currentCharacter.name}
+            </span>
+          </div>
+
+          <button
+            onClick={() => switchCharacter('right')}
+            className="p-2 rounded-full bg-white/10 backdrop-blur-sm hover:bg-white/20 transition-colors"
+          >
+            <ChevronRight className="h-5 w-5 text-white" />
+          </button>
+        </div>
+
+        {/* Character Dots */}
+        <div className="flex justify-center gap-2 mb-3 flex-shrink-0">
+          {CHARACTERS.map((char) => (
+            <button
+              key={char.id}
+              onClick={() => {
+                setSelectedCharacter(char.id);
+                setMessages([]);
+                setStatus(`已切换到 ${char.name}`);
+              }}
+              className={`transition-all duration-300 ${
+                selectedCharacter === char.id
+                  ? 'w-8 h-2 bg-white rounded-full'
+                  : 'w-2 h-2 bg-white/40 rounded-full hover:bg-white/60'
               }`}
             />
-            <span className="text-white">{status}</span>
-          </div>
-          <div className="flex gap-2">
+          ))}
+        </div>
+
+        {/* Messages Area */}
+        <div className="flex-1 overflow-y-auto mb-3 px-1 space-y-3">
+          {messages.length === 0 ? (
+            <div className="text-center text-white/70 py-16">
+              <div className="text-5xl mb-4 drop-shadow-lg">{currentCharacter.avatar}</div>
+              <p className="text-base text-white/80 drop-shadow leading-relaxed max-w-[280px] mx-auto">
+                {currentCharacter.greeting}
+              </p>
+              <p className="text-xs text-white/30 mt-6 drop-shadow">← 左右滑动切换角色 →</p>
+            </div>
+          ) : (
+            <>
+              {messages.map(message => (
+                <div
+                  key={message.id}
+                  className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                >
+                  <div
+                    className={`max-w-[80%] rounded-2xl px-4 py-2 backdrop-blur-sm ${
+                      message.role === 'user'
+                        ? 'bg-purple-600/70 text-white'
+                        : 'bg-white/15 text-white'
+                    }`}
+                  >
+                    {message.role === 'assistant' && (
+                      <span className="text-xs mr-1">{currentCharacter.avatar}</span>
+                    )}
+                    <p className="text-sm whitespace-pre-wrap drop-shadow">
+                      {formatMessageWithActions(message.content, message.actions)}
+                    </p>
+                    {message.role === 'assistant' && message.actions && message.actions.length > 0 && (
+                      <p className="text-xs text-white/50 italic mt-1">
+                        *{message.actions.join('，')}*
+                      </p>
+                    )}
+                    {message.role === 'assistant' && message.audio && (
+                      <button
+                        onClick={() => replayAudio(message)}
+                        className="mt-2 text-white/60 hover:text-white flex items-center gap-1 text-xs"
+                      >
+                        <Volume2 className="h-3 w-3" />
+                        重播
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ))}
+              {state.isProcessing && (
+                <div className="flex justify-start">
+                  <div className="bg-white/15 backdrop-blur-sm text-white rounded-2xl px-4 py-2">
+                    <div className="flex items-center gap-2 text-sm">
+                      <span className="text-xs">{currentCharacter.avatar}</span>
+                      <div className="animate-pulse flex gap-1">
+                        <span className="w-2 h-2 bg-white/60 rounded-full"></span>
+                        <span className="w-2 h-2 bg-white/60 rounded-full"></span>
+                        <span className="w-2 h-2 bg-white/60 rounded-full"></span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+              <div ref={scrollRef} />
+            </>
+          )}
+        </div>
+
+        {/* Input Area */}
+        <div className="flex-shrink-0 space-y-2">
+          <div className="flex items-center justify-between text-sm">
+            <div className="flex items-center gap-2 text-white/60">
+              <div
+                className={`w-2 h-2 rounded-full ${
+                  state.isPlaying
+                    ? 'bg-green-400 animate-pulse'
+                    : state.isProcessing
+                    ? 'bg-yellow-400 animate-pulse'
+                    : 'bg-white/30'
+                }`}
+              />
+              <span className="drop-shadow text-xs">{status}</span>
+            </div>
             <Button
-              onClick={state.isConnected ? disconnect : connectGeminiLive}
-              variant={state.isConnected ? 'destructive' : 'default'}
+              onClick={toggleWhiteNoise}
+              variant={state.whiteNoiseEnabled ? 'default' : 'ghost'}
               size="sm"
+              className={`${
+                state.whiteNoiseEnabled
+                  ? 'bg-purple-600/70 hover:bg-purple-700/70 text-white'
+                  : 'text-white/60 hover:text-white hover:bg-white/10'
+              }`}
             >
-              {state.isConnected ? '断开' : '连接'}
+              <Waves className="h-4 w-4 mr-1" />
+              {state.whiteNoiseEnabled ? '关闭' : '音乐'}
+            </Button>
+          </div>
+
+          <div className="flex gap-2">
+            <Textarea
+              value={inputText}
+              onChange={e => setInputText(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder={`和${currentCharacter.name}聊聊...`}
+              className="flex-1 bg-white/10 backdrop-blur-sm border-white/20 text-white placeholder:text-white/40 resize-none focus:bg-white/15"
+              rows={2}
+              disabled={state.isProcessing}
+            />
+            <Button
+              onClick={sendMessage}
+              disabled={!inputText.trim() || state.isProcessing}
+              className="bg-purple-600/70 hover:bg-purple-700/70 self-end backdrop-blur-sm"
+            >
+              <Send className="h-4 w-4" />
             </Button>
           </div>
         </div>
 
-        <div className="flex gap-4 mb-4">
-          <Button
-            onClick={state.isListening ? stopMicrophone : startMicrophone}
-            disabled={!state.isConnected}
-            variant={state.isListening ? 'destructive' : 'outline'}
-            size="lg"
-            className="flex-1"
-          >
-            {state.isListening ? (
-              <>
-                <MicOff className="mr-2 h-4 w-4" />
-                停止聆听
-              </>
-            ) : (
-              <>
-                <Mic className="mr-2 h-4 w-4" />
-                开始聆听
-              </>
-            )}
-          </Button>
-
-          <Button
-            onClick={toggleWhiteNoise}
-            variant={state.whiteNoiseEnabled ? 'default' : 'outline'}
-            size="lg"
-            className="flex-1"
-          >
-            {state.whiteNoiseEnabled ? (
-              <>
-                <Waves className="mr-2 h-4 w-4" />
-                关闭白噪音
-              </>
-            ) : (
-              <>
-                <Waves className="mr-2 h-4 w-4" />
-                开启白噪音
-              </>
-            )}
-          </Button>
+        <div className="text-center text-xs text-white/30 mt-3 flex-shrink-0 drop-shadow">
+          <p>Powered by AI</p>
         </div>
-
-        {state.isPlaying && (
-          <div className="flex items-center gap-2 text-purple-300 mb-4">
-            <Volume2 className="h-4 w-4 animate-pulse" />
-            <span>正在播放 AI 回复...</span>
-          </div>
-        )}
-
-        <div className="mt-4">
-          <div className="text-sm text-gray-400 mb-2">当前阶段:</div>
-          <div className="flex gap-2">
-            {(['idle', 'chat', 'story', 'guardian'] as const).map((stage) => (
-              <Button
-                key={stage}
-                variant={state.currentStage === stage ? 'default' : 'outline'}
-                size="sm"
-                disabled
-              >
-                {stage === 'idle' && '待机'}
-                {stage === 'chat' && '解忧杂货铺'}
-                {stage === 'story' && '梦境织造'}
-                {stage === 'guardian' && '守护者模式'}
-              </Button>
-            ))}
-          </div>
-        </div>
-      </Card>
-
-      {transcript && (
-        <Card className="bg-slate-800/50 border-purple-500/30 p-6">
-          <div className="text-sm text-gray-400 mb-2">对话记录:</div>
-          <div className="text-white whitespace-pre-wrap max-h-96 overflow-y-auto">
-            {transcript}
-          </div>
-        </Card>
-      )}
-
-      <div className="mt-6 text-center text-sm text-gray-400">
-        <p>提示：确保浏览器允许麦克风权限</p>
-        <p className="mt-2">
-          Gemini Live API 测试版本 - 验证提示词效果和音频混音逻辑
-        </p>
       </div>
     </div>
   );
