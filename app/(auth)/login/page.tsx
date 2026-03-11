@@ -114,58 +114,54 @@ export default function Page() {
 
   if (isLoggedIn) {
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center space-y-4 bg-background p-4">
-        <div className="flex flex-col items-center space-y-4 rounded-lg bg-gray-900/50 p-8 border border-gray-700 shadow-lg backdrop-blur-sm">
+      <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-b from-gray-900 to-gray-800 p-4">
+        <div className="flex flex-col items-center space-y-4 bg-gray-800/50 backdrop-blur-sm rounded-xl p-8 border border-gray-700 shadow-lg">
           <div className="text-green-400">
-            <CheckCircle className="w-10 h-10" />
+            <CheckCircle className="w-12 h-12" />
           </div>
-          <h2 className="text-2xl font-bold text-white">登录成功</h2>
-          <p className="text-gray-300">您已成功登录极效火眼</p>
+          <h2 className="text-xl font-bold text-white">登录成功</h2>
+          <p className="text-gray-400 text-sm">您已成功登录微光</p>
         </div>
-        <div className="text-white text-base mt-3">
-          <p>您的邀请码: {myInviteCode}</p>
+        <div className="text-gray-300 text-sm mt-6 bg-gray-800/30 px-4 py-2 rounded-lg">
+          <p>您的邀请码: <span className="font-mono font-bold text-white">{myInviteCode}</span></p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="grid grid-cols-2 gap-0">
-      <div className="flex flex-col h-dvh items-center justify-center bg-gray-50">
-        <div>
+    <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-b from-gray-900 to-gray-800 px-4 py-8">
+      <div className="w-full max-w-sm space-y-6">
+        {/* Logo 和标题 */}
+        <div className="text-center space-y-4 mb-8">
           <Image
             src="/images/logo.png"
             alt="Logo"
-            width={100}
-            height={100}
-            className="object-contain"
+            width={80}
+            height={80}
+            className="object-contain mx-auto"
           />
+          <h1 className="text-2xl font-bold">
+            <span className="gradient-text">Aura微光</span>
+          </h1>
+          <p className="text-gray-400 text-sm">微信扫码登录</p>
         </div>
-        <h1 className="text-3xl font-bold mt-6">
-          <span className="gradient-text">极效火眼</span>
-        </h1>
-        <h2 className="text-xl font-bold mt-2">
-          <span className="gradient-text">你的智能网页任务助手</span>
-        </h2>
-      </div>
-      <div className="flex flex-col h-dvh items-center justify-center space-y-4 bg-background">
-        <h1 className="text-2xl font-bold text-center gradient-text">
-          微信扫码登录
-        </h1>
 
         {/* 微信登录组件 */}
-        <WeChatLoginQR
-          onSuccess={handleWeChatSuccess}
-          onError={handleWeChatError}
-          inviteCode={rightInviteCode}
-        />
+        <div className="flex justify-center">
+          <WeChatLoginQR
+            onSuccess={handleWeChatSuccess}
+            onError={handleWeChatError}
+            inviteCode={rightInviteCode}
+          />
+        </div>
 
         {/* 邀请码输入框 */}
-        <div className="p-4 rounded-lg border">
-          <label className="block text-sm font-medium mb-2">
+        <div className="bg-gray-800/50 backdrop-blur-sm p-4 rounded-xl border border-gray-700">
+          <label className="block text-sm font-medium text-gray-300 mb-3">
             邀请码（选填）
           </label>
-          <div className="flex gap-2 mb-3">
+          <div className="flex justify-center mb-3">
             <InputOTP
               value={inviteCode}
               onChange={(value) => {
@@ -193,50 +189,29 @@ export default function Page() {
 
           {/* 邀请码状态显示 */}
           {inviteCodeStatus === 'validating' && (
-            <p className="text-xs text-blue-600 mb-2">
-              <span className="inline-block w-3 h-3 border-2 border-blue-600 border-t-transparent rounded-full animate-spin mr-1"></span>
+            <p className="text-xs text-blue-400 mb-2 text-center">
+              <span className="inline-block w-3 h-3 border-2 border-blue-400 border-t-transparent rounded-full animate-spin mr-1"></span>
               正在验证邀请码...
             </p>
           )}
           {inviteCodeStatus === 'valid' && (
-            <p className="text-xs text-green-600 mb-2">✓ 邀请码验证成功</p>
+            <p className="text-xs text-green-400 mb-2 text-center">✓ 邀请码验证成功</p>
           )}
           {inviteCodeStatus === 'invalid' && (
-            <p className="text-xs text-red-600 mb-2">
+            <p className="text-xs text-red-400 mb-2 text-center">
               ✗ 邀请码无效，请检查后重试
             </p>
           )}
 
-          <p className="text-xs text-gray-500 mb-3">
+          <p className="text-xs text-gray-500 text-center">
             填写邀请码有机会获得更多积分奖励
           </p>
         </div>
 
-        {/* 分割线 */}
-        {/* <div className="relative px-4 sm:px-16 my-6">
-            <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-gray-600" />
-            </div>
-            <div className="relative flex justify-center text-sm">
-              <span className="px-2 bg-black text-gray-400">
-                或者使用邮箱登录
-              </span>
-            </div>
-          </div> */}
-
-        {/* 邮箱登录表单 */}
-        {/* <AuthForm action={handleSubmit} defaultEmail={email}>
-            <SubmitButton>登录</SubmitButton>
-            <p className="text-center text-sm text-gray-600 mt-4 dark:text-zinc-400">
-              {'还没有账号? '}
-              <Link
-                href="/register"
-                className="font-semibold text-gray-800 hover:underline dark:text-zinc-200"
-              >
-                注册
-              </Link>
-            </p>
-          </AuthForm> */}
+        {/* 底部信息 */}
+        <p className="text-center text-xs text-gray-600">
+          Powered by AI
+        </p>
       </div>
     </div>
   );

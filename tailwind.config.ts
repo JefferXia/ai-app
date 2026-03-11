@@ -86,6 +86,16 @@ const config: Config = {
   					transform: 'rotate(90deg)'
   				}
   			},
+  			ripple: {
+  				'0%': {
+  					transform: 'scale(1)',
+  					opacity: '1'
+  				},
+  				'100%': {
+  					transform: 'scale(2.5)',
+  					opacity: '0'
+  				}
+  			},
   			'accordion-down': {
   				from: {
   					height: '0'
@@ -107,6 +117,7 @@ const config: Config = {
   			linespin: 'animation-linespin 2s ease-in-out infinite',
   			flip: 'flip 6s infinite steps(2, end)',
   			rotate: 'rotate 3s linear infinite both',
+  			ripple: 'ripple 3s ease-out infinite',
   			'accordion-down': 'accordion-down 0.2s ease-out',
   			'accordion-up': 'accordion-up 0.2s ease-out'
   		}

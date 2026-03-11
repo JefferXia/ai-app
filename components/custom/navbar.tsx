@@ -18,11 +18,12 @@ const UserSection = ({ user }: { user: User | undefined }) => {
   return user ? (
     <UserNav user={user} />
   ) : (
-    <Button size="sm" className="rounded-lg">
-      <Link href={loginHref} className="text-white">
-        登录
-      </Link>
-    </Button>
+    <Link
+      href={loginHref}
+      className="h-9 inline-flex items-center px-4 bg-black/30 backdrop-blur-sm rounded-l-full text-white/80 hover:text-white hover:bg-black/40 transition-colors text-sm"
+    >
+      登录
+    </Link>
   );
 };
 
@@ -56,7 +57,7 @@ export function Navbar({ user }: { user: User | undefined }) {
   // 营销页面导航栏（首页）
   // if (isHomePage) {
   return (
-    <nav className="fixed top-2 right-2 z-50">
+    <nav className="fixed top-2 right-0 z-50">
       <UserSection user={user} />
     </nav>
   );

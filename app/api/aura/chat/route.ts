@@ -22,7 +22,7 @@ const CHARACTER_CONFIG: Record<string, {
     style: '说话带着一丝慵懒和妩媚，喜欢用轻柔的语气表达爱意，偶尔会撒娇，让人感到被宠爱的感觉',
     voice_setting: {
       speed: 0.9,
-      vol: 5,
+      vol: 6,
       emotion: 'whisper',
     },
   },
@@ -30,7 +30,7 @@ const CHARACTER_CONFIG: Record<string, {
     personality: '活泼可爱的甜美少女，天真烂漫',
     style: '说话轻快俏皮，喜欢用可爱的语气撒娇，总是充满正能量，会用很多"～"和语气词',
     voice_setting: {
-      speed: 0.8,
+      speed: 0.9,
       vol: 1,
     },
   },
@@ -71,7 +71,7 @@ ${characterConfig.style}
 
 ## 回复要求
 1. 保持角色人格的一致性，不要跳出角色
-2. 回复要简洁自然，像真实聊天一样（一般1-3句话）
+2. 回复要自然，像真实聊天一样
 3. 可以用括号表达动作或表情，如（微笑）、（轻轻握住你的手）
 4. 语气要温暖亲密，让用户感到被关心
 5. 不要说教，多用理解和共情的方式回应
