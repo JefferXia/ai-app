@@ -82,8 +82,8 @@ export default function AuraInterface() {
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const bgMusicRef = useRef<HTMLAudioElement | null>(null);
   const touchStartXRef = useRef<number>(0);
-  const isLoadingRef = useRef<boolean>(false);
   const radioAudioRef = useRef<HTMLAudioElement | null>(null);
+  const loadingCharacterRef = useRef<CharacterId | null>(null);
 
   // 获取当前角色信息
   const currentCharacter = CHARACTERS.find(c => c.id === selectedCharacter) || CHARACTERS[0];
@@ -310,24 +310,9 @@ export default function AuraInterface() {
       : (currentIndex + 1) % CHARACTERS.length;
 
     const newCharacter = CHARACTERS[newIndex];
-
-    // 先保存当前角色的消息
-    if (messages.length > 0) {
-      try {
-        const savedHistory = localStorage.getItem(CHAT_HISTORY_KEY);
-        const allHistory = savedHistory ? JSON.parse(savedHistory) : {};
-        allHistory[selectedCharacter] = messages;
-        localStorage.setItem(CHAT_HISTORY_KEY, JSON.stringify(allHistory));
-      } catch (error) {
-        console.error('保存对话记录失败:', error);
-      }
-    }
-
-    // 标记正在加载，防止保存 useEffect 触发
-    isLoadingRef.current = true;
     setSelectedCharacter(newCharacter.id);
     setStatus(`已切换到 ${newCharacter.name}`);
-  }, [currentIndex, messages, selectedCharacter]);
+  }, [currentIndex]);
 
   // 触摸滑动处理
   const handleTouchStart = (e: React.TouchEvent) => {
@@ -365,6 +350,9 @@ export default function AuraInterface() {
 
   // 加载对话记录
   useEffect(() => {
+    // 标记正在加载哪个角色
+    loadingCharacterRef.current = selectedCharacter;
+
     try {
       const savedHistory = localStorage.getItem(CHAT_HISTORY_KEY);
       if (savedHistory) {
@@ -378,14 +366,17 @@ export default function AuraInterface() {
       console.error('加载对话记录失败:', error);
       setMessages([]);
     }
-    // 加载完成，允许保存
-    isLoadingRef.current = false;
+
+    // 延迟清除加载标志，确保 setMessages 完成后再清除
+    setTimeout(() => {
+      loadingCharacterRef.current = null;
+    }, 0);
   }, [selectedCharacter]);
 
   // 保存对话记录
   useEffect(() => {
-    // 如果正在加载（切换角色），跳过保存
-    if (isLoadingRef.current) return;
+    // 如果正在加载，跳过保存
+    if (loadingCharacterRef.current !== null) return;
     if (messages.length === 0) return;
 
     try {
@@ -599,18 +590,6 @@ export default function AuraInterface() {
                   key={char.id}
                   onClick={() => {
                     if (char.id === selectedCharacter) return;
-                    // 先保存当前角色的消息
-                    if (messages.length > 0) {
-                      try {
-                        const savedHistory = localStorage.getItem(CHAT_HISTORY_KEY);
-                        const allHistory = savedHistory ? JSON.parse(savedHistory) : {};
-                        allHistory[selectedCharacter] = messages;
-                        localStorage.setItem(CHAT_HISTORY_KEY, JSON.stringify(allHistory));
-                      } catch (error) {
-                        console.error('保存对话记录失败:', error);
-                      }
-                    }
-                    isLoadingRef.current = true;
                     setSelectedCharacter(char.id);
                     setStatus(`已切换到 ${char.name}`);
                   }}
