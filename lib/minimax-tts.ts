@@ -380,3 +380,110 @@ export async function callMiniMaxLLM(
     throw error;
   }
 }
+
+/**
+ * 调用 MiniMax LLM API (流式版本)
+ * 返回 ReadableStream 用于 SSE
+ */
+export async function streamMiniMaxLLM(
+  messages: LLMMessage[],
+  config: LLMConfig = {}
+): Promise<ReadableStream<Uint8Array>> {
+  const apiKey = process.env.MINIMAX_API_KEY;
+  if (!apiKey) {
+    throw new Error('MINIMAX_API_KEY 未配置');
+  }
+
+  const {
+    model = 'M2-her',
+    temperature = 0.9,
+    max_completion_tokens = 500,
+    system,
+  } = config;
+
+  // 构建消息数组
+  const formattedMessages: LLMMessage[] = [];
+
+  if (system) {
+    formattedMessages.push({
+      role: 'system',
+      name: 'Aura',
+      content: system
+    });
+  }
+
+  formattedMessages.push(...messages);
+
+  const response = await fetch('https://api.minimaxi.com/v1/text/chatcompletion_v2', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({
+      model,
+      messages: formattedMessages,
+      temperature,
+      max_completion_tokens,
+      stream: true,
+    }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error('MiniMax LLM Stream API 错误:', errorText);
+    throw new Error(`MiniMax LLM API 错误: ${response.status}`);
+  }
+
+  const reader = response.body?.getReader();
+  if (!reader) {
+    throw new Error('无法获取响应流');
+  }
+
+  const decoder = new TextDecoder();
+  const encoder = new TextEncoder();
+
+  return new ReadableStream<Uint8Array>({
+    async start(controller) {
+      let buffer = '';
+
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          buffer += decoder.decode(value, { stream: true });
+
+          // 处理 SSE 格式的数据
+          const lines = buffer.split('\n');
+          buffer = lines.pop() || '';
+
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              const dataStr = line.slice(6).trim();
+              if (dataStr === '[DONE]') {
+                controller.enqueue(encoder.encode('data: [DONE]\n\n'));
+                continue;
+              }
+
+              try {
+                const data = JSON.parse(dataStr);
+                const content = data.choices?.[0]?.delta?.content || '';
+                if (content) {
+                  controller.enqueue(encoder.encode(`data: ${JSON.stringify({ content })}\n\n`));
+                }
+              } catch {
+                // 忽略解析错误
+              }
+            }
+          }
+        }
+
+        controller.close();
+      } catch (error) {
+        console.error('Stream error:', error);
+        controller.error(error);
+      }
+    },
+  });
+}

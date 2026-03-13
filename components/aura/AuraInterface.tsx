@@ -2,7 +2,7 @@
 
 import { useState, useRef, useCallback, useEffect } from 'react';
 import Image from 'next/image';
-import { Send, Volume2, Waves, ChevronLeft, ChevronRight, Radio, ArrowLeft, Play, Pause } from 'lucide-react';
+import { Send, Volume2, Waves, ChevronLeft, ChevronRight, Radio, ArrowLeft, Play, Pause, Mic } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 
@@ -21,6 +21,7 @@ interface AuraState {
   whiteNoiseEnabled: boolean;
   radioMode: boolean;
   radioPlaying: boolean;
+  isRecording: boolean;
 }
 
 // 角色配置（包含背景图、人格、起始问候）
@@ -69,6 +70,7 @@ export default function AuraInterface() {
     whiteNoiseEnabled: false,
     radioMode: false,
     radioPlaying: false,
+    isRecording: false,
   });
 
   const [selectedCharacter, setSelectedCharacter] = useState<CharacterId>('wumei_yujie');
@@ -84,10 +86,60 @@ export default function AuraInterface() {
   const touchStartXRef = useRef<number>(0);
   const radioAudioRef = useRef<HTMLAudioElement | null>(null);
   const loadingCharacterRef = useRef<CharacterId | null>(null);
+  const recognitionRef = useRef<any>(null);
 
   // 获取当前角色信息
   const currentCharacter = CHARACTERS.find(c => c.id === selectedCharacter) || CHARACTERS[0];
   const currentIndex = CHARACTERS.findIndex(c => c.id === selectedCharacter);
+
+  // 语音识别 - 开始录音
+  const startRecording = useCallback(() => {
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+
+    if (!SpeechRecognition) {
+      setStatus('您的浏览器不支持语音识别');
+      return;
+    }
+
+    const recognition = new SpeechRecognition();
+    recognition.lang = 'zh-CN';
+    recognition.continuous = false;
+    recognition.interimResults = true;
+
+    recognition.onstart = () => {
+      setState(prev => ({ ...prev, isRecording: true }));
+      setStatus('正在录音...');
+    };
+
+    recognition.onresult = (event: any) => {
+      const transcript = event.results[0][0].transcript;
+      setInputText(transcript);
+    };
+
+    recognition.onerror = (event: any) => {
+      console.error('语音识别错误:', event.error);
+      setState(prev => ({ ...prev, isRecording: false }));
+      setStatus('语音识别失败，请重试');
+    };
+
+    recognition.onend = () => {
+      setState(prev => ({ ...prev, isRecording: false }));
+      setStatus('准备就绪');
+    };
+
+    recognitionRef.current = recognition;
+    recognition.start();
+  }, []);
+
+  // 语音识别 - 停止录音
+  const stopRecording = useCallback(() => {
+    if (recognitionRef.current) {
+      recognitionRef.current.stop();
+      recognitionRef.current = null;
+    }
+    setState(prev => ({ ...prev, isRecording: false }));
+    setStatus('准备就绪');
+  }, []);
 
   // 初始化音频上下文
   const initAudioContext = useCallback(() => {
@@ -228,7 +280,7 @@ export default function AuraInterface() {
     }
   }, [initAudioContext]);
 
-  // 发送消息
+  // 发送消息（流式）
   const sendMessage = useCallback(async () => {
     const text = inputText.trim();
     if (!text || state.isProcessing) return;
@@ -244,13 +296,18 @@ export default function AuraInterface() {
     setState(prev => ({ ...prev, isProcessing: true }));
     setStatus('正在思考...');
 
+    // 创建一个占位的 assistant 消息
+    const assistantId = (Date.now() + 1).toString();
+    let fullContent = '';
+
     try {
       const history = messages.map(msg => ({
         role: msg.role,
         content: msg.content,
       }));
 
-      const response = await fetch('/api/aura/chat', {
+      // 使用流式 API
+      const response = await fetch('/api/aura/chat-stream', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -261,34 +318,110 @@ export default function AuraInterface() {
         }),
       });
 
-      const data = await response.json();
-
-      if (!data.success) {
-        throw new Error(data.error || '请求失败');
+      if (!response.ok) {
+        throw new Error('请求失败');
       }
 
-      const assistantMessage: Message = {
-        id: (Date.now() + 1).toString(),
-        role: 'assistant',
-        content: data.text,
-        audio: data.audio,
-        audioLength: data.audioLength,
-        actions: data.actions || [],
-      };
+      const reader = response.body?.getReader();
+      if (!reader) {
+        throw new Error('无法获取响应流');
+      }
 
-      setMessages(prev => [...prev, assistantMessage]);
+      const decoder = new TextDecoder();
+
+      // 先添加一个空的 assistant 消息
+      setMessages(prev => [...prev, {
+        id: assistantId,
+        role: 'assistant',
+        content: '',
+      }]);
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        const chunk = decoder.decode(value, { stream: true });
+        const lines = chunk.split('\n');
+
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            const dataStr = line.slice(6).trim();
+            if (dataStr === '[DONE]') continue;
+
+            try {
+              const data = JSON.parse(dataStr);
+              if (data.content) {
+                fullContent += data.content;
+                // 实时更新消息内容
+                setMessages(prev => prev.map(msg =>
+                  msg.id === assistantId
+                    ? { ...msg, content: fullContent }
+                    : msg
+                ));
+              }
+            } catch {
+              // 忽略解析错误
+            }
+          }
+        }
+      }
+
+      // 流式完成，提取动作
+      const actions: string[] = [];
+      const actionRegex = /[（(]([^）)]+)[）)]/g;
+      let actionMatch;
+      while ((actionMatch = actionRegex.exec(fullContent)) !== null) {
+        actions.push(actionMatch[1]);
+      }
+
+      // 更新最终消息
+      setMessages(prev => prev.map(msg =>
+        msg.id === assistantId
+          ? { ...msg, content: fullContent, actions }
+          : msg
+      ));
+
       setState(prev => ({ ...prev, isProcessing: false }));
       setStatus('准备就绪');
 
-      if (data.audio) {
-        await playAudio(data.audio);
-      }
+      // 异步获取语音并播放
+      fetchTTSAndPlay(fullContent, assistantId);
+
     } catch (error) {
       console.error('发送消息失败:', error);
       setState(prev => ({ ...prev, isProcessing: false }));
       setStatus('发送失败，请重试');
     }
-  }, [inputText, state.isProcessing, messages, playAudio, currentCharacter]);
+  }, [inputText, state.isProcessing, messages, currentCharacter]);
+
+  // 异步获取 TTS 并播放
+  const fetchTTSAndPlay = async (text: string, messageId: string) => {
+    try {
+      const response = await fetch('/api/aura/tts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          text,
+          voiceId: currentCharacter.voice_id,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (data.success && data.audio) {
+        // 更新消息的音频
+        setMessages(prev => prev.map(msg =>
+          msg.id === messageId
+            ? { ...msg, audio: data.audio, audioLength: data.audioLength }
+            : msg
+        ));
+        // 播放音频
+        await playAudio(data.audio);
+      }
+    } catch (error) {
+      console.error('TTS 获取失败:', error);
+    }
+  };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -661,7 +794,7 @@ export default function AuraInterface() {
                 onKeyDown={handleKeyDown}
                 placeholder={`和${currentCharacter.name}聊聊...`}
                 className="w-full bg-white/95 rounded-2xl px-4 py-2.5 text-gray-800 placeholder:text-gray-400 resize-none focus:outline-none focus:ring-2 focus:ring-purple-400/50 text-sm leading-relaxed border-0 min-h-[40px] max-h-[100px]"
-                disabled={state.isProcessing}
+                disabled={state.isProcessing || state.isRecording}
                 onInput={(e) => {
                   const target = e.target as HTMLTextAreaElement;
                   target.style.height = 'auto';
@@ -669,6 +802,32 @@ export default function AuraInterface() {
                 }}
               />
             </div>
+
+            {/* 录音按钮 */}
+            {state.isRecording ? (
+              <button
+                onMouseUp={stopRecording}
+                onTouchEnd={stopRecording}
+                className="flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center bg-red-500 text-white animate-pulse"
+              >
+                <Mic className="h-4 w-4" />
+              </button>
+            ) : (
+              <button
+                onMouseDown={startRecording}
+                onTouchStart={startRecording}
+                disabled={state.isProcessing}
+                className={`flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center transition-colors ${
+                  state.isProcessing
+                    ? 'bg-gray-300 text-gray-400'
+                    : 'bg-white/90 text-gray-600 hover:bg-white'
+                }`}
+              >
+                <Mic className="h-4 w-4" />
+              </button>
+            )}
+
+            {/* 发送按钮 */}
             <Button
               onClick={sendMessage}
               disabled={!inputText.trim() || state.isProcessing}
