@@ -85,8 +85,11 @@ export default function AuraInterface() {
   const bgMusicRef = useRef<HTMLAudioElement | null>(null);
   const touchStartXRef = useRef<number>(0);
   const radioAudioRef = useRef<HTMLAudioElement | null>(null);
-  const loadingCharacterRef = useRef<CharacterId | null>(null);
   const recognitionRef = useRef<any>(null);
+  // 跟踪当前消息属于哪个角色（用于保存时确定目标角色）
+  const messagesCharacterRef = useRef<CharacterId>(selectedCharacter);
+  // 跟踪最近加载的消息，用于避免保存刚加载的消息
+  const lastLoadedMessagesRef = useRef<Message[]>([]);
 
   // 获取当前角色信息
   const currentCharacter = CHARACTERS.find(c => c.id === selectedCharacter) || CHARACTERS[0];
@@ -483,44 +486,51 @@ export default function AuraInterface() {
 
   // 加载对话记录
   useEffect(() => {
-    // 标记正在加载哪个角色
-    loadingCharacterRef.current = selectedCharacter;
-
     try {
       const savedHistory = localStorage.getItem(CHAT_HISTORY_KEY);
+      let loadedMessages: Message[] = [];
       if (savedHistory) {
         const allHistory = JSON.parse(savedHistory);
-        const characterMessages = allHistory[selectedCharacter] || [];
-        setMessages(characterMessages);
-      } else {
-        setMessages([]);
+        loadedMessages = allHistory[selectedCharacter] || [];
       }
+      // 记录加载的消息，用于跳过保存
+      lastLoadedMessagesRef.current = loadedMessages;
+      // 更新消息所属角色
+      messagesCharacterRef.current = selectedCharacter;
+      setMessages(loadedMessages);
     } catch (error) {
       console.error('加载对话记录失败:', error);
+      lastLoadedMessagesRef.current = [];
+      messagesCharacterRef.current = selectedCharacter;
       setMessages([]);
     }
-
-    // 延迟清除加载标志，确保 setMessages 完成后再清除
-    setTimeout(() => {
-      loadingCharacterRef.current = null;
-    }, 0);
   }, [selectedCharacter]);
 
   // 保存对话记录
   useEffect(() => {
-    // 如果正在加载，跳过保存
-    if (loadingCharacterRef.current !== null) return;
     if (messages.length === 0) return;
+
+    // 如果当前消息和刚加载的消息相同，跳过保存
+    if (
+      messages === lastLoadedMessagesRef.current ||
+      (messages.length === lastLoadedMessagesRef.current.length &&
+        messages.every((msg, i) => msg.id === lastLoadedMessagesRef.current[i]?.id))
+    ) {
+      return;
+    }
+
+    // 保存到消息所属的角色
+    const targetCharacter = messagesCharacterRef.current;
 
     try {
       const savedHistory = localStorage.getItem(CHAT_HISTORY_KEY);
       const allHistory = savedHistory ? JSON.parse(savedHistory) : {};
-      allHistory[selectedCharacter] = messages;
+      allHistory[targetCharacter] = messages;
       localStorage.setItem(CHAT_HISTORY_KEY, JSON.stringify(allHistory));
     } catch (error) {
       console.error('保存对话记录失败:', error);
     }
-  }, [messages, selectedCharacter]);
+  }, [messages]);
 
   // 格式化消息
   const formatMessageWithActions = (content: string, actions?: string[]) => {
@@ -808,19 +818,20 @@ export default function AuraInterface() {
               <button
                 onMouseUp={stopRecording}
                 onTouchEnd={stopRecording}
+                onMouseLeave={stopRecording}
                 className="flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center bg-red-500 text-white animate-pulse"
               >
                 <Mic className="h-4 w-4" />
               </button>
             ) : (
               <button
-                onMouseDown={startRecording}
-                onTouchStart={startRecording}
+                onMouseDown={(e) => { e.preventDefault(); startRecording(); }}
+                onTouchStart={(e) => { e.preventDefault(); startRecording(); }}
                 disabled={state.isProcessing}
-                className={`flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center transition-colors ${
+                className={`flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center transition-colors touch-none ${
                   state.isProcessing
                     ? 'bg-gray-300 text-gray-400'
-                    : 'bg-white/90 text-gray-600 hover:bg-white'
+                    : 'bg-white/90 text-gray-600 hover:bg-white active:bg-gray-200'
                 }`}
               >
                 <Mic className="h-4 w-4" />
