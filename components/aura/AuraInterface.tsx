@@ -5,6 +5,9 @@ import Image from 'next/image';
 import { Send, Volume2, Waves, ChevronLeft, ChevronRight, Radio, ArrowLeft, Play, Pause, Mic } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
+import { IntentAgent, EmotionAgent, IntentType } from '@/lib/aura-agent';
+import { useAuraStateMachine } from '@/hooks/useAuraStateMachine';
+import { ResponseStrategy, IntentVector } from '@/lib/aura-state-machine';
 
 interface Message {
   id: string;
@@ -22,6 +25,7 @@ interface AuraState {
   radioMode: boolean;
   radioPlaying: boolean;
   isRecording: boolean;
+  sleepMode: boolean; // 睡眠模式 - 关闭屏幕
 }
 
 // 角色配置（包含背景图、人格、起始问候）
@@ -71,12 +75,14 @@ export default function AuraInterface() {
     radioMode: false,
     radioPlaying: false,
     isRecording: false,
+    sleepMode: false,
   });
 
   const [selectedCharacter, setSelectedCharacter] = useState<CharacterId>('wumei_yujie');
   const [inputText, setInputText] = useState('');
   const [messages, setMessages] = useState<Message[]>([]);
   const [status, setStatus] = useState<string>('准备就绪');
+  const [isTyping, setIsTyping] = useState(false); // 用户是否正在输入
 
   const audioContextRef = useRef<AudioContext | null>(null);
   const gainNodeRef = useRef<GainNode | null>(null);
@@ -90,10 +96,301 @@ export default function AuraInterface() {
   const messagesCharacterRef = useRef<CharacterId>(selectedCharacter);
   // 跟踪最近加载的消息，用于避免保存刚加载的消息
   const lastLoadedMessagesRef = useRef<Message[]>([]);
+  // 用于取消主动对话的标记
+  const proactiveCancelledRef = useRef(false);
+  // 主动对话定时器
+  const proactiveTimerRef = useRef<NodeJS.Timeout | null>(null);
+  // 用 ref 存储 handleProactiveMessage 避免循环依赖
+  const handleProactiveMessageRef = useRef<() => Promise<void>>(async () => {});
+  // 进入睡眠模式
+  const enterSleepMode = useCallback(() => {
+    console.log('[Aura] 进入睡眠模式，关闭屏幕');
+    setState(prev => ({ ...prev, sleepMode: true, isProcessing: false }));
+    setStatus('睡眠模式');
+  }, []);
+
+  // wakeUp ref - 在 hook 返回后更新
+  const wakeUpRef = useRef<() => void>(() => {});
+
+  // 从睡眠模式唤醒
+  const exitSleepMode = useCallback(() => {
+    console.log('[Aura] 用户唤醒，退出睡眠模式');
+    setState(prev => ({ ...prev, sleepMode: false }));
+    setStatus('准备就绪');
+    wakeUpRef.current(); // 使用 ref 调用
+  }, []);
+
+  // 为哄睡打开电台
+  const openRadioForSleep = useCallback(() => {
+    console.log('[Aura] 打开哄睡电台');
+    // 进入电台模式
+    setState(prev => ({ ...prev, radioMode: true, radioPlaying: true }));
+    setStatus('哄睡电台');
+
+    // 自动播放
+    if (!radioAudioRef.current) {
+      radioAudioRef.current = new Audio('/record/wumei_yujie.m4a');
+      radioAudioRef.current.volume = 0.6; // 稍微降低音量
+      radioAudioRef.current.loop = true; // 循环播放
+      radioAudioRef.current.onended = () => {
+        setState(prev => ({ ...prev, radioPlaying: false }));
+      };
+    }
+    radioAudioRef.current.play().catch(err => {
+      console.error('播放电台失败:', err);
+      setState(prev => ({ ...prev, radioPlaying: false }));
+    });
+  }, []);
+
+  // 用 ref 跟踪状态，避免闭包问题
+  const isTypingRef = useRef(isTyping);
+  const isProcessingRef = useRef(state.isProcessing);
+  const inputTextRef = useRef(inputText);
+  // 跟踪意图和情绪
+  const lastIntentRef = useRef<IntentType>('casual');
+  const lastEmotionRef = useRef<string>('neutral');
+  // 输入停止检测定时器
+  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // ============ 状态机 Hook ============
+  // 处理主动消息的内部函数
+  const handleProactiveActionRef = useRef<(intentVector: IntentVector, strategy: ResponseStrategy) => Promise<void>>(async () => {});
+
+  const {
+    currentState: auraState,
+    handleUserInput: stateMachineHandleInput,
+    handleAIResponse: stateMachineHandleAIResponse,
+    getResponseStrategy,
+    startSilenceCheck,
+    stopSilenceCheck,
+    setIsProcessing: setSMProcessing,
+    setIsTyping: setSMTyping,
+    incrementProactiveCounter,
+    wakeUp,
+    SILENCE_THRESHOLDS,
+  } = useAuraStateMachine({
+    onProactiveMessage: (intentVector, strategy) => {
+      handleProactiveActionRef.current(intentVector, strategy);
+    },
+    onEnterGuardMode: () => {
+      console.log('[Aura] 进入守护模式');
+      // 自动开启白噪音
+      if (!state.whiteNoiseEnabled) {
+        toggleWhiteNoise();
+      }
+    },
+    onEnterSleepMode: () => {
+      console.log('[Aura] 进入睡眠模式');
+      enterSleepMode();
+    },
+    onOpenRadio: () => {
+      console.log('[Aura] 打开电台');
+      openRadioForSleep();
+    },
+    onStateChange: (state) => {
+      console.log('[Aura] 状态变更:', state.currentStage, '静默计数:', state.silenceCounter, '主动计数:', state.proactiveCounter);
+    },
+  });
+
+  // 更新 refs
+  useEffect(() => {
+    isTypingRef.current = isTyping;
+  }, [isTyping]);
+  useEffect(() => {
+    isProcessingRef.current = state.isProcessing;
+  }, [state.isProcessing]);
+  useEffect(() => {
+    inputTextRef.current = inputText;
+  }, [inputText]);
+  // 更新 wakeUp ref
+  useEffect(() => {
+    wakeUpRef.current = wakeUp;
+  }, [wakeUp]);
 
   // 获取当前角色信息
   const currentCharacter = CHARACTERS.find(c => c.id === selectedCharacter) || CHARACTERS[0];
   const currentIndex = CHARACTERS.findIndex(c => c.id === selectedCharacter);
+
+  // ============ 主动对话 ============
+  // 清除主动对话定时器
+  const clearProactiveTimer = useCallback(() => {
+    if (proactiveTimerRef.current) {
+      clearTimeout(proactiveTimerRef.current);
+      proactiveTimerRef.current = null;
+    }
+  }, []);
+
+  // 用户开始输入
+  const handleUserTyping = useCallback(() => {
+    setIsTyping(true);
+    setSMTyping(true); // 同步到状态机
+    clearProactiveTimer();
+    // 清除之前的停止输入定时器
+    if (typingTimeoutRef.current) {
+      clearTimeout(typingTimeoutRef.current);
+    }
+    // 1秒无输入后认为停止输入
+    typingTimeoutRef.current = setTimeout(() => {
+      setIsTyping(false);
+      setSMTyping(false); // 同步到状态机
+    }, 1000);
+  }, [clearProactiveTimer, setSMTyping]);
+
+  // 主动消息处理函数 - 使用状态机策略
+  const handleProactiveMessage = useCallback(async (intentVector?: IntentVector, strategy?: ResponseStrategy) => {
+    console.log('[Aura] handleProactiveMessage 被调用', { intentVector, strategy });
+
+    // 如果被取消或正在处理，不执行
+    if (proactiveCancelledRef.current || isProcessingRef.current) {
+      console.log('[Aura] 已取消或正在处理，跳过');
+      return;
+    }
+
+    // 检查用户是否正在输入
+    if (isTypingRef.current || inputTextRef.current.trim()) {
+      console.log('[Aura] 用户正在输入，跳过');
+      return;
+    }
+
+    // 如果要打开电台，不生成文字回复
+    if (strategy?.openRadio) {
+      console.log('[Aura] 策略要求打开电台，不生成文字');
+      return;
+    }
+
+    // 如果要进入睡眠模式
+    if (strategy?.enterSleepMode) {
+      console.log('[Aura] 策略要求进入睡眠模式');
+      enterSleepMode();
+      return;
+    }
+
+    setState(prev => ({ ...prev, isProcessing: true }));
+    setStatus('主动思考...');
+
+    const assistantId = Date.now().toString();
+    let fullContent = '';
+
+    try {
+      const history = messages.map(msg => ({
+        role: msg.role,
+        content: msg.content,
+      }));
+
+      // 如果没有传入策略，使用状态机获取
+      const currentStrategy = strategy || getResponseStrategy(intentVector || {
+        intent: 'none',
+        anxietyLevel: 0,
+        action: 'PROBE',
+      });
+
+      console.log('[Aura] 回复策略:', currentStrategy);
+
+      // 守护模式和静默模式不说话
+      if (!currentStrategy.shouldSpeak) {
+        console.log('[Aura] 当前策略不需要说话');
+        setState(prev => ({ ...prev, isProcessing: false }));
+        setStatus('准备就绪');
+        return;
+      }
+
+      const response = await fetch('/api/aura/proactive', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          history,
+          strategy: currentStrategy,
+          personality: currentCharacter.personality,
+        }),
+      });
+
+      if (!response.ok) throw new Error('请求失败');
+
+      const reader = response.body?.getReader();
+      if (!reader) throw new Error('无法获取响应流');
+
+      const decoder = new TextDecoder();
+
+      // 先添加一个空的 assistant 消息
+      setMessages(prev => [...prev, {
+        id: assistantId,
+        role: 'assistant',
+        content: '',
+      }]);
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        const chunk = decoder.decode(value, { stream: true });
+        const lines = chunk.split('\n');
+
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            const dataStr = line.slice(6).trim();
+            if (dataStr === '[DONE]') continue;
+
+            try {
+              const data = JSON.parse(dataStr);
+              if (data.content) {
+                fullContent += data.content;
+                setMessages(prev => prev.map(msg =>
+                  msg.id === assistantId
+                    ? { ...msg, content: fullContent }
+                    : msg
+                ));
+              }
+            } catch {
+              // 忽略解析错误
+            }
+          }
+        }
+      }
+
+      // 更新最终消息
+      const actions: string[] = [];
+      const actionRegex = /[（(]([^）)]+)[）)]/g;
+      let actionMatch;
+      while ((actionMatch = actionRegex.exec(fullContent)) !== null) {
+        actions.push(actionMatch[1]);
+      }
+
+      setMessages(prev => prev.map(msg =>
+        msg.id === assistantId
+          ? { ...msg, content: fullContent, actions }
+          : msg
+      ));
+
+      // 通知状态机 AI 已响应
+      stateMachineHandleAIResponse(fullContent);
+      // 注意：startSilenceCheck 已在 handleAIResponse 内部调用
+
+      setState(prev => ({ ...prev, isProcessing: false }));
+      setStatus('准备就绪');
+
+      // 异步获取语音并播放
+      fetchTTSAndPlay(fullContent, assistantId);
+
+      // 状态机会自动处理下一次静默检查
+
+    } catch (error) {
+      console.error('主动消息发送失败:', error);
+      setState(prev => ({ ...prev, isProcessing: false }));
+      setStatus('准备就绪');
+    }
+  }, [messages, getResponseStrategy, currentCharacter.personality, stateMachineHandleAIResponse, enterSleepMode]);
+
+  // 更新 ref
+  useEffect(() => {
+    handleProactiveMessageRef.current = handleProactiveMessage;
+  }, [handleProactiveMessage]);
+
+  // 更新状态机的主动消息处理 ref
+  useEffect(() => {
+    handleProactiveActionRef.current = async (intentVector: IntentVector, strategy: ResponseStrategy) => {
+      await handleProactiveMessage(intentVector, strategy);
+    };
+  }, [handleProactiveMessage]);
 
   // 语音识别 - 开始录音
   const startRecording = useCallback(() => {
@@ -288,6 +585,29 @@ export default function AuraInterface() {
     const text = inputText.trim();
     if (!text || state.isProcessing) return;
 
+    // 如果在睡眠模式，先唤醒
+    if (state.sleepMode) {
+      exitSleepMode();
+    }
+
+    // 停止静默检查
+    stopSilenceCheck();
+
+    // 取消任何待处理的主动对话
+    clearProactiveTimer();
+    proactiveCancelledRef.current = true;
+    setTimeout(() => { proactiveCancelledRef.current = false; }, 100);
+
+    // 使用状态机处理用户输入
+    const intentVector = stateMachineHandleInput(text);
+    console.log('[Aura] 状态机意图向量:', intentVector);
+
+    // 同时使用 Agent 分析情绪（用于 TTS 语气调整）
+    const emotion = EmotionAgent.analyzeEmotion(text);
+    lastIntentRef.current = intentVector.intent;
+    lastEmotionRef.current = emotion.type;
+    console.log('[Aura] 用户消息分析:', { text, intentVector, emotionType: emotion.type, emotionLevel: emotion.level });
+
     const userMessage: Message = {
       id: Date.now().toString(),
       role: 'user',
@@ -304,18 +624,16 @@ export default function AuraInterface() {
     let fullContent = '';
 
     try {
-      const history = messages.map(msg => ({
-        role: msg.role,
-        content: msg.content,
-      }));
-
       // 使用流式 API
       const response = await fetch('/api/aura/chat-stream', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           text,
-          history,
+          history: messages.map(msg => ({
+            role: msg.role,
+            content: msg.content,
+          })),
           voiceId: currentCharacter.voice_id,
           personality: currentCharacter.personality,
         }),
@@ -384,6 +702,10 @@ export default function AuraInterface() {
           : msg
       ));
 
+      // 通知状态机 AI 已响应
+      stateMachineHandleAIResponse(fullContent);
+      // 注意：startSilenceCheck 已在 handleAIResponse 内部调用，无需重复调用
+
       setState(prev => ({ ...prev, isProcessing: false }));
       setStatus('准备就绪');
 
@@ -395,7 +717,7 @@ export default function AuraInterface() {
       setState(prev => ({ ...prev, isProcessing: false }));
       setStatus('发送失败，请重试');
     }
-  }, [inputText, state.isProcessing, messages, currentCharacter]);
+  }, [inputText, state.isProcessing, state.sleepMode, messages, currentCharacter, clearProactiveTimer, stateMachineHandleInput, stateMachineHandleAIResponse, startSilenceCheck, stopSilenceCheck, exitSleepMode]);
 
   // 异步获取 TTS 并播放
   const fetchTTSAndPlay = async (text: string, messageId: string) => {
@@ -481,8 +803,16 @@ export default function AuraInterface() {
         bgMusicRef.current.pause();
         bgMusicRef.current = null;
       }
+      if (proactiveTimerRef.current) {
+        clearTimeout(proactiveTimerRef.current);
+      }
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current);
+      }
+      // 停止状态机的静默检查
+      stopSilenceCheck();
     };
-  }, []);
+  }, [stopSilenceCheck]);
 
   // 加载对话记录
   useEffect(() => {
@@ -563,6 +893,25 @@ export default function AuraInterface() {
 
       {/* 半透明遮罩 */}
       <div className="absolute inset-0 bg-black/50" />
+
+      {/* 睡眠模式 - 黑屏覆盖层 */}
+      {state.sleepMode && (
+        <div
+          className="fixed inset-0 z-50 bg-black flex flex-col items-center justify-center cursor-pointer"
+          onClick={exitSleepMode}
+          onTouchEnd={(e) => {
+            e.stopPropagation();
+            exitSleepMode();
+          }}
+        >
+          <div className="text-center space-y-6">
+            <div className="w-16 h-16 mx-auto rounded-full bg-white/5 flex items-center justify-center">
+              <div className="w-3 h-3 bg-white/20 rounded-full animate-pulse" />
+            </div>
+            <p className="text-white/20 text-sm tracking-wide">点击屏幕唤醒</p>
+          </div>
+        </div>
+      )}
 
       {/* 电台模式 */}
       {state.radioMode ? (
@@ -783,11 +1132,11 @@ export default function AuraInterface() {
               )}
               <button
                 onClick={toggleWhiteNoise}
-                className="flex items-center gap-1 px-3 py-1 rounded-full text-xs transition-colors ${
+                className={`flex items-center gap-1 px-3 py-1 rounded-full text-xs transition-colors ${
                   state.whiteNoiseEnabled
                     ? 'bg-purple-500/50 text-white'
                     : 'bg-white/10 text-white/60 hover:bg-white/20 hover:text-white'
-                }"
+                }`}
               >
                 <Waves className="h-3.5 w-3.5" />
                 {state.whiteNoiseEnabled ? '关闭' : '音乐'}
@@ -800,7 +1149,11 @@ export default function AuraInterface() {
             <div className="flex-1 relative">
               <Textarea
                 value={inputText}
-                onChange={e => setInputText(e.target.value)}
+                onChange={e => {
+                  setInputText(e.target.value);
+                  handleUserTyping();
+                }}
+                onBlur={() => setIsTyping(false)}
                 onKeyDown={handleKeyDown}
                 placeholder={`和${currentCharacter.name}聊聊...`}
                 className="w-full bg-white/95 rounded-2xl px-4 py-2.5 text-gray-800 placeholder:text-gray-400 resize-none focus:outline-none focus:ring-2 focus:ring-purple-400/50 text-sm leading-relaxed border-0 min-h-[40px] max-h-[100px]"
