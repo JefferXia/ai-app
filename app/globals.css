@@ -449,3 +449,8 @@ body {
   background-color: #0F0A1A;
   color: white;
 }
+
+/* 标题使用 Instrument Serif 字体 */
+h1, h2, h3, .font-heading {
+  font-family: var(--font-instrument-serif), Georgia, serif;
+}
