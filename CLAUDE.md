@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**极效火眼** is a streamlined AI platform featuring:
+**Aura** is a streamlined AI app featuring:
 
 - Basic user authentication (email/password + WeChat OAuth)
 - Payment system with ZPAY integration
@@ -255,3 +255,36 @@ The following modules have been removed to simplify the codebase:
 - Product analysis features
 - Sound list and hot topics
 - Member upgrade system
+
+## Gstack
+
+Use the `/browse` skill from gstack for all web browsing. Never use `mcp__claude-in-chrome__*` tools.
+
+Available gstack skills:
+- `/office-hours` - Office hours Q&A
+- `/plan-ceo-review` - CEO-level plan review
+- `/plan-eng-review` - Engineering plan review
+- `/plan-design-review` - Design plan review
+- `/design-consultation` - Design consultation
+- `/review` - Code review
+- `/ship` - Ship changes
+- `/land-and-deploy` - Land and deploy
+- `/canary` - Canary deployment
+- `/benchmark` - Performance benchmarking
+- `/browse` - Web browsing (use for all web tasks)
+- `/qa` - Quality assurance
+- `/qa-only` - QA only mode
+- `/design-review` - Design review
+- `/setup-browser-cookies` - Setup browser cookies
+- `/setup-deploy` - Setup deployment
+- `/retro` - Retrospective
+- `/investigate` - Investigation
+- `/document-release` - Document release
+- `/codex` - Codex integration
+- `/cso` - CSO mode
+- `/autoplan` - Auto planning
+- `/careful` - Careful mode
+- `/freeze` - Freeze state
+- `/guard` - Guard mode
+- `/unfreeze` - Unfreeze state
+- `/gstack-upgrade` - Upgrade gstack
