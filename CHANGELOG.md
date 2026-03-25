@@ -7,9 +7,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [0.0.1.1] - 2025-03-25
 
 ### Changed
-- Updated project name in CLAUDE.md from "极效火眼" to "Aura"
-- Added Gstack skills documentation section to CLAUDE.md
+- Project name updated to "Aura" throughout documentation
+- Added Gstack skills reference section to CLAUDE.md
 
 ### Added
-- TODOS.md for tracking project priorities and deferred items
+- TODOS.md for tracking project priorities (P1-P3)
 - VERSION file for semantic versioning
+- README.md now describes the actual Aura project (replaced template)
+- README-PAYMENT.md updated with correct project name
