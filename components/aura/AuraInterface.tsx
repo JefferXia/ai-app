@@ -985,6 +985,7 @@ export default function AuraInterface() {
                 src={currentCharacter.avatar}
                 alt={currentCharacter.name}
                 fill
+                sizes="48px"
                 className="object-cover"
               />
             </div>
