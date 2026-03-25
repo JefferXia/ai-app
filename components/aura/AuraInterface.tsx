@@ -1071,9 +1071,9 @@ export default function AuraInterface() {
           <div className="flex justify-center items-center gap-4 mb-3">
             <button
               onClick={() => switchCharacter('left')}
-              className="p-2 rounded-full bg-white/10 backdrop-blur-sm hover:bg-white/20 transition-colors"
+              className="p-3 rounded-full bg-white/10 backdrop-blur-sm hover:bg-white/20 transition-colors"
             >
-              <ChevronLeft className="h-4 w-4 text-white" />
+              <ChevronLeft className="h-5 w-5 text-white" />
             </button>
 
             <div className="flex gap-2">
@@ -1096,9 +1096,9 @@ export default function AuraInterface() {
 
             <button
               onClick={() => switchCharacter('right')}
-              className="p-2 rounded-full bg-white/10 backdrop-blur-sm hover:bg-white/20 transition-colors"
+              className="p-3 rounded-full bg-white/10 backdrop-blur-sm hover:bg-white/20 transition-colors"
             >
-              <ChevronRight className="h-4 w-4 text-white" />
+              <ChevronRight className="h-5 w-5 text-white" />
             </button>
           </div>
         </div>
