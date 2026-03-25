@@ -979,7 +979,7 @@ export default function AuraInterface() {
       <div className="relative z-10 container mx-auto px-4 py-6 max-w-3xl h-screen flex flex-col">
         {/* 角色信息 - 左上角 */}
         <div className="flex-shrink-0 mb-4">
-          <div className="inline-flex items-center gap-3 bg-[#1A1625]/80 backdrop-blur-sm rounded-full pr-4 pl-1 py-1 border border-[#2D2640]">
+          <div className="inline-flex items-center gap-3 bg-black/30 backdrop-blur-sm rounded-full pr-4 pl-1 py-1">
             <div className="w-12 h-12 rounded-full overflow-hidden border-2 border-[#A78BFA]/40 shadow-lg relative">
               <Image
                 src={currentCharacter.avatar}
@@ -993,7 +993,7 @@ export default function AuraInterface() {
               <h1 className="text-lg font-semibold text-white drop-shadow-lg leading-tight font-heading">
                 {currentCharacter.name}
               </h1>
-              <p className="text-[#9CA3AF] text-xs drop-shadow leading-tight">{currentCharacter.desc}</p>
+              <p className="text-white/70 text-xs drop-shadow leading-tight">{currentCharacter.desc}</p>
             </div>
           </div>
         </div>
@@ -1018,7 +1018,7 @@ export default function AuraInterface() {
                     className={`max-w-[80%] rounded-2xl px-4 py-2.5 backdrop-blur-sm ${
                       message.role === 'user'
                         ? 'bg-[#A78BFA] text-[#0F0A1A] rounded-br-sm'
-                        : 'bg-[#251F35] text-white rounded-bl-sm border border-[#2D2640]'
+                        : 'bg-white/15 text-white rounded-bl-sm'
                     }`}
                   >
                     <p className="text-sm whitespace-pre-wrap leading-relaxed">
@@ -1043,7 +1043,7 @@ export default function AuraInterface() {
               ))}
               {state.isProcessing && (
                 <div className="flex justify-start">
-                  <div className="bg-[#251F35] backdrop-blur-sm text-white rounded-2xl rounded-bl-sm px-4 py-2.5 border border-[#2D2640]">
+                  <div className="bg-white/15 backdrop-blur-sm text-white rounded-2xl rounded-bl-sm px-4 py-2.5">
                     <div className="flex items-center gap-2 text-sm">
                       <Image
                         src={currentCharacter.avatar}
@@ -1072,9 +1072,9 @@ export default function AuraInterface() {
           <div className="flex justify-center items-center gap-4 mb-3">
             <button
               onClick={() => switchCharacter('left')}
-              className="p-3 rounded-full bg-[#1A1625] backdrop-blur-sm hover:bg-[#251F35] hover:border-[#A78BFA] transition-all border border-[#2D2640]"
+              className="p-3 rounded-full bg-white/10 backdrop-blur-sm hover:bg-white/20 transition-colors"
             >
-              <ChevronLeft className="h-5 w-5 text-[#9CA3AF]" />
+              <ChevronLeft className="h-5 w-5 text-white" />
             </button>
 
             <div className="flex gap-2">
@@ -1089,7 +1089,7 @@ export default function AuraInterface() {
                   className={`transition-all duration-300 ${
                     selectedCharacter === char.id
                       ? 'w-6 h-2 bg-[#A78BFA] rounded-full'
-                      : 'w-2 h-2 bg-[#9CA3AF]/40 rounded-full hover:bg-[#9CA3AF]/60'
+                      : 'w-2 h-2 bg-white/40 rounded-full hover:bg-white/60'
                   }`}
                 />
               ))}
@@ -1097,9 +1097,9 @@ export default function AuraInterface() {
 
             <button
               onClick={() => switchCharacter('right')}
-              className="p-3 rounded-full bg-[#1A1625] backdrop-blur-sm hover:bg-[#251F35] hover:border-[#A78BFA] transition-all border border-[#2D2640]"
+              className="p-3 rounded-full bg-white/10 backdrop-blur-sm hover:bg-white/20 transition-colors"
             >
-              <ChevronRight className="h-5 w-5 text-[#9CA3AF]" />
+              <ChevronRight className="h-5 w-5 text-white" />
             </button>
           </div>
         </div>
@@ -1136,7 +1136,7 @@ export default function AuraInterface() {
                 className={`flex items-center gap-1 px-3 py-1.5 rounded-full text-xs transition-all ${
                   state.whiteNoiseEnabled
                     ? 'bg-[#A78BFA] text-[#0F0A1A] font-medium'
-                    : 'bg-[#1A1625] text-[#9CA3AF] hover:text-white border border-[#2D2640]'
+                    : 'bg-white/10 text-white/60 hover:text-white'
                 }`}
               >
                 <Waves className="h-3.5 w-3.5" />
@@ -1146,7 +1146,7 @@ export default function AuraInterface() {
           </div>
 
           {/* 输入栏 */}
-          <div className="flex items-center gap-2 bg-[#1A1625] backdrop-blur-sm rounded-2xl p-2 border border-[#2D2640]">
+          <div className="flex items-center gap-2 bg-black/20 backdrop-blur-sm rounded-2xl p-2">
             <div className="flex-1 relative">
               <Textarea
                 value={inputText}
@@ -1157,7 +1157,7 @@ export default function AuraInterface() {
                 onBlur={() => setIsTyping(false)}
                 onKeyDown={handleKeyDown}
                 placeholder={`和${currentCharacter.name}聊聊...`}
-                className="w-full bg-[#251F35] rounded-full px-4 py-2.5 text-white placeholder:text-[#9CA3AF] resize-none focus:outline-none focus:ring-2 focus:ring-[#A78BFA]/50 focus:border-[#A78BFA] text-sm leading-relaxed border border-[#2D2640] min-h-[40px] max-h-[100px]"
+                className="w-full bg-white/95 rounded-full px-4 py-2.5 text-gray-800 placeholder:text-gray-400 resize-none focus:outline-none focus:ring-2 focus:ring-[#A78BFA]/50 text-sm leading-relaxed border-0 min-h-[40px] max-h-[100px]"
                 disabled={state.isProcessing || state.isRecording}
                 onInput={(e) => {
                   const target = e.target as HTMLTextAreaElement;
@@ -1184,8 +1184,8 @@ export default function AuraInterface() {
                 disabled={state.isProcessing}
                 className={`flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center transition-all touch-none ${
                   state.isProcessing
-                    ? 'bg-[#251F35] text-[#9CA3AF] border border-[#2D2640]'
-                    : 'bg-[#251F35] text-[#9CA3AF] hover:bg-[#2D2640] hover:text-white border border-[#2D2640]'
+                    ? 'bg-gray-300 text-gray-400'
+                    : 'bg-white/90 text-gray-600 hover:bg-white active:bg-gray-200'
                 }`}
               >
                 <Mic className="h-4 w-4" />
@@ -1200,7 +1200,7 @@ export default function AuraInterface() {
               className={`flex-shrink-0 w-10 h-10 rounded-full transition-all ${
                 inputText.trim() && !state.isProcessing
                   ? 'bg-[#A78BFA] hover:bg-[#C4B5FD] text-[#0F0A1A] shadow-[0_0_20px_rgba(167,139,250,0.3)]'
-                  : 'bg-[#251F35] text-[#9CA3AF] border border-[#2D2640] hover:bg-[#251F35]'
+                  : 'bg-gray-300 text-gray-400 hover:bg-gray-300'
               }`}
             >
               <Send className="h-4 w-4" />
