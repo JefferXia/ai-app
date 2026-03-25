@@ -288,3 +288,11 @@ Available gstack skills:
 - `/guard` - Guard mode
 - `/unfreeze` - Unfreeze state
 - `/gstack-upgrade` - Upgrade gstack
+
+## 设计系统
+
+在进行任何视觉或 UI 决策前，请务必阅读 DESIGN.md。
+
+所有字体选择、颜色、间距和设计风格都在那里定义。未经用户明确批准，不得偏离。
+
+在 QA 模式下，标记任何不符合 DESIGN.md 的代码。
