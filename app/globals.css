@@ -454,3 +454,16 @@ body {
 h1, h2, h3, .font-heading {
   font-family: var(--font-instrument-serif), Georgia, serif;
 }
+
+/* Aura 设计系统变量 */
+:root {
+  --aura-primary: #A78BFA;
+  --aura-primary-foreground: #0F0A1A;
+  --aura-accent: #F59E0B;
+  --aura-accent-foreground: #0F0A1A;
+  --aura-surface: #1A1625;
+  --aura-surface-elevated: #251F35;
+  --aura-border: #2D2640;
+  --aura-muted: #9CA3AF;
+  --aura-shadow-glow: 0 0 40px rgba(167, 139, 250, 0.15);
+}
