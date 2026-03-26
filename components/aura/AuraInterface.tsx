@@ -26,6 +26,8 @@ interface AuraState {
   radioPlaying: boolean;
   isRecording: boolean;
   sleepMode: boolean; // 睡眠模式 - 关闭屏幕
+  recordingTime: number; // 录音时长（秒）
+  showCancelHint: boolean; // 是否显示取消提示
 }
 
 // 角色配置（包含背景图、人格、起始问候）
@@ -76,6 +78,8 @@ export default function AuraInterface() {
     radioPlaying: false,
     isRecording: false,
     sleepMode: false,
+    recordingTime: 0,
+    showCancelHint: false,
   });
 
   const [selectedCharacter, setSelectedCharacter] = useState<CharacterId>('wumei_yujie');
@@ -92,6 +96,9 @@ export default function AuraInterface() {
   const touchStartXRef = useRef<number>(0);
   const radioAudioRef = useRef<HTMLAudioElement | null>(null);
   const recognitionRef = useRef<any>(null);
+  // 按住说话相关 refs
+  const touchStartYRef = useRef<number>(0);
+  const recordingTimerRef = useRef<NodeJS.Timeout | null>(null);
   // 跟踪当前消息属于哪个角色（用于保存时确定目标角色）
   const messagesCharacterRef = useRef<CharacterId>(selectedCharacter);
   // 跟踪最近加载的消息，用于避免保存刚加载的消息
@@ -392,13 +399,21 @@ export default function AuraInterface() {
     };
   }, [handleProactiveMessage]);
 
-  // 语音识别 - 开始录音
-  const startRecording = useCallback(() => {
+  // 语音识别 - 开始录音（按住说话模式）
+  const startRecording = useCallback((clientY: number) => {
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
 
     if (!SpeechRecognition) {
       setStatus('您的浏览器不支持语音识别');
       return;
+    }
+
+    // 记录触摸起始位置
+    touchStartYRef.current = clientY;
+
+    // 触觉反馈 - 按下
+    if (navigator.vibrate) {
+      navigator.vibrate(10);
     }
 
     const recognition = new SpeechRecognition();
@@ -407,8 +422,18 @@ export default function AuraInterface() {
     recognition.interimResults = true;
 
     recognition.onstart = () => {
-      setState(prev => ({ ...prev, isRecording: true }));
-      setStatus('正在录音...');
+      setState(prev => ({ ...prev, isRecording: true, recordingTime: 0, showCancelHint: false }));
+      setStatus('松开发送，上滑取消');
+
+      // 触觉反馈 - 开始录音
+      if (navigator.vibrate) {
+        navigator.vibrate(30);
+      }
+
+      // 开始计时
+      recordingTimerRef.current = setInterval(() => {
+        setState(prev => ({ ...prev, recordingTime: prev.recordingTime + 1 }));
+      }, 1000);
     };
 
     recognition.onresult = (event: any) => {
@@ -418,28 +443,67 @@ export default function AuraInterface() {
 
     recognition.onerror = (event: any) => {
       console.error('语音识别错误:', event.error);
-      setState(prev => ({ ...prev, isRecording: false }));
+      if (recordingTimerRef.current) {
+        clearInterval(recordingTimerRef.current);
+        recordingTimerRef.current = null;
+      }
+      setState(prev => ({ ...prev, isRecording: false, recordingTime: 0, showCancelHint: false }));
       setStatus('语音识别失败，请重试');
     };
 
     recognition.onend = () => {
-      setState(prev => ({ ...prev, isRecording: false }));
-      setStatus('准备就绪');
+      // 由 stopRecording 处理结束逻辑
     };
 
     recognitionRef.current = recognition;
     recognition.start();
   }, []);
 
+  // 处理触摸移动（检测取消手势）
+  const handleTouchMove = useCallback((clientY: number) => {
+    if (!state.isRecording) return;
+
+    const diff = touchStartYRef.current - clientY;
+    const shouldCancel = diff > 100;
+
+    if (shouldCancel !== state.showCancelHint) {
+      setState(prev => ({ ...prev, showCancelHint: shouldCancel }));
+    }
+  }, [state.isRecording, state.showCancelHint]);
+
   // 语音识别 - 停止录音
-  const stopRecording = useCallback(() => {
+  const stopRecording = useCallback((cancelled: boolean = false) => {
+    if (!state.isRecording) return;
+
+    // 停止计时
+    if (recordingTimerRef.current) {
+      clearInterval(recordingTimerRef.current);
+      recordingTimerRef.current = null;
+    }
+
     if (recognitionRef.current) {
       recognitionRef.current.stop();
       recognitionRef.current = null;
     }
-    setState(prev => ({ ...prev, isRecording: false }));
-    setStatus('准备就绪');
-  }, []);
+
+    if (cancelled) {
+      // 取消发送
+      setInputText('');
+      setStatus('已取消');
+      // 触觉反馈 - 取消（双震动）
+      if (navigator.vibrate) {
+        navigator.vibrate([20, 50, 20]);
+      }
+    } else {
+      // 触觉反馈 - 发送成功
+      if (navigator.vibrate) {
+        navigator.vibrate(10);
+      }
+      setStatus('准备就绪');
+    }
+
+    setState(prev => ({ ...prev, isRecording: false, recordingTime: 0, showCancelHint: false }));
+  }, [state.isRecording]);
 
   // 初始化音频上下文
   const initAudioContext = useCallback(() => {
@@ -1167,20 +1231,49 @@ export default function AuraInterface() {
               />
             </div>
 
-            {/* 录音按钮 */}
+            {/* 录音按钮 - 微信按住说话模式 */}
             {state.isRecording ? (
-              <button
-                onMouseUp={stopRecording}
-                onTouchEnd={stopRecording}
-                onMouseLeave={stopRecording}
-                className="flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center bg-[#A78BFA] text-[#0F0A1A] animate-pulse"
-              >
-                <Mic className="h-4 w-4" />
-              </button>
+              <div className="flex-shrink-0 relative">
+                {/* 取消提示浮层 */}
+                {state.showCancelHint && (
+                  <div className="absolute -top-16 left-1/2 -translate-x-1/2 bg-red-500/90 text-white text-xs px-3 py-1.5 rounded-lg whitespace-nowrap">
+                    松手取消
+                  </div>
+                )}
+                <button
+                  onMouseUp={() => stopRecording(state.showCancelHint)}
+                  onTouchEnd={() => stopRecording(state.showCancelHint)}
+                  onMouseMove={(e) => handleTouchMove(e.clientY)}
+                  onTouchMove={(e) => handleTouchMove(e.touches[0].clientY)}
+                  onMouseLeave={() => stopRecording(true)}
+                  className={`flex-shrink-0 rounded-full flex items-center justify-center transition-all touch-none ${
+                    state.showCancelHint
+                      ? 'w-14 h-14 bg-red-500/80 text-white'
+                      : 'w-14 h-14 bg-[#A78BFA] text-[#0F0A1A]'
+                  }`}
+                >
+                  {state.showCancelHint ? (
+                    <span className="text-xs font-medium">取消</span>
+                  ) : (
+                    <div className="flex flex-col items-center">
+                      {/* 音波动画 */}
+                      <div className="flex items-end gap-0.5 h-4 mb-0.5">
+                        <div className="w-0.5 bg-current rounded-full animate-wave" style={{ height: '60%' }} />
+                        <div className="w-0.5 bg-current rounded-full animate-wave [animation-delay:0.1s]" style={{ height: '100%' }} />
+                        <div className="w-0.5 bg-current rounded-full animate-wave [animation-delay:0.2s]" style={{ height: '40%' }} />
+                        <div className="w-0.5 bg-current rounded-full animate-wave [animation-delay:0.3s]" style={{ height: '80%' }} />
+                        <div className="w-0.5 bg-current rounded-full animate-wave [animation-delay:0.15s]" style={{ height: '50%' }} />
+                      </div>
+                      {/* 时长 */}
+                      <span className="text-[10px] font-medium">{state.recordingTime}s</span>
+                    </div>
+                  )}
+                </button>
+              </div>
             ) : (
               <button
-                onMouseDown={(e) => { e.preventDefault(); startRecording(); }}
-                onTouchStart={(e) => { e.preventDefault(); startRecording(); }}
+                onMouseDown={(e) => { e.preventDefault(); startRecording(e.clientY); }}
+                onTouchStart={(e) => { e.preventDefault(); startRecording(e.touches[0].clientY); }}
                 disabled={state.isProcessing}
                 className={`flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center transition-all touch-none ${
                   state.isProcessing

@@ -467,3 +467,17 @@ h1, h2, h3, .font-heading {
   --aura-muted: #9CA3AF;
   --aura-shadow-glow: 0 0 40px rgba(167, 139, 250, 0.15);
 }
+
+/* 音波动画 - 按住说话 */
+@keyframes wave {
+  0%, 100% {
+    transform: scaleY(0.5);
+  }
+  50% {
+    transform: scaleY(1);
+  }
+}
+
+.animate-wave {
+  animation: wave 0.5s ease-in-out infinite;
+}
