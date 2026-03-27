@@ -6,10 +6,16 @@ import { GlobalContextProvider } from './globalContext';
 import { auth } from './(auth)/auth';
 import { cookies } from 'next/headers';
 import './globals.css';
-import { Inter } from 'next/font/google';
+import { Instrument_Serif } from 'next/font/google';
 import Script from 'next/script';
 
-const inter = Inter({ subsets: ['latin'] });
+const instrumentSerif = Instrument_Serif({
+  subsets: ['latin'],
+  weight: '400',
+  style: ['normal', 'italic'],
+  variable: '--font-instrument-serif',
+  display: 'swap',
+});
 
 export const metadata: Metadata = {
   metadataBase: new URL('https://ai.ultimateai.vip'),
@@ -67,7 +73,7 @@ export default async function RootLayout({
           }}
         />
       </head>
-      <body className={inter.className}>
+      <body className={`${instrumentSerif.variable} font-sans`}>
         {/* Microsoft Clarity */}
         <Script id="clarity-script" strategy="afterInteractive">
           {`(function(c,l,a,r,i,t,y){

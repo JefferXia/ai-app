@@ -117,25 +117,25 @@
     --sidebar-ring: 217.2 91.2% 59.8%;
   }
   .dark {
-    --background: 220 30% 6%;
+    --background: 258 44% 7%;
     --foreground: 210 20% 98%;
-    --card: 220 25% 9%;
+    --card: 258 40% 11%;
     --card-foreground: 210 20% 98%;
-    --popover: 220 25% 9%;
+    --popover: 258 40% 11%;
     --popover-foreground: 210 20% 98%;
-    --primary: 190 80% 50%;
-    --primary-foreground: 220 30% 6%;
-    --secondary: 270 60% 50%;
+    --primary: 263 82% 76%;
+    --primary-foreground: 258 44% 7%;
+    --secondary: 38 92% 50%;
     --secondary-foreground: 210 20% 98%;
-    --muted: 220 20% 15%;
-    --muted-foreground: 210 15% 65%;
-    --accent: 190 80% 50%;
-    --accent-foreground: 210 20% 98%;
+    --muted: 258 30% 15%;
+    --muted-foreground: 220 10% 65%;
+    --accent: 38 92% 50%;
+    --accent-foreground: 258 44% 7%;
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 210 20% 98%;
-    --border: 220 20% 18%;
-    --input: 220 20% 18%;
-    --ring: 190 80% 50%;
+    --border: 258 30% 18%;
+    --input: 258 30% 18%;
+    --ring: 263 82% 76%;
     --radius: 0.5rem;
     --chart-1: 220 70% 50%;
     --chart-2: 160 60% 45%;
@@ -446,6 +446,38 @@
 }
 
 body {
-  background-color: black;
+  background-color: #0F0A1A;
   color: white;
+}
+
+/* 标题使用 Instrument Serif 字体 */
+h1, h2, h3, .font-heading {
+  font-family: var(--font-instrument-serif), Georgia, serif;
+}
+
+/* Aura 设计系统变量 */
+:root {
+  --aura-primary: #A78BFA;
+  --aura-primary-foreground: #0F0A1A;
+  --aura-accent: #F59E0B;
+  --aura-accent-foreground: #0F0A1A;
+  --aura-surface: #1A1625;
+  --aura-surface-elevated: #251F35;
+  --aura-border: #2D2640;
+  --aura-muted: #9CA3AF;
+  --aura-shadow-glow: 0 0 40px rgba(167, 139, 250, 0.15);
+}
+
+/* 音波动画 - 按住说话 */
+@keyframes wave {
+  0%, 100% {
+    transform: scaleY(0.5);
+  }
+  50% {
+    transform: scaleY(1);
+  }
+}
+
+.animate-wave {
+  animation: wave 0.5s ease-in-out infinite;
 }

@@ -12,6 +12,11 @@ const config: Config = {
   		sans: [
   			'geist'
   		],
+  		heading: [
+  			'var(--font-instrument-serif)',
+  			'Georgia',
+  			'serif'
+  		],
   		mono: [
   			'geist-mono'
   		]

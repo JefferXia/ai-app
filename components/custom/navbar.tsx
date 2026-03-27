@@ -20,7 +20,7 @@ const UserSection = ({ user }: { user: User | undefined }) => {
   ) : (
     <Link
       href={loginHref}
-      className="h-9 inline-flex items-center px-4 bg-black/30 backdrop-blur-sm rounded-l-full text-white/80 hover:text-white hover:bg-black/40 transition-colors text-sm"
+      className="h-11 inline-flex items-center px-4 bg-black/30 backdrop-blur-sm rounded-l-full text-white/80 hover:text-white hover:bg-black/40 transition-colors text-sm"
     >
       登录
     </Link>

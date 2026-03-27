@@ -26,6 +26,8 @@ interface AuraState {
   radioPlaying: boolean;
   isRecording: boolean;
   sleepMode: boolean; // 睡眠模式 - 关闭屏幕
+  recordingTime: number; // 录音时长（秒）
+  showCancelHint: boolean; // 是否显示取消提示
 }
 
 // 角色配置（包含背景图、人格、起始问候）
@@ -76,6 +78,8 @@ export default function AuraInterface() {
     radioPlaying: false,
     isRecording: false,
     sleepMode: false,
+    recordingTime: 0,
+    showCancelHint: false,
   });
 
   const [selectedCharacter, setSelectedCharacter] = useState<CharacterId>('wumei_yujie');
@@ -92,6 +96,9 @@ export default function AuraInterface() {
   const touchStartXRef = useRef<number>(0);
   const radioAudioRef = useRef<HTMLAudioElement | null>(null);
   const recognitionRef = useRef<any>(null);
+  // 按住说话相关 refs
+  const touchStartYRef = useRef<number>(0);
+  const recordingTimerRef = useRef<NodeJS.Timeout | null>(null);
   // 跟踪当前消息属于哪个角色（用于保存时确定目标角色）
   const messagesCharacterRef = useRef<CharacterId>(selectedCharacter);
   // 跟踪最近加载的消息，用于避免保存刚加载的消息
@@ -392,13 +399,21 @@ export default function AuraInterface() {
     };
   }, [handleProactiveMessage]);
 
-  // 语音识别 - 开始录音
-  const startRecording = useCallback(() => {
+  // 语音识别 - 开始录音（按住说话模式）
+  const startRecording = useCallback((clientY: number) => {
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
 
     if (!SpeechRecognition) {
       setStatus('您的浏览器不支持语音识别');
       return;
+    }
+
+    // 记录触摸起始位置
+    touchStartYRef.current = clientY;
+
+    // 触觉反馈 - 按下
+    if (navigator.vibrate) {
+      navigator.vibrate(10);
     }
 
     const recognition = new SpeechRecognition();
@@ -407,8 +422,18 @@ export default function AuraInterface() {
     recognition.interimResults = true;
 
     recognition.onstart = () => {
-      setState(prev => ({ ...prev, isRecording: true }));
-      setStatus('正在录音...');
+      setState(prev => ({ ...prev, isRecording: true, recordingTime: 0, showCancelHint: false }));
+      setStatus('松开发送，上滑取消');
+
+      // 触觉反馈 - 开始录音
+      if (navigator.vibrate) {
+        navigator.vibrate(30);
+      }
+
+      // 开始计时
+      recordingTimerRef.current = setInterval(() => {
+        setState(prev => ({ ...prev, recordingTime: prev.recordingTime + 1 }));
+      }, 1000);
     };
 
     recognition.onresult = (event: any) => {
@@ -418,28 +443,67 @@ export default function AuraInterface() {
 
     recognition.onerror = (event: any) => {
       console.error('语音识别错误:', event.error);
-      setState(prev => ({ ...prev, isRecording: false }));
+      if (recordingTimerRef.current) {
+        clearInterval(recordingTimerRef.current);
+        recordingTimerRef.current = null;
+      }
+      setState(prev => ({ ...prev, isRecording: false, recordingTime: 0, showCancelHint: false }));
       setStatus('语音识别失败，请重试');
     };
 
     recognition.onend = () => {
-      setState(prev => ({ ...prev, isRecording: false }));
-      setStatus('准备就绪');
+      // 由 stopRecording 处理结束逻辑
     };
 
     recognitionRef.current = recognition;
     recognition.start();
   }, []);
 
+  // 处理触摸移动（检测取消手势）
+  const handleTouchMove = useCallback((clientY: number) => {
+    if (!state.isRecording) return;
+
+    const diff = touchStartYRef.current - clientY;
+    const shouldCancel = diff > 100;
+
+    if (shouldCancel !== state.showCancelHint) {
+      setState(prev => ({ ...prev, showCancelHint: shouldCancel }));
+    }
+  }, [state.isRecording, state.showCancelHint]);
+
   // 语音识别 - 停止录音
-  const stopRecording = useCallback(() => {
+  const stopRecording = useCallback((cancelled: boolean = false) => {
+    if (!state.isRecording) return;
+
+    // 停止计时
+    if (recordingTimerRef.current) {
+      clearInterval(recordingTimerRef.current);
+      recordingTimerRef.current = null;
+    }
+
     if (recognitionRef.current) {
       recognitionRef.current.stop();
       recognitionRef.current = null;
     }
-    setState(prev => ({ ...prev, isRecording: false }));
-    setStatus('准备就绪');
-  }, []);
+
+    if (cancelled) {
+      // 取消发送
+      setInputText('');
+      setStatus('已取消');
+      // 触觉反馈 - 取消（双震动）
+      if (navigator.vibrate) {
+        navigator.vibrate([20, 50, 20]);
+      }
+    } else {
+      // 触觉反馈 - 发送成功
+      if (navigator.vibrate) {
+        navigator.vibrate(10);
+      }
+      setStatus('准备就绪');
+    }
+
+    setState(prev => ({ ...prev, isRecording: false, recordingTime: 0, showCancelHint: false }));
+  }, [state.isRecording]);
 
   // 初始化音频上下文
   const initAudioContext = useCallback(() => {
@@ -897,7 +961,7 @@ export default function AuraInterface() {
       {/* 睡眠模式 - 黑屏覆盖层 */}
       {state.sleepMode && (
         <div
-          className="fixed inset-0 z-50 bg-black flex flex-col items-center justify-center cursor-pointer"
+          className="fixed inset-0 z-50 bg-[#0F0A1A] flex flex-col items-center justify-center cursor-pointer"
           onClick={exitSleepMode}
           onTouchEnd={(e) => {
             e.stopPropagation();
@@ -905,10 +969,10 @@ export default function AuraInterface() {
           }}
         >
           <div className="text-center space-y-6">
-            <div className="w-16 h-16 mx-auto rounded-full bg-white/5 flex items-center justify-center">
-              <div className="w-3 h-3 bg-white/20 rounded-full animate-pulse" />
+            <div className="w-16 h-16 mx-auto rounded-full bg-[#1A1625] flex items-center justify-center border border-[#2D2640]">
+              <div className="w-3 h-3 bg-[#A78BFA]/40 rounded-full animate-pulse" />
             </div>
-            <p className="text-white/20 text-sm tracking-wide">点击屏幕唤醒</p>
+            <p className="text-[#9CA3AF]/30 text-sm tracking-wide">点击屏幕唤醒</p>
           </div>
         </div>
       )}
@@ -919,7 +983,7 @@ export default function AuraInterface() {
           {/* 返回按钮 */}
           <button
             onClick={toggleRadioMode}
-            className="absolute top-6 left-4 flex items-center gap-2 text-white/70 hover:text-white transition-colors"
+            className="absolute top-6 left-4 flex items-center gap-2 text-[#9CA3AF] hover:text-[#A78BFA] transition-colors"
           >
             <ArrowLeft className="h-5 w-5" />
             <span className="text-sm">返回</span>
@@ -932,13 +996,13 @@ export default function AuraInterface() {
               {/* 涟漪圈 */}
               {state.radioPlaying && (
                 <>
-                  <div className="absolute inset-0 rounded-full border-2 border-white/30 animate-ripple" />
-                  <div className="absolute inset-0 rounded-full border-2 border-white/20 animate-ripple [animation-delay:1s]" />
-                  <div className="absolute inset-0 rounded-full border-2 border-white/10 animate-ripple [animation-delay:2s]" />
+                  <div className="absolute inset-0 rounded-full border-2 border-[#A78BFA]/30 animate-ripple" />
+                  <div className="absolute inset-0 rounded-full border-2 border-[#A78BFA]/20 animate-ripple [animation-delay:1s]" />
+                  <div className="absolute inset-0 rounded-full border-2 border-[#A78BFA]/10 animate-ripple [animation-delay:2s]" />
                 </>
               )}
               {/* 头像 */}
-              <div className="relative w-32 h-32 rounded-full overflow-hidden border-4 border-white/30 shadow-2xl z-10">
+              <div className="relative w-32 h-32 rounded-full overflow-hidden border-4 border-[#A78BFA]/40 shadow-2xl z-10">
                 <Image
                   src={currentCharacter.avatar}
                   alt={currentCharacter.name}
@@ -951,24 +1015,24 @@ export default function AuraInterface() {
 
             {/* 标题 */}
             <div>
-              <h2 className="text-2xl font-bold text-white drop-shadow-lg">微澜电台</h2>
-              <p className="text-white/60 text-sm mt-2">深夜陪伴，温暖入眠</p>
+              <h2 className="text-2xl font-bold text-white drop-shadow-lg font-heading">微澜电台</h2>
+              <p className="text-[#9CA3AF] text-sm mt-2">深夜陪伴，温暖入眠</p>
             </div>
 
             {/* 播放按钮 */}
             <button
               onClick={toggleRadioPlay}
-              className="mx-auto w-20 h-20 rounded-full flex items-center justify-center transition-all shadow-xl bg-orange-500 hover:bg-orange-600"
+              className="mx-auto w-20 h-20 rounded-full flex items-center justify-center transition-all shadow-xl bg-[#F59E0B] hover:bg-[#FCD34D] shadow-[0_0_30px_rgba(245,158,11,0.3)]"
             >
               {state.radioPlaying ? (
-                <Pause className="h-10 w-10 text-white" />
+                <Pause className="h-10 w-10 text-[#0F0A1A]" />
               ) : (
-                <Play className="h-10 w-10 text-white ml-1" />
+                <Play className="h-10 w-10 text-[#0F0A1A] ml-1" />
               )}
             </button>
 
             {/* 状态提示 */}
-            <p className="text-white/40 text-xs">
+            <p className="text-[#9CA3AF]/50 text-xs">
               {state.radioPlaying ? '正在播放...' : '点击播放'}
             </p>
           </div>
@@ -980,16 +1044,17 @@ export default function AuraInterface() {
         {/* 角色信息 - 左上角 */}
         <div className="flex-shrink-0 mb-4">
           <div className="inline-flex items-center gap-3 bg-black/30 backdrop-blur-sm rounded-full pr-4 pl-1 py-1">
-            <div className="w-12 h-12 rounded-full overflow-hidden border-2 border-white/40 shadow-lg relative">
+            <div className="w-12 h-12 rounded-full overflow-hidden border-2 border-[#A78BFA]/40 shadow-lg relative">
               <Image
                 src={currentCharacter.avatar}
                 alt={currentCharacter.name}
                 fill
+                sizes="48px"
                 className="object-cover"
               />
             </div>
             <div className="pr-1">
-              <h1 className="text-lg font-semibold text-white drop-shadow-lg leading-tight">
+              <h1 className="text-lg font-semibold text-white drop-shadow-lg leading-tight font-heading">
                 {currentCharacter.name}
               </h1>
               <p className="text-white/70 text-xs drop-shadow leading-tight">{currentCharacter.desc}</p>
@@ -1000,11 +1065,11 @@ export default function AuraInterface() {
         {/* Messages Area */}
         <div className="flex-1 overflow-y-auto mb-4 px-1 space-y-3">
           {messages.length === 0 ? (
-            <div className="text-center text-white/70 py-12">
-              <p className="text-base text-white/80 drop-shadow leading-relaxed max-w-[280px] mx-auto">
+            <div className="text-center text-[#9CA3AF] py-12">
+              <p className="text-base text-white/90 drop-shadow leading-relaxed max-w-[280px] mx-auto font-heading text-lg">
                 {currentCharacter.greeting}
               </p>
-              <p className="text-xs text-white/30 mt-8 drop-shadow">← 左右滑动切换角色 →</p>
+              <p className="text-xs text-[#9CA3AF]/50 mt-8 drop-shadow">← 左右滑动切换角色 →</p>
             </div>
           ) : (
             <>
@@ -1014,24 +1079,24 @@ export default function AuraInterface() {
                   className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
                 >
                   <div
-                    className={`max-w-[80%] rounded-2xl px-4 py-2 backdrop-blur-sm ${
+                    className={`max-w-[80%] rounded-2xl px-4 py-2.5 backdrop-blur-sm ${
                       message.role === 'user'
-                        ? 'bg-purple-600/70 text-white'
-                        : 'bg-white/15 text-white'
+                        ? 'bg-[#A78BFA] text-[#0F0A1A] rounded-br-sm'
+                        : 'bg-white/15 text-white rounded-bl-sm'
                     }`}
                   >
-                    <p className="text-sm whitespace-pre-wrap drop-shadow">
+                    <p className="text-sm whitespace-pre-wrap leading-relaxed">
                       {formatMessageWithActions(message.content, message.actions)}
                     </p>
                     {message.role === 'assistant' && message.actions && message.actions.length > 0 && (
-                      <p className="text-xs text-white/50 italic mt-1">
+                      <p className="text-xs text-[#9CA3AF] italic mt-1.5">
                         *{message.actions.join('，')}*
                       </p>
                     )}
                     {message.role === 'assistant' && message.audio && (
                       <button
                         onClick={() => replayAudio(message)}
-                        className="mt-2 text-white/60 hover:text-white flex items-center gap-1 text-xs"
+                        className="mt-2 text-[#9CA3AF] hover:text-[#A78BFA] flex items-center gap-1 text-xs transition-colors"
                       >
                         <Volume2 className="h-3 w-3" />
                         重播
@@ -1042,7 +1107,7 @@ export default function AuraInterface() {
               ))}
               {state.isProcessing && (
                 <div className="flex justify-start">
-                  <div className="bg-white/15 backdrop-blur-sm text-white rounded-2xl px-4 py-2">
+                  <div className="bg-white/15 backdrop-blur-sm text-white rounded-2xl rounded-bl-sm px-4 py-2.5">
                     <div className="flex items-center gap-2 text-sm">
                       <Image
                         src={currentCharacter.avatar}
@@ -1051,10 +1116,10 @@ export default function AuraInterface() {
                         height={20}
                         className="rounded-full"
                       />
-                      <div className="animate-pulse flex gap-1">
-                        <span className="w-2 h-2 bg-white/60 rounded-full"></span>
-                        <span className="w-2 h-2 bg-white/60 rounded-full"></span>
-                        <span className="w-2 h-2 bg-white/60 rounded-full"></span>
+                      <div className="flex gap-1">
+                        <span className="w-1.5 h-1.5 bg-[#A78BFA] rounded-full animate-pulse"></span>
+                        <span className="w-1.5 h-1.5 bg-[#A78BFA] rounded-full animate-pulse [animation-delay:150ms]"></span>
+                        <span className="w-1.5 h-1.5 bg-[#A78BFA] rounded-full animate-pulse [animation-delay:300ms]"></span>
                       </div>
                     </div>
                   </div>
@@ -1071,9 +1136,9 @@ export default function AuraInterface() {
           <div className="flex justify-center items-center gap-4 mb-3">
             <button
               onClick={() => switchCharacter('left')}
-              className="p-2 rounded-full bg-white/10 backdrop-blur-sm hover:bg-white/20 transition-colors"
+              className="p-3 rounded-full bg-white/10 backdrop-blur-sm hover:bg-white/20 transition-colors"
             >
-              <ChevronLeft className="h-4 w-4 text-white" />
+              <ChevronLeft className="h-5 w-5 text-white" />
             </button>
 
             <div className="flex gap-2">
@@ -1087,7 +1152,7 @@ export default function AuraInterface() {
                   }}
                   className={`transition-all duration-300 ${
                     selectedCharacter === char.id
-                      ? 'w-6 h-2 bg-white rounded-full'
+                      ? 'w-6 h-2 bg-[#A78BFA] rounded-full'
                       : 'w-2 h-2 bg-white/40 rounded-full hover:bg-white/60'
                   }`}
                 />
@@ -1096,9 +1161,9 @@ export default function AuraInterface() {
 
             <button
               onClick={() => switchCharacter('right')}
-              className="p-2 rounded-full bg-white/10 backdrop-blur-sm hover:bg-white/20 transition-colors"
+              className="p-3 rounded-full bg-white/10 backdrop-blur-sm hover:bg-white/20 transition-colors"
             >
-              <ChevronRight className="h-4 w-4 text-white" />
+              <ChevronRight className="h-5 w-5 text-white" />
             </button>
           </div>
         </div>
@@ -1107,14 +1172,14 @@ export default function AuraInterface() {
         <div className="flex-shrink-0">
           {/* 状态栏 */}
           <div className="flex items-center justify-between mb-2 px-1">
-            <div className="flex items-center gap-2 text-white/60">
+            <div className="flex items-center gap-2 text-[#9CA3AF]">
               <div
                 className={`w-2 h-2 rounded-full ${
                   state.isPlaying
-                    ? 'bg-green-400 animate-pulse'
+                    ? 'bg-[#34D399] animate-pulse'
                     : state.isProcessing
-                    ? 'bg-yellow-400 animate-pulse'
-                    : 'bg-white/30'
+                    ? 'bg-[#FBBF24] animate-pulse'
+                    : 'bg-[#9CA3AF]/40'
                 }`}
               />
               <span className="drop-shadow text-xs">{status}</span>
@@ -1124,7 +1189,7 @@ export default function AuraInterface() {
               {selectedCharacter === 'wumei_yujie' && (
                 <button
                   onClick={toggleRadioMode}
-                  className="flex items-center gap-1 px-3 py-1 rounded-full text-xs transition-colors bg-orange-500/70 text-white hover:bg-orange-600/70"
+                  className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs transition-all bg-[#F59E0B] text-[#0F0A1A] hover:bg-[#FCD34D] font-medium"
                 >
                   <Radio className="h-3.5 w-3.5" />
                   电台
@@ -1132,10 +1197,10 @@ export default function AuraInterface() {
               )}
               <button
                 onClick={toggleWhiteNoise}
-                className={`flex items-center gap-1 px-3 py-1 rounded-full text-xs transition-colors ${
+                className={`flex items-center gap-1 px-3 py-1.5 rounded-full text-xs transition-all ${
                   state.whiteNoiseEnabled
-                    ? 'bg-purple-500/50 text-white'
-                    : 'bg-white/10 text-white/60 hover:bg-white/20 hover:text-white'
+                    ? 'bg-[#A78BFA] text-[#0F0A1A] font-medium'
+                    : 'bg-white/10 text-white/60 hover:text-white'
                 }`}
               >
                 <Waves className="h-3.5 w-3.5" />
@@ -1156,7 +1221,7 @@ export default function AuraInterface() {
                 onBlur={() => setIsTyping(false)}
                 onKeyDown={handleKeyDown}
                 placeholder={`和${currentCharacter.name}聊聊...`}
-                className="w-full bg-white/95 rounded-2xl px-4 py-2.5 text-gray-800 placeholder:text-gray-400 resize-none focus:outline-none focus:ring-2 focus:ring-purple-400/50 text-sm leading-relaxed border-0 min-h-[40px] max-h-[100px]"
+                className="w-full bg-white/95 rounded-full px-4 py-2.5 text-gray-800 placeholder:text-gray-400 resize-none focus:outline-none focus:ring-2 focus:ring-[#A78BFA]/50 text-sm leading-relaxed border-0 min-h-[40px] max-h-[100px]"
                 disabled={state.isProcessing || state.isRecording}
                 onInput={(e) => {
                   const target = e.target as HTMLTextAreaElement;
@@ -1166,22 +1231,51 @@ export default function AuraInterface() {
               />
             </div>
 
-            {/* 录音按钮 */}
+            {/* 录音按钮 - 微信按住说话模式 */}
             {state.isRecording ? (
-              <button
-                onMouseUp={stopRecording}
-                onTouchEnd={stopRecording}
-                onMouseLeave={stopRecording}
-                className="flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center bg-red-500 text-white animate-pulse"
-              >
-                <Mic className="h-4 w-4" />
-              </button>
+              <div className="flex-shrink-0 relative">
+                {/* 取消提示浮层 */}
+                {state.showCancelHint && (
+                  <div className="absolute -top-16 left-1/2 -translate-x-1/2 bg-red-500/90 text-white text-xs px-3 py-1.5 rounded-lg whitespace-nowrap">
+                    松手取消
+                  </div>
+                )}
+                <button
+                  onMouseUp={() => stopRecording(state.showCancelHint)}
+                  onTouchEnd={() => stopRecording(state.showCancelHint)}
+                  onMouseMove={(e) => handleTouchMove(e.clientY)}
+                  onTouchMove={(e) => handleTouchMove(e.touches[0].clientY)}
+                  onMouseLeave={() => stopRecording(true)}
+                  className={`flex-shrink-0 rounded-full flex items-center justify-center transition-all touch-none ${
+                    state.showCancelHint
+                      ? 'w-14 h-14 bg-red-500/80 text-white'
+                      : 'w-14 h-14 bg-[#A78BFA] text-[#0F0A1A]'
+                  }`}
+                >
+                  {state.showCancelHint ? (
+                    <span className="text-xs font-medium">取消</span>
+                  ) : (
+                    <div className="flex flex-col items-center">
+                      {/* 音波动画 */}
+                      <div className="flex items-end gap-0.5 h-4 mb-0.5">
+                        <div className="w-0.5 bg-current rounded-full animate-wave" style={{ height: '60%' }} />
+                        <div className="w-0.5 bg-current rounded-full animate-wave [animation-delay:0.1s]" style={{ height: '100%' }} />
+                        <div className="w-0.5 bg-current rounded-full animate-wave [animation-delay:0.2s]" style={{ height: '40%' }} />
+                        <div className="w-0.5 bg-current rounded-full animate-wave [animation-delay:0.3s]" style={{ height: '80%' }} />
+                        <div className="w-0.5 bg-current rounded-full animate-wave [animation-delay:0.15s]" style={{ height: '50%' }} />
+                      </div>
+                      {/* 时长 */}
+                      <span className="text-[10px] font-medium">{state.recordingTime}s</span>
+                    </div>
+                  )}
+                </button>
+              </div>
             ) : (
               <button
-                onMouseDown={(e) => { e.preventDefault(); startRecording(); }}
-                onTouchStart={(e) => { e.preventDefault(); startRecording(); }}
+                onMouseDown={(e) => { e.preventDefault(); startRecording(e.clientY); }}
+                onTouchStart={(e) => { e.preventDefault(); startRecording(e.touches[0].clientY); }}
                 disabled={state.isProcessing}
-                className={`flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center transition-colors touch-none ${
+                className={`flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center transition-all touch-none ${
                   state.isProcessing
                     ? 'bg-gray-300 text-gray-400'
                     : 'bg-white/90 text-gray-600 hover:bg-white active:bg-gray-200'
@@ -1196,9 +1290,9 @@ export default function AuraInterface() {
               onClick={sendMessage}
               disabled={!inputText.trim() || state.isProcessing}
               size="icon"
-              className={`flex-shrink-0 w-10 h-10 rounded-full ${
+              className={`flex-shrink-0 w-10 h-10 rounded-full transition-all ${
                 inputText.trim() && !state.isProcessing
-                  ? 'bg-purple-500 hover:bg-purple-600 text-white shadow-lg'
+                  ? 'bg-[#A78BFA] hover:bg-[#C4B5FD] text-[#0F0A1A] shadow-[0_0_20px_rgba(167,139,250,0.3)]'
                   : 'bg-gray-300 text-gray-400 hover:bg-gray-300'
               }`}
             >
@@ -1207,7 +1301,7 @@ export default function AuraInterface() {
           </div>
         </div>
 
-        <div className="text-center text-xs text-white/30 mt-2 flex-shrink-0 drop-shadow">
+        <div className="text-center text-xs text-[#9CA3AF]/40 mt-2 flex-shrink-0 drop-shadow">
           <p>Powered by AI</p>
         </div>
         </div>
