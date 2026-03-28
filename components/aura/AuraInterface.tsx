@@ -1246,11 +1246,13 @@ export default function AuraInterface() {
                   onMouseMove={(e) => handleTouchMove(e.clientY)}
                   onTouchMove={(e) => handleTouchMove(e.touches[0].clientY)}
                   onMouseLeave={() => stopRecording(true)}
-                  className={`flex-shrink-0 rounded-full flex items-center justify-center transition-all touch-none ${
+                  onContextMenu={(e) => e.preventDefault()}
+                  className={`flex-shrink-0 rounded-full flex items-center justify-center transition-all touch-none select-none ${
                     state.showCancelHint
                       ? 'w-14 h-14 bg-red-500/80 text-white'
                       : 'w-14 h-14 bg-[#A78BFA] text-[#0F0A1A]'
                   }`}
+                  style={{ WebkitUserSelect: 'none', userSelect: 'none', WebkitTouchCallout: 'none' }}
                 >
                   {state.showCancelHint ? (
                     <span className="text-xs font-medium">取消</span>
@@ -1274,12 +1276,14 @@ export default function AuraInterface() {
               <button
                 onMouseDown={(e) => { e.preventDefault(); startRecording(e.clientY); }}
                 onTouchStart={(e) => { e.preventDefault(); startRecording(e.touches[0].clientY); }}
+                onContextMenu={(e) => e.preventDefault()}
                 disabled={state.isProcessing}
-                className={`flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center transition-all touch-none ${
+                className={`flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center transition-all touch-none select-none ${
                   state.isProcessing
                     ? 'bg-gray-300 text-gray-400'
                     : 'bg-white/90 text-gray-600 hover:bg-white active:bg-gray-200'
                 }`}
+                style={{ WebkitUserSelect: 'none', userSelect: 'none', WebkitTouchCallout: 'none' }}
               >
                 <Mic className="h-4 w-4" />
               </button>
