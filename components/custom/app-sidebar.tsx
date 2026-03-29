@@ -41,9 +41,9 @@ export function AppSidebar({ user }: { user: User | undefined }) {
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton asChild>
-              <Link href="/ideashredder" onClick={() => setOpenMobile(false)}>
+              <Link href="/aura" onClick={() => setOpenMobile(false)}>
                 <span className="text-lg font-semibold font-mono tracking-tighter">
-                  极效火眼
+                  Aura
                 </span>
               </Link>
             </SidebarMenuButton>
