@@ -4,6 +4,20 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.1.0.0] - 2026-04-02
+
+### Added
+- Drama 互动剧情模式 (Phase 1)
+  - DramaSession/DramaMessage 数据模型
+  - 陆泽 (高冷霸总) 角色智能体
+  - 好感度系统 (0-100)
+  - 沉浸式全屏聊天界面
+  - 玻璃态 UI 遵循 DESIGN.md 设计系统
+- Vitest 测试框架配置
+
+### Fixed
+- 防止并发创建重复会话 (unique constraint + P2002 处理)
+
 ## [0.0.2.0] - 2025-03-27
 
 ### Added
