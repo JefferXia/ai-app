@@ -2,7 +2,8 @@
 
 import { useState, useRef, useCallback, useEffect } from 'react';
 import Image from 'next/image';
-import { Send, Volume2, Waves, ChevronLeft, ChevronRight, Radio, ArrowLeft, Play, Pause, Mic } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { Send, Volume2, Waves, ChevronLeft, ChevronRight, Radio, ArrowLeft, Play, Pause, Mic, Heart } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { IntentAgent, EmotionAgent, IntentType } from '@/lib/aura-agent';
@@ -70,6 +71,7 @@ type CharacterId = typeof CHARACTERS[number]['id'];
 const CHAT_HISTORY_KEY = 'aura_chat_history';
 
 export default function AuraInterface() {
+  const router = useRouter();
   const [state, setState] = useState<AuraState>({
     isProcessing: false,
     isPlaying: false,
@@ -1185,6 +1187,14 @@ export default function AuraInterface() {
               <span className="drop-shadow text-xs">{status}</span>
             </div>
             <div className="flex items-center gap-2">
+              {/* Drama 剧情 */}
+              <button
+                onClick={() => router.push('/drama')}
+                className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs transition-all bg-[#A78BFA] text-[#0F0A1A] hover:bg-[#C4B5FD] font-medium"
+              >
+                <Heart className="h-3.5 w-3.5" />
+                剧情
+              </button>
               {/* 电台按钮 - 只有微澜才有 */}
               {selectedCharacter === 'wumei_yujie' && (
                 <button

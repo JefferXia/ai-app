@@ -52,7 +52,8 @@ model User {
   // 关联关系
   inviteRecords   InviteRecord[] @relation("Inviter")  // 邀请的用户列表
   invitedByRecord InviteRecord? @relation("Invitee")   // 被谁邀请的记录
-  
+  dramaSessions   DramaSession[]                       // Drama 会话
+
   @@index([invite_code])
   @@index([invited_by])
 }
@@ -302,7 +303,61 @@ model ProductViolation {
   severity              String   @db.VarChar(20)                // 严重程度
   detail_page_violation String   @db.VarChar(100)               // 详情页违规类型
   created_at            DateTime @default(now())                // 创建时间
-  
+
   // 索引
   @@index([violation_type])
+}
+
+// Drama 互动剧情模式
+model DramaSession {
+  id            String   @id @default(cuid())
+  userId        String
+  characterId   String   @db.VarChar(50)  // 角色ID，如 "luze"
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  affection     Int      @default(20)     // 好感度 0-100
+  tension       Int      @default(10)     // 张力 0-100
+  currentStage  String   @default("Initial") @db.VarChar(20) // 当前阶段
+  location      String   @default("陆氏集团办公室") @db.VarChar(100) // 当前场景
+
+  storyMemory   Json     @default("{}")   // 故事记忆 { keyPlotPoints, characterDecisions, establishedFacts }
+
+  messages      DramaMessage[]
+
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, characterId])
+  @@index([userId, createdAt(sort: Desc)])
+  @@index([characterId])
+}
+
+model DramaMessage {
+  id              String   @id @default(cuid())
+  sessionId       String
+  role            String   @db.VarChar(20)  // 'user' | 'character' | 'director'
+  content         String   @db.Text
+  affectionImpact Int?                      // 好感度变化
+  stageTransition Boolean  @default(false)  // 是否触发阶段转换
+  visualPrompt    String?  @db.Text         // 场景图片提示词
+  createdAt       DateTime @default(now())
+
+  session         DramaSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId, createdAt(sort: Asc)])
+}
+
+model CharacterTemplate {
+  id            String   @id @default(cuid())
+  name          String   @db.VarChar(50)   // 角色ID，如 "luze"
+  displayName   String   @db.VarChar(50)   // 显示名称，如 "陆泽"
+  personality   Json     @default("{}")    // 人格配置 { traits, greeting, backstory }
+  voiceId       String   @db.VarChar(100)  // TTS voice_id
+  bgImage       String   @db.Text          // 背景图片 URL
+  avatarImage   String   @db.Text          // 头像图片 URL
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([name])
 }
