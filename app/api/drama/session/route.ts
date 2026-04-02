@@ -121,14 +121,20 @@ export async function POST(request: NextRequest) {
     // 处理 unique constraint 冲突 (并发创建时的竞态)
     if (error.code === 'P2002') {
       // 重新获取已存在的会话
-      const session = await auth();
+      const resession = await auth();
+      if (!resession?.user?.id) {
+        return NextResponse.json(
+          { success: false, error: '未登录' },
+          { status: 401 }
+        );
+      }
       const body = request.json ? await request.json() : {};
       const characterId = body.characterId || 'luze';
 
       const existingSession = await prisma.dramaSession.findUnique({
         where: {
           userId_characterId: {
-            userId: session!.user!.id,
+            userId: resession.user.id,
             characterId,
           },
         },
