@@ -30,14 +30,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 检查是否已有该角色的会话
-    const existingSession = await prisma.dramaSession.findFirst({
+    // 使用 findUnique 避免竞态条件 (依赖 @@unique([userId, characterId]))
+    const existingSession = await prisma.dramaSession.findUnique({
       where: {
-        userId: session.user.id,
-        characterId,
-      },
-      orderBy: {
-        updatedAt: 'desc',
+        userId_characterId: {
+          userId: session.user.id,
+          characterId,
+        },
       },
       include: {
         messages: {
@@ -73,7 +72,8 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // 创建新会话
+    // 创建新会话 (unique constraint 会防止并发创建重复)
+    const greeting = generateGreeting(characterId);
     const newSession = await prisma.dramaSession.create({
       data: {
         userId: session.user.id,
@@ -87,16 +87,15 @@ export async function POST(request: NextRequest) {
           characterDecisions: [],
           establishedFacts: [],
         },
+        messages: {
+          create: {
+            role: 'character',
+            content: greeting,
+          },
+        },
       },
-    });
-
-    // 添加初始问候语
-    const greeting = generateGreeting(characterId);
-    await prisma.dramaMessage.create({
-      data: {
-        sessionId: newSession.id,
-        role: 'character',
-        content: greeting,
+      include: {
+        messages: true,
       },
     });
 
@@ -109,16 +108,62 @@ export async function POST(request: NextRequest) {
         tension: newSession.tension,
         currentStage: newSession.currentStage,
         location: newSession.location,
-        messages: [{
-          id: 'greeting',
-          role: 'character',
-          content: greeting,
-          createdAt: new Date(),
-        }],
+        messages: newSession.messages.map(m => ({
+          id: m.id,
+          role: m.role,
+          content: m.content,
+          createdAt: m.createdAt,
+        })),
         isNew: true,
       },
     });
-  } catch (error) {
+  } catch (error: any) {
+    // 处理 unique constraint 冲突 (并发创建时的竞态)
+    if (error.code === 'P2002') {
+      // 重新获取已存在的会话
+      const session = await auth();
+      const body = request.json ? await request.json() : {};
+      const characterId = body.characterId || 'luze';
+
+      const existingSession = await prisma.dramaSession.findUnique({
+        where: {
+          userId_characterId: {
+            userId: session!.user!.id,
+            characterId,
+          },
+        },
+        include: {
+          messages: {
+            orderBy: { createdAt: 'asc' },
+            take: 50,
+          },
+        },
+      });
+
+      if (existingSession) {
+        return NextResponse.json({
+          success: true,
+          data: {
+            sessionId: existingSession.id,
+            characterId: existingSession.characterId,
+            affection: existingSession.affection,
+            tension: existingSession.tension,
+            currentStage: existingSession.currentStage,
+            location: existingSession.location,
+            messages: existingSession.messages.map(m => ({
+              id: m.id,
+              role: m.role,
+              content: m.content,
+              affectionImpact: m.affectionImpact,
+              stageTransition: m.stageTransition,
+              createdAt: m.createdAt,
+            })),
+            isNew: false,
+          },
+        });
+      }
+    }
+
     console.error('Create drama session error:', error);
     return NextResponse.json(
       { success: false, error: '创建会话失败' },

@@ -327,6 +327,7 @@ model DramaSession {
 
   user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  @@unique([userId, characterId])
   @@index([userId, createdAt(sort: Desc)])
   @@index([characterId])
 }
