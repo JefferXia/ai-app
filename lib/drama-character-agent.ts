@@ -4,8 +4,18 @@
  */
 
 import { callLLM } from './llm';
+import {
+  DRAMA_CHARACTERS,
+  getCharacterConfig,
+  getCharacterStage,
+  type DramaCharacterConfig,
+} from './drama-characters';
 
-// 角色配置接口
+// 重新导出类型和配置，保持向后兼容
+export type { DramaCharacterConfig, CharacterStage } from './drama-characters';
+export { DRAMA_CHARACTERS, getCharacterConfig, getCharacterStage };
+
+// 简化的角色配置接口（向后兼容）
 export interface CharacterConfig {
   id: string;
   name: string;
@@ -17,49 +27,29 @@ export interface CharacterConfig {
   avatarImage: string;
 }
 
-// 陆泽 - 高冷霸总
-export const LUZE_CONFIG: CharacterConfig = {
-  id: 'luze',
-  name: '陆泽',
-  displayName: '陆泽',
-  personality: `你是陆泽，一个高冷霸总。
-
-人格特质：
-- 高冷（对陌生人冷淡，不轻易表露情感）
-- 理性（做事讲逻辑，不被情绪左右）
-- 掌控欲（喜欢掌控局面，不喜欢失控）
-
-行为规范：
-- 称呼用户为"苏小姐"
-- 回复简短有力，不啰嗦
-- 初期冷淡，但随着好感度提升会逐渐展现温柔
-- 用括号表示动作，如（看向窗外）（轻笑）
-
-回复长度：
-- 好感度 < 30：回复控制在 20 字以内，冷淡敷衍
-- 好感度 30-70：回复 20-40 字，语气中性
-- 好感度 > 70：回复 30-50 字，偶尔展现温柔
-
-禁止：
-- 不要过度热情
-- 不要主动表白
-- 不要连续发送多条消息
-- 不要使用表情符号`,
-  greeting: '苏小姐，有什么事？',
-  voiceId: 'male-qn-jingying',
-  bgImage: '/images/character/luze_office.jpg',
-  avatarImage: '/images/avatar/luze.jpg',
-};
-
-// 可用角色列表
-export const DRAMA_CHARACTERS: CharacterConfig[] = [LUZE_CONFIG];
-
-/**
- * 获取角色配置
- */
-export function getCharacterConfig(characterId: string): CharacterConfig | null {
-  return DRAMA_CHARACTERS.find(c => c.id === characterId) || null;
+// 将 DramaCharacterConfig 转换为简化的 CharacterConfig
+export function toSimpleConfig(config: DramaCharacterConfig): CharacterConfig {
+  return {
+    id: config.id,
+    name: config.name,
+    displayName: config.displayName,
+    personality: config.personality,
+    greeting: config.greeting,
+    voiceId: config.voiceId,
+    bgImage: config.bgImage,
+    avatarImage: config.avatarImage,
+  };
 }
+
+// 获取简化配置
+export function getSimpleCharacterConfig(characterId: string): CharacterConfig | null {
+  const config = getCharacterConfig(characterId);
+  return config ? toSimpleConfig(config) : null;
+}
+
+// 向后兼容：导出 LUZE_CONFIG
+import { LUZE_CONFIG as LUZE_FULL_CONFIG } from './drama-characters';
+export const LUZE_CONFIG = toSimpleConfig(LUZE_FULL_CONFIG);
 
 /**
  * 根据好感度调整回复风格

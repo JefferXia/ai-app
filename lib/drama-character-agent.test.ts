@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
   getCharacterConfig,
   generateGreeting,
+  getSimpleCharacterConfig,
   DRAMA_CHARACTERS,
   LUZE_CONFIG,
 } from './drama-character-agent';
@@ -27,10 +28,25 @@ describe('drama-character-agent', () => {
     });
   });
 
+  describe('getSimpleCharacterConfig', () => {
+    it('should return simplified config for luze', () => {
+      const config = getSimpleCharacterConfig('luze');
+      expect(config).toBeDefined();
+      expect(config?.id).toBe('luze');
+      expect(config?.voiceId).toBe('male-qn-jingying');
+      expect(config?.greeting).toBe('苏小姐，有什么事？');
+    });
+
+    it('should return null for unknown character', () => {
+      const config = getSimpleCharacterConfig('unknown');
+      expect(config).toBeNull();
+    });
+  });
+
   describe('DRAMA_CHARACTERS', () => {
-    it('should contain LUZE_CONFIG', () => {
-      expect(DRAMA_CHARACTERS).toContainEqual(LUZE_CONFIG);
-      expect(DRAMA_CHARACTERS.length).toBe(1);
+    it('should contain multiple characters', () => {
+      expect(DRAMA_CHARACTERS.length).toBeGreaterThanOrEqual(1);
+      expect(DRAMA_CHARACTERS.some(c => c.id === 'luze')).toBe(true);
     });
   });
 

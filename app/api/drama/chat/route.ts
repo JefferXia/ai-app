@@ -6,6 +6,12 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/app/(auth)/auth';
 import prisma from '@/lib/prisma';
 import { generateCharacterResponse } from '@/lib/drama-character-agent';
+import {
+  analyzeAffectionImpact,
+  updateStoryMemory,
+  getStageTransitionMessage,
+  type StoryMemory,
+} from '@/lib/drama-affection-agent';
 
 export async function POST(request: NextRequest) {
   try {
@@ -50,30 +56,54 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // 并行执行：分析好感度 + 生成角色回复
+    const currentStoryMemory = dramaSession.storyMemory as StoryMemory;
+
+    const [affectionAnalysis, characterResponse] = await Promise.all([
+      analyzeAffectionImpact(
+        content.trim(),
+        dramaSession.characterId,
+        dramaSession.affection,
+        currentStoryMemory
+      ),
+      generateCharacterResponse(
+        dramaSession.characterId,
+        content.trim(),
+        dramaSession.messages
+          .filter(m => m.role === 'user' || m.role === 'character')
+          .map(m => ({
+            role: m.role === 'character' ? 'assistant' as const : 'user' as const,
+            content: m.content,
+          })),
+        dramaSession.affection
+      ),
+    ]);
+
+    // 计算新好感度
+    const newAffection = Math.max(0, Math.min(100, dramaSession.affection + affectionAnalysis.delta));
+
+    // 更新故事记忆
+    const newStoryMemory = updateStoryMemory(currentStoryMemory, affectionAnalysis.memoryUpdate);
+
     // 保存用户消息
     const userMessage = await prisma.dramaMessage.create({
       data: {
         sessionId,
         role: 'user',
         content: content.trim(),
+        affectionImpact: affectionAnalysis.delta,
+        stageTransition: !!affectionAnalysis.stageTransition,
       },
     });
 
-    // 构建对话历史
-    const conversationHistory = dramaSession.messages
-      .filter(m => m.role === 'user' || m.role === 'character')
-      .map(m => ({
-        role: m.role === 'character' ? 'assistant' as const : 'user' as const,
-        content: m.content,
-      }));
-
-    // 生成角色回复
-    const characterResponse = await generateCharacterResponse(
-      dramaSession.characterId,
-      content.trim(),
-      conversationHistory,
-      dramaSession.affection
-    );
+    // 如果有阶段转换，添加系统提示
+    let stageTransitionMessage = '';
+    if (affectionAnalysis.stageTransition) {
+      stageTransitionMessage = getStageTransitionMessage(
+        affectionAnalysis.stageTransition,
+        dramaSession.characterId
+      );
+    }
 
     // 保存角色回复
     const assistantMessage = await prisma.dramaMessage.create({
@@ -84,10 +114,20 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    // 更新会话时间
+    // 更新会话：好感度、阶段、故事记忆
+    const updateData: Record<string, unknown> = {
+      affection: newAffection,
+      storyMemory: newStoryMemory,
+      updatedAt: new Date(),
+    };
+
+    if (affectionAnalysis.stageTransition) {
+      updateData.currentStage = affectionAnalysis.stageTransition;
+    }
+
     await prisma.dramaSession.update({
       where: { id: sessionId },
-      data: { updatedAt: new Date() },
+      data: updateData,
     });
 
     return NextResponse.json({
@@ -105,7 +145,12 @@ export async function POST(request: NextRequest) {
           content: assistantMessage.content,
           createdAt: assistantMessage.createdAt,
         },
-        affection: dramaSession.affection,
+        affection: newAffection,
+        affectionDelta: affectionAnalysis.delta,
+        affectionReason: affectionAnalysis.reason,
+        stageTransition: affectionAnalysis.stageTransition || null,
+        stageTransitionMessage: stageTransitionMessage || null,
+        storyMemory: newStoryMemory,
       },
     });
   } catch (error) {

@@ -2,16 +2,19 @@
 
 import { useState, useRef, useCallback, useEffect } from 'react';
 import Image from 'next/image';
-import { Send, Mic, Heart, ArrowLeft, Volume2 } from 'lucide-react';
+import { Send, Mic, Heart, ArrowLeft, Volume2, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { LUZE_CONFIG, CharacterConfig } from '@/lib/drama-character-agent';
+import { getSimpleCharacterConfig, toSimpleConfig, getCharacterStage } from '@/lib/drama-character-agent';
+import { getDramaVoiceConfig, preprocessTextForTTS } from '@/lib/drama-tts';
+import type { CharacterConfig } from '@/lib/drama-character-agent';
 
 interface Message {
   id: string;
   role: 'user' | 'character';
   content: string;
   audio?: string;
+  audioLoading?: boolean;
   createdAt: Date;
 }
 
@@ -41,7 +44,11 @@ function formatMessage(content: string): { text: string; actions: string[] } {
   return { text, actions };
 }
 
-export default function DramaInterface() {
+interface DramaInterfaceProps {
+  characterId?: string;
+}
+
+export default function DramaInterface({ characterId = 'luze' }: DramaInterfaceProps) {
   const [state, setState] = useState<DramaState>({
     isProcessing: false,
     isRecording: false,
@@ -51,10 +58,22 @@ export default function DramaInterface() {
 
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputText, setInputText] = useState('');
+  const [playingAudioId, setPlayingAudioId] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const recognitionRef = useRef<any>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
 
-  const character: CharacterConfig = LUZE_CONFIG;
+  // 获取角色配置
+  const character: CharacterConfig = getSimpleCharacterConfig(characterId) || {
+    id: characterId,
+    name: characterId,
+    displayName: characterId,
+    personality: '',
+    greeting: '你好。',
+    voiceId: 'male-qn-jingying',
+    bgImage: '/images/character/default.jpg',
+    avatarImage: '/images/avatar/default.jpg',
+  };
 
   // 初始化会话
   const initSession = useCallback(async () => {
@@ -96,6 +115,88 @@ export default function DramaInterface() {
     }
   }, [messages]);
 
+  // 获取 TTS 音频
+  const fetchTTSAudio = useCallback(async (messageId: string, text: string) => {
+    // 设置加载状态
+    setMessages(prev => prev.map(m =>
+      m.id === messageId ? { ...m, audioLoading: true } : m
+    ));
+
+    try {
+      const voiceConfig = getDramaVoiceConfig(character.id, state.affection);
+      const textForTTS = preprocessTextForTTS(text);
+
+      if (!textForTTS) {
+        setMessages(prev => prev.map(m =>
+          m.id === messageId ? { ...m, audioLoading: false } : m
+        ));
+        return;
+      }
+
+      const response = await fetch('/api/aura/tts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          text: textForTTS,
+          voiceId: voiceConfig?.voiceId || character.voiceId,
+        }),
+      });
+
+      const data = await response.json();
+      if (data.success && data.audio) {
+        setMessages(prev => prev.map(m =>
+          m.id === messageId ? { ...m, audio: data.audio, audioLoading: false } : m
+        ));
+      } else {
+        setMessages(prev => prev.map(m =>
+          m.id === messageId ? { ...m, audioLoading: false } : m
+        ));
+      }
+    } catch (error) {
+      console.error('TTS error:', error);
+      setMessages(prev => prev.map(m =>
+        m.id === messageId ? { ...m, audioLoading: false } : m
+      ));
+    }
+  }, [character.id, character.voiceId, state.affection]);
+
+  // 播放音频
+  const playAudio = useCallback(async (message: Message) => {
+    // 如果正在播放其他音频，停止
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current = null;
+    }
+
+    // 如果没有音频，先获取
+    if (!message.audio) {
+      await fetchTTSAudio(message.id, message.content);
+      return;
+    }
+
+    // 播放音频
+    try {
+      const audio = new Audio(`data:audio/mp3;base64,${message.audio}`);
+      audioRef.current = audio;
+      setPlayingAudioId(message.id);
+
+      audio.onended = () => {
+        setPlayingAudioId(null);
+        audioRef.current = null;
+      };
+
+      audio.onerror = () => {
+        setPlayingAudioId(null);
+        audioRef.current = null;
+      };
+
+      await audio.play();
+    } catch (error) {
+      console.error('Audio playback error:', error);
+      setPlayingAudioId(null);
+    }
+  }, [fetchTTSAudio]);
+
   // 发送消息
   const sendMessage = useCallback(async () => {
     const text = inputText.trim();
@@ -125,12 +226,19 @@ export default function DramaInterface() {
 
       const data = await response.json();
       if (data.success) {
-        setMessages(prev => [...prev, {
+        const newMessage = {
           id: data.data.characterMessage.id,
-          role: 'character',
+          role: 'character' as const,
           content: data.data.characterMessage.content,
           createdAt: new Date(data.data.characterMessage.createdAt),
-        }]);
+        };
+        setMessages(prev => [...prev, newMessage]);
+
+        // 自动获取并播放 TTS 音频
+        if (data.data.characterMessage.content) {
+          fetchTTSAudio(data.data.characterMessage.id, data.data.characterMessage.content);
+        }
+
         setState(prev => ({
           ...prev,
           affection: data.data.affection,
@@ -141,7 +249,7 @@ export default function DramaInterface() {
     } finally {
       setState(prev => ({ ...prev, isProcessing: false }));
     }
-  }, [inputText, state.isProcessing, state.sessionId]);
+  }, [inputText, state.isProcessing, state.sessionId, fetchTTSAudio]);
 
   // 键盘事件
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -179,6 +287,16 @@ export default function DramaInterface() {
 
     recognitionRef.current = recognition;
     recognition.start();
+  }, []);
+
+  // 清理音频
+  useEffect(() => {
+    return () => {
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current = null;
+      }
+    };
   }, []);
 
   return (
@@ -241,6 +359,9 @@ export default function DramaInterface() {
             <>
               {messages.map(message => {
                 const { text, actions } = formatMessage(message.content);
+                const isPlaying = playingAudioId === message.id;
+                const isLoading = message.audioLoading;
+
                 return (
                   <div
                     key={message.id}
@@ -253,7 +374,28 @@ export default function DramaInterface() {
                           : 'bg-white/15 text-white rounded-bl-sm'
                       }`}
                     >
-                      <p className="text-sm whitespace-pre-wrap leading-relaxed">{text}</p>
+                      <div className="flex items-start gap-2">
+                        <p className="text-sm whitespace-pre-wrap leading-relaxed flex-1">{text}</p>
+                        {/* 角色消息的语音按钮 */}
+                        {message.role === 'character' && (
+                          <button
+                            onClick={() => playAudio(message)}
+                            disabled={isLoading}
+                            className={`flex-shrink-0 p-1 rounded-full transition-all ${
+                              isPlaying
+                                ? 'bg-[#A78BFA]/30 text-[#A78BFA]'
+                                : 'hover:bg-white/10 text-white/50 hover:text-white/80'
+                            } ${isLoading ? 'opacity-50' : ''}`}
+                            title={isPlaying ? '正在播放' : '播放语音'}
+                          >
+                            {isLoading ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <Volume2 className="h-4 w-4" />
+                            )}
+                          </button>
+                        )}
+                      </div>
                       {message.role === 'character' && actions.length > 0 && (
                         <p className="text-xs text-[#9CA3AF] italic mt-1.5">
                           *{actions.join('，')}*
