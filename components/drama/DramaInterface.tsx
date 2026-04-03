@@ -5,9 +5,9 @@ import Image from 'next/image';
 import { Send, Mic, Heart, ArrowLeft, Volume2, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { getSimpleCharacterConfig, toSimpleConfig, getCharacterStage } from '@/lib/drama-character-agent';
+import { getSimpleCharacterConfig, getCharacterConfig, getCharacterStage } from '@/lib/drama-character-agent';
 import { getDramaVoiceConfig, preprocessTextForTTS } from '@/lib/drama-tts';
-import type { CharacterConfig } from '@/lib/drama-character-agent';
+import type { CharacterConfig, DramaCharacterConfig } from '@/lib/drama-character-agent';
 
 interface Message {
   id: string;
@@ -63,7 +63,10 @@ export default function DramaInterface({ characterId = 'luze' }: DramaInterfaceP
   const recognitionRef = useRef<any>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
-  // 获取角色配置
+  // 获取完整角色配置（包含 tags）
+  const fullCharacter = getCharacterConfig(characterId);
+
+  // 获取简化角色配置（用于 UI 显示）
   const character: CharacterConfig = getSimpleCharacterConfig(characterId) || {
     id: characterId,
     name: characterId,
@@ -74,6 +77,9 @@ export default function DramaInterface({ characterId = 'luze' }: DramaInterfaceP
     bgImage: '/images/character/default.jpg',
     avatarImage: '/images/avatar/default.jpg',
   };
+
+  // 角色标签（用于显示）
+  const characterTag = fullCharacter?.tags?.[0] || '';
 
   // 初始化会话
   const initSession = useCallback(async () => {
@@ -334,7 +340,7 @@ export default function DramaInterface({ characterId = 'luze' }: DramaInterfaceP
                   <h1 className="text-lg font-semibold text-white font-heading">
                     {character.displayName}
                   </h1>
-                  <p className="text-white/70 text-xs">高冷霸总</p>
+                  <p className="text-white/70 text-xs">{characterTag || '角色'}</p>
                 </div>
               </div>
             </div>

@@ -6,6 +6,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/app/(auth)/auth';
 import prisma from '@/lib/prisma';
 import { getCharacterConfig, generateGreeting } from '@/lib/drama-character-agent';
+import { getDefaultLocationForCharacter } from '@/lib/drama-scene-generator';
 
 // 创建新会话
 export async function POST(request: NextRequest) {
@@ -74,6 +75,8 @@ export async function POST(request: NextRequest) {
 
     // 创建新会话 (unique constraint 会防止并发创建重复)
     const greeting = generateGreeting(characterId);
+    const defaultLocation = getDefaultLocationForCharacter(characterId);
+
     const newSession = await prisma.dramaSession.create({
       data: {
         userId: session.user.id,
@@ -81,7 +84,7 @@ export async function POST(request: NextRequest) {
         affection: 20,
         tension: 10,
         currentStage: 'Initial',
-        location: '陆氏集团办公室',
+        location: defaultLocation,
         storyMemory: {
           keyPlotPoints: [],
           characterDecisions: [],
