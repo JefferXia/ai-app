@@ -61,7 +61,26 @@ export default function DramaInterface({ characterId = 'luze' }: DramaInterfaceP
   const [playingAudioId, setPlayingAudioId] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const recognitionRef = useRef<any>(null);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const sourceRef = useRef<AudioBufferSourceNode | null>(null);
+
+  // Hex 转 ArrayBuffer (TTS 返回的是 hex 编码)
+  const hexToArrayBuffer = (hex: string): ArrayBuffer => {
+    const buffer = new ArrayBuffer(hex.length / 2);
+    const view = new Uint8Array(buffer);
+    for (let i = 0; i < hex.length; i += 2) {
+      view[i / 2] = parseInt(hex.substr(i, 2), 16);
+    }
+    return buffer;
+  };
+
+  // 获取 AudioContext
+  const getAudioContext = () => {
+    if (!audioContextRef.current) {
+      audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+    }
+    return audioContextRef.current;
+  };
 
   // 获取完整角色配置（包含 tags）
   const fullCharacter = getCharacterConfig(characterId);
@@ -122,7 +141,7 @@ export default function DramaInterface({ characterId = 'luze' }: DramaInterfaceP
   }, [messages]);
 
   // 获取 TTS 音频
-  const fetchTTSAudio = useCallback(async (messageId: string, text: string) => {
+  const fetchTTSAudio = useCallback(async (messageId: string, text: string): Promise<string | null> => {
     // 设置加载状态
     setMessages(prev => prev.map(m =>
       m.id === messageId ? { ...m, audioLoading: true } : m
@@ -136,7 +155,7 @@ export default function DramaInterface({ characterId = 'luze' }: DramaInterfaceP
         setMessages(prev => prev.map(m =>
           m.id === messageId ? { ...m, audioLoading: false } : m
         ));
-        return;
+        return null;
       }
 
       const response = await fetch('/api/aura/tts', {
@@ -153,53 +172,60 @@ export default function DramaInterface({ characterId = 'luze' }: DramaInterfaceP
         setMessages(prev => prev.map(m =>
           m.id === messageId ? { ...m, audio: data.audio, audioLoading: false } : m
         ));
+        return data.audio;
       } else {
         setMessages(prev => prev.map(m =>
           m.id === messageId ? { ...m, audioLoading: false } : m
         ));
+        return null;
       }
     } catch (error) {
       console.error('TTS error:', error);
       setMessages(prev => prev.map(m =>
         m.id === messageId ? { ...m, audioLoading: false } : m
       ));
+      return null;
     }
   }, [character.id, character.voiceId, state.affection]);
 
   // 播放音频
   const playAudio = useCallback(async (message: Message) => {
-    // 如果正在播放其他音频，停止
-    if (audioRef.current) {
-      audioRef.current.pause();
-      audioRef.current = null;
-    }
+    let audioData: string | null | undefined = message.audio;
 
     // 如果没有音频，先获取
-    if (!message.audio) {
-      await fetchTTSAudio(message.id, message.content);
-      return;
+    if (!audioData) {
+      audioData = await fetchTTSAudio(message.id, message.content);
+      if (!audioData) return;
     }
 
-    // 播放音频
+    // 使用 Web Audio API 播放 hex 编码的音频
     try {
-      const audio = new Audio(`data:audio/mp3;base64,${message.audio}`);
-      audioRef.current = audio;
+      // 停止之前的音频
+      if (sourceRef.current) {
+        sourceRef.current.stop();
+        sourceRef.current = null;
+      }
+
+      const audioContext = getAudioContext();
+      const arrayBuffer = hexToArrayBuffer(audioData);
+      const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+
+      const source = audioContext.createBufferSource();
+      source.buffer = audioBuffer;
+      source.connect(audioContext.destination);
+      sourceRef.current = source;
       setPlayingAudioId(message.id);
 
-      audio.onended = () => {
+      source.onended = () => {
         setPlayingAudioId(null);
-        audioRef.current = null;
+        sourceRef.current = null;
       };
 
-      audio.onerror = () => {
-        setPlayingAudioId(null);
-        audioRef.current = null;
-      };
-
-      await audio.play();
+      await source.start(0);
     } catch (error) {
       console.error('Audio playback error:', error);
       setPlayingAudioId(null);
+      sourceRef.current = null;
     }
   }, [fetchTTSAudio]);
 
@@ -240,9 +266,14 @@ export default function DramaInterface({ characterId = 'luze' }: DramaInterfaceP
         };
         setMessages(prev => [...prev, newMessage]);
 
-        // 自动获取并播放 TTS 音频
+        // 自动获取 TTS 音频并播放
         if (data.data.characterMessage.content) {
-          fetchTTSAudio(data.data.characterMessage.id, data.data.characterMessage.content);
+          fetchTTSAudio(data.data.characterMessage.id, data.data.characterMessage.content).then(audioData => {
+            if (audioData) {
+              // 创建消息对象并自动播放
+              playAudio({ ...newMessage, audio: audioData });
+            }
+          });
         }
 
         setState(prev => ({
@@ -298,9 +329,13 @@ export default function DramaInterface({ characterId = 'luze' }: DramaInterfaceP
   // 清理音频
   useEffect(() => {
     return () => {
-      if (audioRef.current) {
-        audioRef.current.pause();
-        audioRef.current = null;
+      if (sourceRef.current) {
+        sourceRef.current.stop();
+        sourceRef.current = null;
+      }
+      if (audioContextRef.current) {
+        audioContextRef.current.close();
+        audioContextRef.current = null;
       }
     };
   }, []);

@@ -129,7 +129,7 @@ export async function generateSceneDescription(
         },
       ],
       {
-        model: 'anthropic/claude-3.5-sonnet',
+        model: 'google/gemini-3-flash-preview',
         temperature: 0.7,
         max_tokens: 300,
         system: systemPrompt,

@@ -24,7 +24,7 @@ export interface DramaVoiceConfig {
 export const DRAMA_VOICE_CONFIGS: Record<string, DramaVoiceConfig> = {
   // 陆泽 - 高冷霸总
   luze: {
-    voiceId: 'male-qn-jingying',
+    voiceId: 'male-qn-badao', // 霸总
     speed: 0.9,
     vol: 5,
     pitch: -2,
@@ -38,7 +38,7 @@ export const DRAMA_VOICE_CONFIGS: Record<string, DramaVoiceConfig> = {
 
   // 林晨 - 温暖阳光少年
   linchen: {
-    voiceId: 'male-shaonian',
+    voiceId: 'male-qn-daxuesheng-jingpin', // 青涩男声
     speed: 1.0,
     vol: 6,
     pitch: 2,
@@ -52,7 +52,7 @@ export const DRAMA_VOICE_CONFIGS: Record<string, DramaVoiceConfig> = {
 
   // 苏婉 - 元气少女
   suwan: {
-    voiceId: 'female-shaonv-jingpin',
+    voiceId: 'female-shaonv', // 温柔女声
     speed: 1.1,
     vol: 6,
     pitch: 3,
@@ -66,7 +66,7 @@ export const DRAMA_VOICE_CONFIGS: Record<string, DramaVoiceConfig> = {
 
   // 陈墨 - 高冷学霸
   chenmo: {
-    voiceId: 'male-qn-jingying',
+    voiceId: 'lengdan_xiongzhang', // 精英男声
     speed: 0.85,
     vol: 4,
     pitch: 0,

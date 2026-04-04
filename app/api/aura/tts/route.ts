@@ -9,7 +9,7 @@ const VOICE_CONFIG: Record<string, {
 }> = {
   'wumei_yujie': {
     speed: 0.85,
-    vol: 6,
+    vol: 1,
     emotion: 'whisper',
   },
   'female-shaonv-jingpin': {
@@ -19,6 +19,27 @@ const VOICE_CONFIG: Record<string, {
   'bingjiao_didi': {
     speed: 1,
     vol: 1,
+  },
+  // Drama 角色音色
+  'male-qn-badao': {
+    speed: 0.9,
+    vol: 1,
+    emotion: 'calm',
+  },
+  'male-qn-daxuesheng-jingpin': {
+    speed: 1.0,
+    vol: 1,
+    emotion: 'happy',
+  },
+  'female-shaonv': {
+    speed: 1.1,
+    vol: 1,
+    emotion: 'happy',
+  },
+  'lengdan_xiongzhang': {
+    speed: 0.85,
+    vol: 1,
+    emotion: 'calm',
   },
 };
 

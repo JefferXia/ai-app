@@ -3,7 +3,7 @@
  * 负责生成角色的对话回复
  */
 
-import { callLLM } from './llm';
+import { callMiniMaxLLM } from './minimax-tts';
 import {
   DRAMA_CHARACTERS,
   getCharacterConfig,
@@ -108,10 +108,10 @@ export async function generateCharacterResponse(
   });
 
   try {
-    const response = await callLLM(messages, {
-      model: 'anthropic/claude-3.5-sonnet',
+    const response = await callMiniMaxLLM(messages, {
+      model: 'M2-her',
       temperature: 0.8,
-      max_tokens: 200,
+      max_completion_tokens: 200,
       system: systemPrompt,
     });
 

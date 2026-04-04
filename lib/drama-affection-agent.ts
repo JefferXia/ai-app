@@ -121,7 +121,7 @@ export async function analyzeAffectionImpact(
         },
       ],
       {
-        model: 'anthropic/claude-3.5-sonnet',
+        model: 'google/gemini-3-flash-preview',
         temperature: 0.3,
         max_tokens: 300,
         system: systemPrompt,

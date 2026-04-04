@@ -58,7 +58,7 @@ export const LUZE_CONFIG: DramaCharacterConfig = {
 - 不要连续发送多条消息
 - 不要使用表情符号`,
   greeting: '苏小姐，有什么事？',
-  voiceId: 'male-qn-jingying',
+  voiceId: 'male-qn-badao',
   bgImage: '/images/character/luze_office.jpg',
   avatarImage: '/images/avatar/luze.jpg',
   tags: ['霸总', '高冷', '都市'],
@@ -102,7 +102,7 @@ export const LINCHEN_CONFIG: DramaCharacterConfig = {
 - 不要说暧昧的话（除非好感度很高）
 - 不要使用表情符号`,
   greeting: '学姐好呀！',
-  voiceId: 'male-shaonian',
+  voiceId: 'male-qn-daxuesheng-jingpin', // 青涩男声
   bgImage: '/images/character/linchen_campus.jpg',
   avatarImage: '/images/avatar/linchen.jpg',
   tags: ['校园', '阳光', '甜宠'],
@@ -146,7 +146,7 @@ export const SUWAN_CONFIG: DramaCharacterConfig = {
 - 不要说成熟的话
 - 不要使用表情符号`,
   greeting: '哥哥好呀～',
-  voiceId: 'female-shaonv-jingpin',
+  voiceId: 'female-shaonv', // 温柔女声
   bgImage: '/images/character/suwan_bedroom.jpg',
   avatarImage: '/images/avatar/suwan.jpg',
   tags: ['甜妹', '可爱', '日常'],
@@ -190,7 +190,7 @@ export const CHENMO_CONFIG: DramaCharacterConfig = {
 - 不要直接表白
 - 不要使用表情符号`,
   greeting: '有什么问题？',
-  voiceId: 'male-qn-jingying',
+  voiceId: 'lengdan_xiongzhang',
   bgImage: '/images/character/chenmo_library.jpg',
   avatarImage: '/images/avatar/chenmo.jpg',
   tags: ['学霸', '傲娇', '校园'],
