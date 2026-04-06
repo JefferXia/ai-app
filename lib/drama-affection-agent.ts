@@ -3,7 +3,7 @@
  * 分析用户消息对角色好感度的影响
  */
 
-import { callLLM } from './llm';
+import { callMiniMaxLLM } from './minimax-tts';
 
 // 好感度阶段定义
 export const AFFECTION_STAGES = {
@@ -113,7 +113,7 @@ export async function analyzeAffectionImpact(
 }`;
 
   try {
-    const response = await callLLM(
+    const response = await callMiniMaxLLM(
       [
         {
           role: 'user',
@@ -121,9 +121,9 @@ export async function analyzeAffectionImpact(
         },
       ],
       {
-        model: 'google/gemini-3-flash-preview',
+        model: 'M2-her',
         temperature: 0.3,
-        max_tokens: 300,
+        max_completion_tokens: 300,
         system: systemPrompt,
       }
     );

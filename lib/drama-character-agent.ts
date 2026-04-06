@@ -10,6 +10,7 @@ import {
   getCharacterStage,
   type DramaCharacterConfig,
 } from './drama-characters';
+import { injectDirectorContextToPrompt, type DirectorContext } from './drama-director-agent';
 
 // 重新导出类型和配置，保持向后兼容
 export type { DramaCharacterConfig, CharacterStage } from './drama-characters';
@@ -66,12 +67,14 @@ function getToneByAffection(affection: number): string {
 
 /**
  * 生成角色回复
+ * @param directorContext 可选的导演上下文，用于增强角色表现
  */
 export async function generateCharacterResponse(
   characterId: string,
   userMessage: string,
-  conversationHistory: Array<{ role: 'user' | 'assistant'; content: string }>,
-  affection: number = 20
+  conversationHistory: Array<{ role: 'user' | 'character'; content: string }>,
+  affection: number = 20,
+  directorContext?: DirectorContext
 ): Promise<string> {
   const character = getCharacterConfig(characterId);
   if (!character) {
@@ -80,7 +83,8 @@ export async function generateCharacterResponse(
 
   const tone = getToneByAffection(affection);
 
-  const systemPrompt = `${character.personality}
+  // 构建基础 system prompt
+  let systemPrompt = `${character.personality}
 
 当前好感度：${affection}/100
 回复风格：${tone}
@@ -90,13 +94,22 @@ export async function generateCharacterResponse(
 2. 用括号表示动作，增强代入感
 3. 回复要自然流畅，像真实对话`;
 
+  // 如果有导演上下文，注入增强指令
+  if (directorContext) {
+    systemPrompt = injectDirectorContextToPrompt(
+      character.personality,
+      directorContext,
+      affection
+    );
+  }
+
   // 构建消息历史
   const messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }> = [];
 
   // 添加历史对话
   for (const msg of conversationHistory.slice(-10)) { // 最多保留10轮对话
     messages.push({
-      role: msg.role,
+      role: msg.role === 'character' ? 'assistant' as const : 'user' as const,
       content: msg.content,
     });
   }
