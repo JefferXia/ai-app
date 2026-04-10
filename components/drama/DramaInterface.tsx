@@ -2,16 +2,20 @@
 
 import { useState, useRef, useCallback, useEffect } from 'react';
 import Image from 'next/image';
-import { Send, Mic, Heart, ArrowLeft, Volume2 } from 'lucide-react';
+import { Send, Mic, Heart, ArrowLeft, Volume2, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { LUZE_CONFIG, CharacterConfig } from '@/lib/drama-character-agent';
+import { getSimpleCharacterConfig, getCharacterConfig, getCharacterStage } from '@/lib/drama-character-agent';
+import { getDramaVoiceConfig, preprocessTextForTTS } from '@/lib/drama-tts';
+import DialogueHints from './DialogueHints';
+import type { CharacterConfig, DramaCharacterConfig } from '@/lib/drama-character-agent';
 
 interface Message {
   id: string;
   role: 'user' | 'character';
   content: string;
   audio?: string;
+  audioLoading?: boolean;
   createdAt: Date;
 }
 
@@ -41,7 +45,11 @@ function formatMessage(content: string): { text: string; actions: string[] } {
   return { text, actions };
 }
 
-export default function DramaInterface() {
+interface DramaInterfaceProps {
+  characterId?: string;
+}
+
+export default function DramaInterface({ characterId = 'luze' }: DramaInterfaceProps) {
   const [state, setState] = useState<DramaState>({
     isProcessing: false,
     isRecording: false,
@@ -51,10 +59,140 @@ export default function DramaInterface() {
 
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputText, setInputText] = useState('');
+  const [playingAudioId, setPlayingAudioId] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const recognitionRef = useRef<any>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const sourceRef = useRef<AudioBufferSourceNode | null>(null);
 
-  const character: CharacterConfig = LUZE_CONFIG;
+  // Hex 转 ArrayBuffer (TTS 返回的是 hex 编码)
+  const hexToArrayBuffer = (hex: string): ArrayBuffer => {
+    const buffer = new ArrayBuffer(hex.length / 2);
+    const view = new Uint8Array(buffer);
+    for (let i = 0; i < hex.length; i += 2) {
+      view[i / 2] = parseInt(hex.substr(i, 2), 16);
+    }
+    return buffer;
+  };
+
+  // 获取 AudioContext
+  const getAudioContext = () => {
+    if (!audioContextRef.current) {
+      audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+    }
+    return audioContextRef.current;
+  };
+
+  // 获取完整角色配置（包含 tags）
+  const fullCharacter = getCharacterConfig(characterId);
+
+  // 获取简化角色配置（用于 UI 显示）
+  // 默认根据 voiceId 判断性别（female-* 为女性）
+  const defaultVoiceId = 'male-qn-jingying';
+  const isFemale = characterId.includes('suwan') || characterId.includes('nv');
+  const defaultAvatar = isFemale ? '/images/drama/nvshen.jpg' : '/images/drama/nanshen.jpg';
+  const character: CharacterConfig = getSimpleCharacterConfig(characterId) || {
+    id: characterId,
+    name: characterId,
+    displayName: characterId,
+    personality: '',
+    greeting: '你好。',
+    voiceId: defaultVoiceId,
+    bgImage: defaultAvatar,
+    avatarImage: defaultAvatar,
+  };
+
+  // 角色标签（用于显示）
+  const characterTag = fullCharacter?.tags?.[0] || '';
+
+  // 获取 TTS 音频
+  const fetchTTSAudio = useCallback(async (messageId: string, text: string): Promise<string | null> => {
+    // 设置加载状态
+    setMessages(prev => prev.map(m =>
+      m.id === messageId ? { ...m, audioLoading: true } : m
+    ));
+
+    try {
+      const voiceConfig = getDramaVoiceConfig(character.id, state.affection);
+      const textForTTS = preprocessTextForTTS(text);
+
+      if (!textForTTS) {
+        setMessages(prev => prev.map(m =>
+          m.id === messageId ? { ...m, audioLoading: false } : m
+        ));
+        return null;
+      }
+
+      const response = await fetch('/api/aura/tts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          text: textForTTS,
+          voiceId: voiceConfig?.voiceId || character.voiceId,
+        }),
+      });
+
+      const data = await response.json();
+      if (data.success && data.audio) {
+        setMessages(prev => prev.map(m =>
+          m.id === messageId ? { ...m, audio: data.audio, audioLoading: false } : m
+        ));
+        return data.audio;
+      } else {
+        setMessages(prev => prev.map(m =>
+          m.id === messageId ? { ...m, audioLoading: false } : m
+        ));
+        return null;
+      }
+    } catch (error) {
+      console.error('TTS error:', error);
+      setMessages(prev => prev.map(m =>
+        m.id === messageId ? { ...m, audioLoading: false } : m
+      ));
+      return null;
+    }
+  }, [character.id, character.voiceId, state.affection]);
+
+  // 播放音频
+  const playAudio = useCallback(async (message: Message) => {
+    let audioData: string | null | undefined = message.audio;
+
+    // 如果没有音频，先获取
+    if (!audioData) {
+      audioData = await fetchTTSAudio(message.id, message.content);
+      if (!audioData) return;
+    }
+
+    // 使用 Web Audio API 播放 hex 编码的音频
+    try {
+      // 停止之前的音频
+      if (sourceRef.current) {
+        sourceRef.current.stop();
+        sourceRef.current = null;
+      }
+
+      const audioContext = getAudioContext();
+      const arrayBuffer = hexToArrayBuffer(audioData);
+      const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+
+      const source = audioContext.createBufferSource();
+      source.buffer = audioBuffer;
+      source.connect(audioContext.destination);
+      sourceRef.current = source;
+      setPlayingAudioId(message.id);
+
+      source.onended = () => {
+        setPlayingAudioId(null);
+        sourceRef.current = null;
+      };
+
+      await source.start(0);
+    } catch (error) {
+      console.error('Audio playback error:', error);
+      setPlayingAudioId(null);
+      sourceRef.current = null;
+    }
+  }, [fetchTTSAudio]);
 
   // 初始化会话
   const initSession = useCallback(async () => {
@@ -72,17 +210,29 @@ export default function DramaInterface() {
           sessionId: data.data.sessionId,
           affection: data.data.affection,
         }));
-        setMessages(data.data.messages.map((m: any) => ({
+
+        const loadedMessages = data.data.messages.map((m: any) => ({
           id: m.id,
           role: m.role,
           content: m.content,
           createdAt: new Date(m.createdAt),
-        })));
+        }));
+        setMessages(loadedMessages);
+
+        // 只有 greeting 一条消息时才自动播放
+        const firstCharacterMsg = loadedMessages.find((m: any) => m.role === 'character');
+        if (firstCharacterMsg?.content && loadedMessages.length === 1) {
+          fetchTTSAudio(firstCharacterMsg.id, firstCharacterMsg.content).then(audioData => {
+            if (audioData) {
+              playAudio({ ...firstCharacterMsg, audio: audioData });
+            }
+          });
+        }
       }
     } catch (error) {
       console.error('Failed to init session:', error);
     }
-  }, [character.id]);
+  }, [character.id, fetchTTSAudio, playAudio]);
 
   // 初始化时创建会话
   useEffect(() => {
@@ -96,9 +246,9 @@ export default function DramaInterface() {
     }
   }, [messages]);
 
-  // 发送消息
-  const sendMessage = useCallback(async () => {
-    const text = inputText.trim();
+  // 发送消息（可指定文本或从输入框读取）
+  const sendMessage = useCallback(async (textToSend?: string) => {
+    const text = textToSend ?? inputText.trim();
     if (!text || state.isProcessing || !state.sessionId) return;
 
     setInputText('');
@@ -125,12 +275,24 @@ export default function DramaInterface() {
 
       const data = await response.json();
       if (data.success) {
-        setMessages(prev => [...prev, {
+        const newMessage = {
           id: data.data.characterMessage.id,
-          role: 'character',
+          role: 'character' as const,
           content: data.data.characterMessage.content,
           createdAt: new Date(data.data.characterMessage.createdAt),
-        }]);
+        };
+        setMessages(prev => [...prev, newMessage]);
+
+        // 自动获取 TTS 音频并播放
+        if (data.data.characterMessage.content) {
+          fetchTTSAudio(data.data.characterMessage.id, data.data.characterMessage.content).then(audioData => {
+            if (audioData) {
+              // 创建消息对象并自动播放
+              playAudio({ ...newMessage, audio: audioData });
+            }
+          });
+        }
+
         setState(prev => ({
           ...prev,
           affection: data.data.affection,
@@ -141,7 +303,7 @@ export default function DramaInterface() {
     } finally {
       setState(prev => ({ ...prev, isProcessing: false }));
     }
-  }, [inputText, state.isProcessing, state.sessionId]);
+  }, [inputText, state.isProcessing, state.sessionId, fetchTTSAudio]);
 
   // 键盘事件
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -181,13 +343,38 @@ export default function DramaInterface() {
     recognition.start();
   }, []);
 
+  // 清理音频
+  useEffect(() => {
+    return () => {
+      if (sourceRef.current) {
+        sourceRef.current.stop();
+        sourceRef.current = null;
+      }
+      if (audioContextRef.current) {
+        audioContextRef.current.close();
+        audioContextRef.current = null;
+      }
+    };
+  }, []);
+
   return (
     <div className="relative min-h-screen overflow-hidden">
-      {/* 背景图 */}
-      <div
-        className="absolute inset-0 bg-cover bg-center"
-        style={{ backgroundImage: `url(${character.bgImage})` }}
-      />
+      {/* 背景 - 支持图片和视频 */}
+      {character.bgImage.endsWith('.mp4') ? (
+        <video
+          src={character.bgImage}
+          className="absolute inset-0 w-full h-full object-cover"
+          autoPlay
+          loop
+          muted
+          playsInline
+        />
+      ) : (
+        <div
+          className="absolute inset-0 bg-cover bg-center"
+          style={{ backgroundImage: `url(${character.bgImage})` }}
+        />
+      )}
       <div className="absolute inset-0 bg-black/50" />
 
       {/* 内容层 */}
@@ -216,7 +403,7 @@ export default function DramaInterface() {
                   <h1 className="text-lg font-semibold text-white font-heading">
                     {character.displayName}
                   </h1>
-                  <p className="text-white/70 text-xs">高冷霸总</p>
+                  <p className="text-white/70 text-xs">{characterTag || '角色'}</p>
                 </div>
               </div>
             </div>
@@ -241,6 +428,9 @@ export default function DramaInterface() {
             <>
               {messages.map(message => {
                 const { text, actions } = formatMessage(message.content);
+                const isPlaying = playingAudioId === message.id;
+                const isLoading = message.audioLoading;
+
                 return (
                   <div
                     key={message.id}
@@ -253,7 +443,28 @@ export default function DramaInterface() {
                           : 'bg-white/15 text-white rounded-bl-sm'
                       }`}
                     >
-                      <p className="text-sm whitespace-pre-wrap leading-relaxed">{text}</p>
+                      <div className="flex items-start gap-2">
+                        <p className="text-sm whitespace-pre-wrap leading-relaxed flex-1">{text}</p>
+                        {/* 角色消息的语音按钮 */}
+                        {message.role === 'character' && (
+                          <button
+                            onClick={() => playAudio(message)}
+                            disabled={isLoading}
+                            className={`flex-shrink-0 p-1 rounded-full transition-all ${
+                              isPlaying
+                                ? 'bg-[#A78BFA]/30 text-[#A78BFA]'
+                                : 'hover:bg-white/10 text-white/50 hover:text-white/80'
+                            } ${isLoading ? 'opacity-50' : ''}`}
+                            title={isPlaying ? '正在播放' : '播放语音'}
+                          >
+                            {isLoading ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <Volume2 className="h-4 w-4" />
+                            )}
+                          </button>
+                        )}
+                      </div>
                       {message.role === 'character' && actions.length > 0 && (
                         <p className="text-xs text-[#9CA3AF] italic mt-1.5">
                           *{actions.join('，')}*
@@ -282,7 +493,7 @@ export default function DramaInterface() {
         </div>
 
         {/* 输入区域 */}
-        <div className="flex-shrink-0">
+        <div className="flex-shrink-0 relative">
           <div className="flex items-center gap-2 bg-black/20 backdrop-blur-sm rounded-2xl p-2">
             <div className="flex-1 relative">
               <Textarea
@@ -298,6 +509,16 @@ export default function DramaInterface() {
                   target.style.height = Math.min(target.scrollHeight, 100) + 'px';
                 }}
               />
+
+              {/* 提示按钮 - 绝对定位在输入框内最右侧 */}
+              <div className="absolute right-2 top-1/2 -translate-y-1/2">
+                <DialogueHints
+                  sessionId={state.sessionId || ''}
+                  onSend={(text) => sendMessage(text)}
+                  messageCount={messages.length}
+                  conversationHistory={messages.map(m => ({ role: m.role, content: m.content }))}
+                />
+              </div>
             </div>
 
             {/* 语音按钮 */}
@@ -317,7 +538,7 @@ export default function DramaInterface() {
 
             {/* 发送按钮 */}
             <Button
-              onClick={sendMessage}
+              onClick={() => sendMessage()}
               disabled={!inputText.trim() || state.isProcessing}
               size="icon"
               className={`flex-shrink-0 w-10 h-10 rounded-full transition-all ${

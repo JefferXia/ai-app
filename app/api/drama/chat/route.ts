@@ -1,11 +1,20 @@
 /**
  * Drama Chat API - 发送消息并获取角色回复
+ * 包含 Multi-Agent 架构：Director Agent + Character Agent
  */
 
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/app/(auth)/auth';
 import prisma from '@/lib/prisma';
 import { generateCharacterResponse } from '@/lib/drama-character-agent';
+import {
+  analyzeAffectionImpact,
+  updateStoryMemory,
+  getStageTransitionMessage,
+  getAffectionStage,
+  type StoryMemory,
+} from '@/lib/drama-affection-agent';
+import { analyzeWithDirector } from '@/lib/drama-director-agent';
 
 export async function POST(request: NextRequest) {
   try {
@@ -50,30 +59,72 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // 并行执行：分析好感度 + 生成角色回复
+    const currentStoryMemory = dramaSession.storyMemory as StoryMemory;
+    const currentStage = getAffectionStage(dramaSession.affection);
+    const conversationHistory = dramaSession.messages
+      .filter(m => m.role === 'user' || m.role === 'character')
+      .map(m => ({
+        role: m.role === 'character' ? 'character' as const : 'user' as const,
+        content: m.content,
+      }));
+
+    // 第一步：调用 Director Agent 分析剧情
+    const directorContext = await analyzeWithDirector({
+      characterId: dramaSession.characterId,
+      characterName: dramaSession.characterId, // TODO: 从角色配置获取 displayName
+      currentStage,
+      affection: dramaSession.affection,
+      tension: dramaSession.tension || 10,
+      conversationHistory,
+      storyMemory: currentStoryMemory,
+      userMessage: content.trim(),
+    });
+
+    console.log('[Drama Chat] 导演指令:', JSON.stringify(directorContext, null, 2));
+
+    // 第二步：调用 Character Agent 生成回复（注入导演上下文）
+    const [affectionAnalysis, characterResponse] = await Promise.all([
+      analyzeAffectionImpact(
+        content.trim(),
+        dramaSession.characterId,
+        dramaSession.affection,
+        currentStoryMemory
+      ),
+      generateCharacterResponse(
+        dramaSession.characterId,
+        content.trim(),
+        conversationHistory,
+        dramaSession.affection,
+        directorContext  // 注入导演上下文
+      ),
+    ]);
+
+    // 计算新好感度
+    const newAffection = Math.max(0, Math.min(100, dramaSession.affection + affectionAnalysis.delta));
+
+    // 更新故事记忆
+    const newStoryMemory = updateStoryMemory(currentStoryMemory, affectionAnalysis.memoryUpdate);
+
     // 保存用户消息
     const userMessage = await prisma.dramaMessage.create({
       data: {
         sessionId,
         role: 'user',
         content: content.trim(),
+        affectionImpact: affectionAnalysis.delta,
+        stageTransition: !!affectionAnalysis.stageTransition,
       },
     });
 
-    // 构建对话历史
-    const conversationHistory = dramaSession.messages
-      .filter(m => m.role === 'user' || m.role === 'character')
-      .map(m => ({
-        role: m.role === 'character' ? 'assistant' as const : 'user' as const,
-        content: m.content,
-      }));
-
-    // 生成角色回复
-    const characterResponse = await generateCharacterResponse(
-      dramaSession.characterId,
-      content.trim(),
-      conversationHistory,
-      dramaSession.affection
-    );
+    // 如果有阶段转换，添加系统提示
+    let stageTransitionMessage = '';
+    if (affectionAnalysis.stageTransition) {
+      stageTransitionMessage = getStageTransitionMessage(
+        affectionAnalysis.stageTransition,
+        dramaSession.characterId
+      );
+    }
 
     // 保存角色回复
     const assistantMessage = await prisma.dramaMessage.create({
@@ -84,10 +135,20 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    // 更新会话时间
+    // 更新会话：好感度、阶段、故事记忆
+    const updateData: Record<string, unknown> = {
+      affection: newAffection,
+      storyMemory: newStoryMemory,
+      updatedAt: new Date(),
+    };
+
+    if (affectionAnalysis.stageTransition) {
+      updateData.currentStage = affectionAnalysis.stageTransition;
+    }
+
     await prisma.dramaSession.update({
       where: { id: sessionId },
-      data: { updatedAt: new Date() },
+      data: updateData,
     });
 
     return NextResponse.json({
@@ -105,7 +166,13 @@ export async function POST(request: NextRequest) {
           content: assistantMessage.content,
           createdAt: assistantMessage.createdAt,
         },
-        affection: dramaSession.affection,
+        affection: newAffection,
+        affectionDelta: affectionAnalysis.delta,
+        affectionReason: affectionAnalysis.reason,
+        stageTransition: affectionAnalysis.stageTransition || null,
+        stageTransitionMessage: stageTransitionMessage || null,
+        storyMemory: newStoryMemory,
+        directorContext: directorContext, // 导演指令（用于调试和展示）
       },
     });
   } catch (error) {

@@ -4,6 +4,41 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.2.0.0] - 2026-04-03
+
+### Added
+- Drama 互动剧情模式 (Phase 2)
+  - **好感度系统完善**
+    - LLM 分析用户消息对好感度的影响 (-10 到 +10)
+    - 好感度阶段转换: Initial → Acquaintance → Friend → Close → Intimate
+    - 故事记忆更新 (关键剧情点、角色决策、已确立事实)
+    - 高好感度时负面行为影响放大机制
+  - **多角色支持**
+    - 4 个可玩角色: 陆泽(高冷霸总)、林晨(阳光少年)、苏婉(元气少女)、陈墨(高冷学霸)
+    - 角色选择界面 (CharacterSelect 组件)
+    - 角色标签筛选功能
+    - 动态路由 `/drama/[characterId]`
+  - **TTS 语音回复**
+    - MiniMax TTS 集成
+    - 角色语音配置 (voiceId, speed, emotion)
+    - 好感度对应的情感变化
+    - 消息语音播放按钮
+    - 自动获取并播放角色回复语音
+  - **场景生成系统**
+    - 预定义场景库
+    - LLM 场景描述生成
+    - 场景切换检测
+    - AI 图片生成提示词生成
+
+### Changed
+- 重构 `drama-character-agent.ts` 使用新的多角色配置系统
+- `DramaInterface` 组件支持 characterId 属性
+- `/drama` 路由显示角色选择界面
+
+### Tests
+- `lib/drama-affection-agent.test.ts` - 22 tests for affection analysis
+- `lib/drama-character-agent.test.ts` - 9 tests for character configs
+
 ## [0.1.0.0] - 2026-04-02
 
 ### Added
