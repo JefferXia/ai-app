@@ -42,15 +42,15 @@ export async function POST(request: NextRequest) {
       include: {
         messages: {
           orderBy: {
-            createdAt: 'asc',
+            createdAt: 'desc',
           },
-          take: 50, // 最多加载50条消息
+          take: 50, // 获取最新的50条消息
         },
       },
     });
 
     if (existingSession) {
-      // 返回现有会话
+      // 返回现有会话（消息需要翻转成时间顺序）
       return NextResponse.json({
         success: true,
         data: {
@@ -60,7 +60,7 @@ export async function POST(request: NextRequest) {
           tension: existingSession.tension,
           currentStage: existingSession.currentStage,
           location: existingSession.location,
-          messages: existingSession.messages.map(m => ({
+          messages: existingSession.messages.reverse().map(m => ({
             id: m.id,
             role: m.role,
             content: m.content,
@@ -143,7 +143,7 @@ export async function POST(request: NextRequest) {
         },
         include: {
           messages: {
-            orderBy: { createdAt: 'asc' },
+            orderBy: { createdAt: 'desc' },
             take: 50,
           },
         },
@@ -159,7 +159,7 @@ export async function POST(request: NextRequest) {
             tension: existingSession.tension,
             currentStage: existingSession.currentStage,
             location: existingSession.location,
-            messages: existingSession.messages.map(m => ({
+            messages: existingSession.messages.reverse().map(m => ({
               id: m.id,
               role: m.role,
               content: m.content,

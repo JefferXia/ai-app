@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { getSimpleCharacterConfig, getCharacterConfig, getCharacterStage } from '@/lib/drama-character-agent';
 import { getDramaVoiceConfig, preprocessTextForTTS } from '@/lib/drama-tts';
+import DialogueHints from './DialogueHints';
 import type { CharacterConfig, DramaCharacterConfig } from '@/lib/drama-character-agent';
 
 interface Message {
@@ -86,59 +87,23 @@ export default function DramaInterface({ characterId = 'luze' }: DramaInterfaceP
   const fullCharacter = getCharacterConfig(characterId);
 
   // 获取简化角色配置（用于 UI 显示）
+  // 默认根据 voiceId 判断性别（female-* 为女性）
+  const defaultVoiceId = 'male-qn-jingying';
+  const isFemale = characterId.includes('suwan') || characterId.includes('nv');
+  const defaultAvatar = isFemale ? '/images/drama/nvshen.jpg' : '/images/drama/nanshen.jpg';
   const character: CharacterConfig = getSimpleCharacterConfig(characterId) || {
     id: characterId,
     name: characterId,
     displayName: characterId,
     personality: '',
     greeting: '你好。',
-    voiceId: 'male-qn-jingying',
-    bgImage: '/images/character/default.jpg',
-    avatarImage: '/images/avatar/default.jpg',
+    voiceId: defaultVoiceId,
+    bgImage: defaultAvatar,
+    avatarImage: defaultAvatar,
   };
 
   // 角色标签（用于显示）
   const characterTag = fullCharacter?.tags?.[0] || '';
-
-  // 初始化会话
-  const initSession = useCallback(async () => {
-    try {
-      const response = await fetch('/api/drama/session', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ characterId: character.id }),
-      });
-
-      const data = await response.json();
-      if (data.success) {
-        setState(prev => ({
-          ...prev,
-          sessionId: data.data.sessionId,
-          affection: data.data.affection,
-        }));
-        setMessages(data.data.messages.map((m: any) => ({
-          id: m.id,
-          role: m.role,
-          content: m.content,
-          createdAt: new Date(m.createdAt),
-        })));
-      }
-    } catch (error) {
-      console.error('Failed to init session:', error);
-    }
-  }, [character.id]);
-
-  // 初始化时创建会话
-  useEffect(() => {
-    initSession();
-  }, [initSession]);
-
-  // 自动滚动
-  useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollIntoView({ behavior: 'smooth' });
-    }
-  }, [messages]);
 
   // 获取 TTS 音频
   const fetchTTSAudio = useCallback(async (messageId: string, text: string): Promise<string | null> => {
@@ -229,9 +194,61 @@ export default function DramaInterface({ characterId = 'luze' }: DramaInterfaceP
     }
   }, [fetchTTSAudio]);
 
-  // 发送消息
-  const sendMessage = useCallback(async () => {
-    const text = inputText.trim();
+  // 初始化会话
+  const initSession = useCallback(async () => {
+    try {
+      const response = await fetch('/api/drama/session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ characterId: character.id }),
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        setState(prev => ({
+          ...prev,
+          sessionId: data.data.sessionId,
+          affection: data.data.affection,
+        }));
+
+        const loadedMessages = data.data.messages.map((m: any) => ({
+          id: m.id,
+          role: m.role,
+          content: m.content,
+          createdAt: new Date(m.createdAt),
+        }));
+        setMessages(loadedMessages);
+
+        // 只有 greeting 一条消息时才自动播放
+        const firstCharacterMsg = loadedMessages.find((m: any) => m.role === 'character');
+        if (firstCharacterMsg?.content && loadedMessages.length === 1) {
+          fetchTTSAudio(firstCharacterMsg.id, firstCharacterMsg.content).then(audioData => {
+            if (audioData) {
+              playAudio({ ...firstCharacterMsg, audio: audioData });
+            }
+          });
+        }
+      }
+    } catch (error) {
+      console.error('Failed to init session:', error);
+    }
+  }, [character.id, fetchTTSAudio, playAudio]);
+
+  // 初始化时创建会话
+  useEffect(() => {
+    initSession();
+  }, [initSession]);
+
+  // 自动滚动
+  useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [messages]);
+
+  // 发送消息（可指定文本或从输入框读取）
+  const sendMessage = useCallback(async (textToSend?: string) => {
+    const text = textToSend ?? inputText.trim();
     if (!text || state.isProcessing || !state.sessionId) return;
 
     setInputText('');
@@ -342,11 +359,22 @@ export default function DramaInterface({ characterId = 'luze' }: DramaInterfaceP
 
   return (
     <div className="relative min-h-screen overflow-hidden">
-      {/* 背景图 */}
-      <div
-        className="absolute inset-0 bg-cover bg-center"
-        style={{ backgroundImage: `url(${character.bgImage})` }}
-      />
+      {/* 背景 - 支持图片和视频 */}
+      {character.bgImage.endsWith('.mp4') ? (
+        <video
+          src={character.bgImage}
+          className="absolute inset-0 w-full h-full object-cover"
+          autoPlay
+          loop
+          muted
+          playsInline
+        />
+      ) : (
+        <div
+          className="absolute inset-0 bg-cover bg-center"
+          style={{ backgroundImage: `url(${character.bgImage})` }}
+        />
+      )}
       <div className="absolute inset-0 bg-black/50" />
 
       {/* 内容层 */}
@@ -465,7 +493,7 @@ export default function DramaInterface({ characterId = 'luze' }: DramaInterfaceP
         </div>
 
         {/* 输入区域 */}
-        <div className="flex-shrink-0">
+        <div className="flex-shrink-0 relative">
           <div className="flex items-center gap-2 bg-black/20 backdrop-blur-sm rounded-2xl p-2">
             <div className="flex-1 relative">
               <Textarea
@@ -481,6 +509,16 @@ export default function DramaInterface({ characterId = 'luze' }: DramaInterfaceP
                   target.style.height = Math.min(target.scrollHeight, 100) + 'px';
                 }}
               />
+
+              {/* 提示按钮 - 绝对定位在输入框内最右侧 */}
+              <div className="absolute right-2 top-1/2 -translate-y-1/2">
+                <DialogueHints
+                  sessionId={state.sessionId || ''}
+                  onSend={(text) => sendMessage(text)}
+                  messageCount={messages.length}
+                  conversationHistory={messages.map(m => ({ role: m.role, content: m.content }))}
+                />
+              </div>
             </div>
 
             {/* 语音按钮 */}
@@ -500,7 +538,7 @@ export default function DramaInterface({ characterId = 'luze' }: DramaInterfaceP
 
             {/* 发送按钮 */}
             <Button
-              onClick={sendMessage}
+              onClick={() => sendMessage()}
               disabled={!inputText.trim() || state.isProcessing}
               size="icon"
               className={`flex-shrink-0 w-10 h-10 rounded-full transition-all ${

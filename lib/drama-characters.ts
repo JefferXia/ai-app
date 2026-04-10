@@ -59,8 +59,8 @@ export const LUZE_CONFIG: DramaCharacterConfig = {
 - 不要使用表情符号`,
   greeting: '苏小姐，有什么事？',
   voiceId: 'male-qn-badao',
-  bgImage: '/images/character/luze_office.jpg',
-  avatarImage: '/images/avatar/luze.jpg',
+  bgImage: '/images/drama/nanshen.jpg',
+  avatarImage: '/images/drama/nanshen.jpg',
   tags: ['霸总', '高冷', '都市'],
   description: '陆氏集团的年轻总裁，行事果断，性格高冷。初次见面时对你爱答不理，但随着相处时间的增加，你会发现他内心深处的温柔。',
   stages: [
@@ -103,8 +103,8 @@ export const LINCHEN_CONFIG: DramaCharacterConfig = {
 - 不要使用表情符号`,
   greeting: '学姐好呀！',
   voiceId: 'male-qn-daxuesheng-jingpin', // 青涩男声
-  bgImage: '/images/character/linchen_campus.jpg',
-  avatarImage: '/images/avatar/linchen.jpg',
+  bgImage: '/images/drama/nanshen.jpg',
+  avatarImage: '/images/drama/nanshen.jpg',
   tags: ['校园', '阳光', '甜宠'],
   description: '大学计算机系大三学生，阳光开朗，喜欢打篮球和编程。在一次校园活动中认识了你，总是找各种理由接近你。',
   stages: [
@@ -147,8 +147,8 @@ export const SUWAN_CONFIG: DramaCharacterConfig = {
 - 不要使用表情符号`,
   greeting: '哥哥好呀～',
   voiceId: 'female-shaonv', // 温柔女声
-  bgImage: '/images/character/suwan_bedroom.jpg',
-  avatarImage: '/images/avatar/suwan.jpg',
+  bgImage: '/images/drama/20251010-06.mp4',
+  avatarImage: '/images/drama/nvshen.jpg',
   tags: ['甜妹', '可爱', '日常'],
   description: '刚上大学的女生，活泼开朗，喜欢追星和美食。在一次偶然的机会认识了你，总是缠着你陪她玩。',
   stages: [
@@ -191,8 +191,8 @@ export const CHENMO_CONFIG: DramaCharacterConfig = {
 - 不要使用表情符号`,
   greeting: '有什么问题？',
   voiceId: 'lengdan_xiongzhang',
-  bgImage: '/images/character/chenmo_library.jpg',
-  avatarImage: '/images/avatar/chenmo.jpg',
+  bgImage: '/images/drama/nanshen.jpg',
+  avatarImage: '/images/drama/nanshen.jpg',
   tags: ['学霸', '傲娇', '校园'],
   description: '研究所的天才学霸，专业领域小有名气。表面冷淡，但一旦认定的人会默默关心。在一次学术会议上认识了你。',
   stages: [

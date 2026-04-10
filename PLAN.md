@@ -2,7 +2,7 @@
 
 **Branch:** aura-drama-phase2
 **Created:** 2026-04-03
-**Status:** PLANNING
+**Status:** IN_PROGRESS (Phase 2.6 Planning)
 
 ## Overview
 
@@ -234,7 +234,83 @@ export async function generateSceneDescription(
 
 ---
 
-## Feature 5: 持久化完善 (Persistence Improvements)
+## Feature 5: 自动对话提示 (AI Conversation Hints)
+
+### Problem
+很多用户不知道如何开始对话或推进剧情，导致体验中断。
+
+### What to Build
+
+1. **提示 Icon**
+   - 在输入框右侧增加一个灯泡/提示 icon
+   - 点击展开提示列表
+   - 无提示时显示加载状态
+
+2. **AI 生成 3 条对话选项**
+   - 调用 Director Agent 获取当前剧情状态
+   - 基于剧情状态生成 3 条不同方向的对话：
+     - **温柔路线**: 关心、问候、表达好感
+     - **冲突路线**: 质疑、挑战、制造张力
+     - **探索路线**: 提问、深入了解角色背景
+   - 每条对话都有剧情转折暗示（用括号标注）
+
+3. **Director Agent 联动**
+   - 生成提示时，Director 分析当前剧情走向
+   - 确保 3 条选项覆盖不同方向（推进/冲突/缓和）
+   - 避免生成与当前剧情阶段不匹配的选项
+
+### Implementation
+
+```typescript
+// lib/drama-hint-agent.ts
+interface DialogueOption {
+  text: string;           // 对话文本
+  plotDirection: 'warm' | 'conflict' | 'explore';
+  hint: string;          // 剧情暗示，如"（角色会透露过去）"
+  affectionDelta: number; // 预估好感度变化
+}
+
+export async function generateDialogueHints(
+  characterId: string,
+  conversationHistory: DramaMessage[],
+  currentStage: string,
+  affection: number,
+  directorContext: DirectorContext
+): Promise<DialogueOption[]>;
+```
+
+### API Endpoint
+
+```typescript
+// app/api/drama/hints/route.ts
+POST /api/drama/hints
+Request: { sessionId: string }
+Response: {
+  success: boolean;
+  hints: DialogueOption[];  // 3 条对话选项
+}
+```
+
+### UI Component
+
+```tsx
+// components/drama/DialogueHints.tsx
+interface DialogueHintsProps {
+  characterId: string;
+  sessionId: string;
+  onSelect: (text: string) => void;  // 选择后填入输入框
+}
+```
+
+### Files to Create/Modify
+- `lib/drama-hint-agent.ts` - Hint 生成逻辑
+- `app/api/drama/hints/route.ts` - Hint API
+- `components/drama/DialogueHints.tsx` - 提示组件
+- `components/drama/DramaInterface.tsx` - 集成提示 icon
+
+---
+
+## Feature 6: 持久化完善 (Persistence Improvements)
 
 ### Current State
 - `DramaSession` and `DramaMessage` models exist
@@ -287,6 +363,12 @@ export async function generateSceneDescription(
 2. Story memory visualization
 3. Analytics hooks
 
+### Phase 2.6: AI Conversation Hints (Auto Prompt)
+1. `lib/drama-hint-agent.ts` - Hint generation with Director Agent
+2. `app/api/drama/hints/route.ts` - Hints API endpoint
+3. `components/drama/DialogueHints.tsx` - Hint dropdown component
+4. Integrate hint icon into `DramaInterface.tsx` input area
+
 ---
 
 ## Technical Considerations
@@ -294,7 +376,8 @@ export async function generateSceneDescription(
 ### LLM Calls Per Message
 - Current: 1 (character response)
 - After Phase 2: 2-3 (response + affection + optional scene)
-- Mitigation: Parallel calls, caching
+- After Phase 2.6 (Hints): +1 (hint generation, on-demand only)
+- Mitigation: Parallel calls, caching, hints on-demand not per-message
 
 ### TTS Latency
 - MiniMax TTS: ~1-2 seconds
