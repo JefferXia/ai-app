@@ -53,6 +53,8 @@ model User {
   inviteRecords   InviteRecord[] @relation("Inviter")  // 邀请的用户列表
   invitedByRecord InviteRecord? @relation("Invitee")   // 被谁邀请的记录
   dramaSessions   DramaSession[]                       // Drama 会话
+  conversationSummaries ConversationSummary[]           // 对话摘要
+  userMemories    UserMemory[]                        // 用户记忆
 
   @@index([invite_code])
   @@index([invited_by])
@@ -360,4 +362,56 @@ model CharacterTemplate {
   updatedAt     DateTime @updatedAt
 
   @@unique([name])
+}
+
+// 对话摘要 - 存储每次对话的摘要
+model ConversationSummary {
+  id            String   @id @default(cuid())
+  userId        String
+  characterId   String   @db.VarChar(50)
+  sessionId     String?  // 可选关联特定会话
+
+  summary       String   @db.Text          // 摘要内容："用户在咖啡厅询问角色工作情况"
+  sentiment     String   @db.VarChar(20)  // 'positive' | 'neutral' | 'negative'
+  keyTopics     String   @db.Text          // JSON array: ["工作", "压力", "支持"]
+  userMood      String?  @db.VarChar(50)  // 推断的用户情绪
+
+  // 记忆召回辅助
+  importance    Int      @default(1)       // 重要性 1-5，影响遗忘
+  lastRecalled  DateTime @default(now())  // 上次被召回时间
+  recallCount   Int      @default(0)       // 被召回次数
+
+  createdAt     DateTime @default(now())
+
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt(sort: Desc)])
+  @@index([userId, characterId])
+}
+
+// 用户记忆 - 跨角色的用户事实和偏好
+model UserMemory {
+  id            String   @id @default(cuid())
+  userId        String
+
+  // 记忆类型
+  memoryType    String   @db.VarChar(30)  // 'fact' | 'preference' | 'personality' | 'relationship'
+  memoryKey     String   @db.VarChar(100) // 记忆键："user_name", "likes_caff", "communication_style"
+
+  // 记忆内容
+  content       String   @db.Text          // 记忆内容："用户名叫小明" / "用户喜欢喝咖啡"
+  evidence      String   @db.Text          // 来源证据："用户说'我叫小明'"
+  confidence    Float    @default(0.5)    // 置信度 0-1
+
+  // 遗忘机制
+  importance    Int      @default(1)       // 重要性 1-5
+  decayScore    Float    @default(1.0)    // 衰减分数，每次对话递减
+  lastUpdated   DateTime @default(now())
+
+  createdAt     DateTime @default(now())
+
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, memoryKey])
+  @@index([userId, memoryType])
 }

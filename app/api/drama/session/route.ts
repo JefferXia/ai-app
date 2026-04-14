@@ -7,6 +7,7 @@ import { auth } from '@/app/(auth)/auth';
 import prisma from '@/lib/prisma';
 import { getCharacterConfig, generateGreeting } from '@/lib/drama-character-agent';
 import { getDefaultLocationForCharacter } from '@/lib/drama-scene-generator';
+import { getUserProfileSummary, getConversationSummaries } from '@/lib/drama-memory-agent';
 
 // 创建新会话
 export async function POST(request: NextRequest) {
@@ -50,6 +51,10 @@ export async function POST(request: NextRequest) {
     });
 
     if (existingSession) {
+      // 获取用户记忆上下文
+      const userMemorySummary = await getUserProfileSummary(session.user.id);
+      const recentSummaries = await getConversationSummaries(session.user.id, characterId, 5);
+
       // 返回现有会话（消息需要翻转成时间顺序）
       return NextResponse.json({
         success: true,
@@ -69,6 +74,14 @@ export async function POST(request: NextRequest) {
             createdAt: m.createdAt,
           })),
           isNew: false,
+          // 记忆上下文
+          userMemorySummary,
+          recentConversationSummaries: recentSummaries.map(s => ({
+            summary: s.summary,
+            sentiment: s.sentiment,
+            keyTopics: s.keyTopics,
+            createdAt: s.createdAt,
+          })),
         },
       });
     }
@@ -102,6 +115,10 @@ export async function POST(request: NextRequest) {
       },
     });
 
+    // 获取用户记忆上下文（用于新会话时提供背景）
+    const userMemorySummary = await getUserProfileSummary(session.user.id);
+    const recentSummaries = await getConversationSummaries(session.user.id, characterId, 5);
+
     return NextResponse.json({
       success: true,
       data: {
@@ -118,6 +135,14 @@ export async function POST(request: NextRequest) {
           createdAt: m.createdAt,
         })),
         isNew: true,
+        // 记忆上下文
+        userMemorySummary,
+        recentConversationSummaries: recentSummaries.map(s => ({
+          summary: s.summary,
+          sentiment: s.sentiment,
+          keyTopics: s.keyTopics,
+          createdAt: s.createdAt,
+        })),
       },
     });
   } catch (error: any) {

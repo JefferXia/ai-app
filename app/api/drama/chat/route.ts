@@ -15,6 +15,11 @@ import {
   type StoryMemory,
 } from '@/lib/drama-affection-agent';
 import { analyzeWithDirector } from '@/lib/drama-director-agent';
+import {
+  buildMemoryContext,
+  generateConversationSummary,
+  applyMemoryDecay,
+} from '@/lib/drama-memory-agent';
 
 export async function POST(request: NextRequest) {
   try {
@@ -69,7 +74,19 @@ export async function POST(request: NextRequest) {
         content: m.content,
       }));
 
-    // 第一步：调用 Director Agent 分析剧情
+    // 第五步：获取记忆上下文（长期记忆增强）
+    const memoryContext = await buildMemoryContext(
+      session.user.id,
+      content.trim(),
+      dramaSession.characterId
+    );
+
+    // 将记忆上下文注入到用户消息中
+    const userMessageWithMemory = memoryContext
+      ? `${memoryContext}\n\n用户新消息: ${content.trim()}`
+      : content.trim();
+
+    // 第一步：调用 Director Agent 分析剧情（注入记忆上下文）
     const directorContext = await analyzeWithDirector({
       characterId: dramaSession.characterId,
       characterName: dramaSession.characterId, // TODO: 从角色配置获取 displayName
@@ -78,7 +95,7 @@ export async function POST(request: NextRequest) {
       tension: dramaSession.tension || 10,
       conversationHistory,
       storyMemory: currentStoryMemory,
-      userMessage: content.trim(),
+      userMessage: userMessageWithMemory,
     });
 
     console.log('[Drama Chat] 导演指令:', JSON.stringify(directorContext, null, 2));
@@ -149,6 +166,24 @@ export async function POST(request: NextRequest) {
     await prisma.dramaSession.update({
       where: { id: sessionId },
       data: updateData,
+    });
+
+    // 第六步：生成对话摘要和遗忘处理（异步，不阻塞返回）
+    const userId = session.user.id;
+    setImmediate(async () => {
+      try {
+        // 生成对话摘要
+        await generateConversationSummary(
+          userId,
+          dramaSession.characterId,
+          sessionId,
+          [...conversationHistory, { role: 'user', content: content.trim() }, { role: 'character', content: characterResponse }]
+        );
+        // 应用遗忘机制
+        await applyMemoryDecay(userId);
+      } catch (error) {
+        console.error('Memory processing error:', error);
+      }
     });
 
     return NextResponse.json({

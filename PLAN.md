@@ -461,3 +461,99 @@ Four test files needed for Phase 2:
 2. `lib/drama-characters.test.ts` - Multi-character config
 3. `app/api/drama/tts/route.test.ts` - TTS endpoint
 4. `components/drama/CharacterSelect.test.tsx` - Character selection UI
+
+---
+
+## Phase 3: 长期记忆系统 (Long-Term Memory)
+
+**Status:** COMPLETED
+**Date:** 2026-04-13
+
+### 实现内容
+
+1. **对话摘要生成**
+   - 每次对话后自动生成简明摘要
+   - 提取关键话题、情感倾向、用户情绪
+   - 存储到 `ConversationSummary` 表
+
+2. **用户事实学习**
+   - 从对话中提取用户个人信息（名字、偏好等）
+   - 存储到 `UserMemory` 表
+   - 支持置信度和重要性评分
+
+3. **记忆检索**
+   - 新对话时检索相关历史记忆
+   - 通过 `buildMemoryContext()` 构建记忆上下文
+   - 注入到 Director Agent 提示词
+
+4. **遗忘机制**
+   - 基于重要性的衰减算法
+   - 不常用记忆逐渐淡化
+   - 重要性高的记忆衰减更慢
+
+### 数据库变更
+
+```prisma
+model ConversationSummary {
+  id            String   @id @default(cuid())
+  userId        String
+  characterId   String   @db.VarChar(50)
+  sessionId     String?
+  summary       String   @db.Text
+  sentiment     String   @db.VarChar(20)
+  keyTopics    String   @db.Text
+  userMood     String?
+  importance    Int      @default(1)
+  lastRecalled DateTime @default(now())
+  recallCount  Int      @default(0)
+  createdAt    DateTime @default(now())
+}
+
+model UserMemory {
+  id            String   @id @default(cuid())
+  userId        String
+  memoryType    String   @db.VarChar(30)
+  memoryKey     String   @db.VarChar(100)
+  content       String   @db.Text
+  evidence      String   @db.Text
+  confidence    Float    @default(0.5)
+  importance    Int      @default(1)
+  decayScore   Float    @default(1.0)
+  lastUpdated  DateTime @default(now())
+  createdAt     DateTime @default(now())
+}
+```
+
+### 文件变更
+
+| 文件 | 变更 |
+|------|------|
+| `prisma/schema.prisma` | 新增 ConversationSummary, UserMemory 模型 |
+| `lib/drama-memory-agent.ts` | 新增：记忆生成、检索、遗忘 |
+| `app/api/drama/chat/route.ts` | 集成记忆上下文到对话流程 |
+| `app/api/drama/session/route.ts` | 返回记忆上下文到前端 |
+
+### 新 API
+
+```typescript
+// lib/drama-memory-agent.ts
+generateConversationSummary(userId, characterId, sessionId, conversationHistory)
+retrieveRelevantMemories(userId, currentContext, characterId, limit)
+buildMemoryContext(userId, currentMessage, characterId)
+applyMemoryDecay(userId)
+getUserProfileSummary(userId)
+```
+
+### 决策记录
+
+| # | 决策 | 原则 | 理由 |
+|---|------|------|------|
+| 1 | 使用自建方案而非 Mem0 | P2 (boil lakes) | 现有 storyMemory 已覆盖核心需求，引入向量库增加复杂度 |
+| 2 | 异步处理摘要和遗忘 | P3 (pragmatic) | 不阻塞主对话流程 |
+| 3 | 记忆通过 userMessage 注入 | P5 (explicit) | 最简单的集成方式，不改接口签名 |
+
+### 待优化
+
+- [ ] `lastRecalled` 和 `recallCount` 更新有 Prisma 类型问题，暂时禁用
+- [ ] 添加记忆强化机制（当记忆被验证时增强）
+- [ ] 添加记忆导出/导入功能
