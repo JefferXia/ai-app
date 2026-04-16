@@ -11,6 +11,7 @@ import {
   type DramaCharacterConfig,
 } from './drama-characters';
 import { injectDirectorContextToPrompt, type DirectorContext } from './drama-director-agent';
+import { getCharacterSkill, generateSkillPrompt } from './drama-character-skill';
 
 // 重新导出类型和配置，保持向后兼容
 export type { DramaCharacterConfig, CharacterStage } from './drama-characters';
@@ -83,8 +84,18 @@ export async function generateCharacterResponse(
 
   const tone = getToneByAffection(affection);
 
-  // 构建基础 system prompt
-  let systemPrompt = `${character.personality}
+  // 优先使用增强版角色技能（基于 Nuwa 方法论）
+  const characterSkill = getCharacterSkill(characterId);
+
+  let systemPrompt: string;
+
+  if (characterSkill) {
+    // 使用增强版技能提示词
+    systemPrompt = generateSkillPrompt(characterSkill, { affection, conversationHistory });
+    systemPrompt += `\n\n当前好感度：${affection}/100\n回复风格：${tone}\n\n重要提醒：\n1. 保持角色一致性，不要脱离人设\n2. 用括号表示动作，增强代入感\n3. 回复要自然流畅，像真实对话`;
+  } else {
+    // 使用基础配置（向后兼容）
+    systemPrompt = `${character.personality}
 
 当前好感度：${affection}/100
 回复风格：${tone}
@@ -93,11 +104,12 @@ export async function generateCharacterResponse(
 1. 保持角色一致性，不要脱离人设
 2. 用括号表示动作，增强代入感
 3. 回复要自然流畅，像真实对话`;
+  }
 
   // 如果有导演上下文，注入增强指令
   if (directorContext) {
     systemPrompt = injectDirectorContextToPrompt(
-      character.personality,
+      systemPrompt,
       directorContext,
       affection
     );
