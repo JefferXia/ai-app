@@ -35,6 +35,7 @@ export async function analyzeWithDirector(
     characterId,
     characterName,
     currentStage,
+    currentLocation,
     affection,
     tension,
     conversationHistory,
@@ -68,12 +69,14 @@ export async function analyzeWithDirector(
 ## 你的职责
 1. 观察对话全局状态（好感度、张力、记忆、阶段）
 2. 判断当前剧情需要什么（继续、冲突、高潮、缓和）
-3. 给出具体的导演指令
+3. 判断是否需要切换场景
+4. 给出具体的导演指令
 
 ## 当前状态
 - 角色: ${characterName} (${characterId})
 - 好感度: ${affection}/100
 - 当前阶段: ${STAGE_LABELS[currentStage] || currentStage}
+- 当前场景: ${currentLocation}
 - 剧情张力: ${tension}/100
 - 用户消息: "${userMessage}"
 
@@ -107,24 +110,45 @@ ${plotPointsSummary || '无'}
 - hostile: 角色表现出敌意
 - neutral: 角色表现中性
 
+## 场景位置决策
+当剧情需要切换场景时（如角色说"到了"、"我们到了这里"、"这里是..."等），分析是否需要切换场景：
+
+**可用场景位置：**
+- 废墟边缘、废弃商场、废墟街道、凛风要塞、要塞医务室、废墟营地（废土题材）
+- 陆氏集团办公室、公司咖啡厅、陆氏庄园、私人游艇（霸总题材）
+- 大学校园、学校食堂、图书馆（校园题材）
+- 甜品店、游乐园（甜宠题材）
+
+**场景决策原则：**
+- 如果角色明确提到到达新地点，设置 newLocation
+- 如果当前场景不再适合剧情发展，设置 newLocation
+- 如果角色正在移动或旅行，设置 newLocation
+- 不要频繁切换场景，只有在必要时切换
+- 如果不需要切换，newLocation 设为空或 null
+
 ## 输出要求
-返回 JSON 格式，包含：
-- plotDirective: 剧情指令
-- emotionDirective: 角色情绪指令
-- suspenseHook: 悬念钩子（可选，用于结尾制造张力）
-- memoryToReveal: 要揭示的记忆内容（可选）
-- hiddenInfo: 隐藏信息（可选，角色知道但用户不知道的）
-- responseLength: 建议回复长度
-- actionHint: 动作建议（可选）
-- directorNote: 导演备注（可选，内部注释）
-- reasoning: 你的导演思考过程（1-2句话）
+你必须返回一个有效的 JSON 对象，不要返回任何其他内容。
+JSON 格式包含：
+{
+  "plotDirective": "continue|introduce_conflict|escalate|climax|soften",
+  "emotionDirective": "cold|warm|defensive|vulnerable|hostile|neutral",
+  "newLocation": "新场景位置（如果不需要切换则为空）",
+  "suspenseHook": "悬念描述（可选）",
+  "memoryToReveal": "记忆内容（可选）",
+  "hiddenInfo": "隐藏信息（可选）",
+  "responseLength": "short|medium|long",
+  "actionHint": "动作建议（可选）",
+  "directorNote": "导演备注（可选）",
+  "reasoning": "导演思考过程（1-2句话）"
+}
 
 ## 重要原则
 1. 张力需要有起有伏，不能一直上升
 2. 冲突要有意义，服务于角色发展
 3. 每个阶段有合适的剧情节奏
 4. 利用已建立的事实制造戏剧性
-5. 不要连续引入冲突，需要有缓和期`;
+5. 不要连续引入冲突，需要有缓和期
+6. 你必须只返回 JSON，不要包含任何其他文字说明`;
 
   try {
     const response = await callMiniMaxLLM(
@@ -142,7 +166,7 @@ ${plotPointsSummary || '无'}
       }
     );
 
-    // 解析 LLM 输出
+    // 解析 LLM 输出 - 兼容 JS 对象字面量和 JSON
     const content = response.content.trim();
     console.log('[Director Agent] LLM 返回:', content);
 
@@ -153,13 +177,28 @@ ${plotPointsSummary || '无'}
       return getDefaultDirectorContext();
     }
 
-    const parsed = JSON.parse(jsonMatch[0]) as Partial<DirectorLLMOutput>;
+    // 尝试标准 JSON 解析
+    try {
+      var parsed = JSON.parse(jsonMatch[0]) as Partial<DirectorLLMOutput>;
+    } catch {
+      // 如果失败，尝试将 JS 对象字面量转换为 JSON
+      const rawStr = jsonMatch[0];
+      // 将 property: value 转换为 "property": value
+      const jsonStr = rawStr.replace(/([a-zA-Z_][a-zA-Z0-9_]*)\s*:/g, '"$1":');
+      try {
+        parsed = JSON.parse(jsonStr) as Partial<DirectorLLMOutput>;
+      } catch {
+        console.warn('Director analysis JSON parse failed, using default');
+        return getDefaultDirectorContext();
+      }
+    }
     console.log('[Director Agent] 解析结果:', parsed);
 
     // 验证并构建 DirectorContext
     return {
       plotDirective: parsed.plotDirective || 'continue',
       emotionDirective: parsed.emotionDirective || 'neutral',
+      newLocation: parsed.newLocation || undefined,
       suspenseHook: parsed.suspenseHook,
       memoryToReveal: parsed.memoryToReveal,
       hiddenInfo: parsed.hiddenInfo,
@@ -183,6 +222,7 @@ function getDefaultDirectorContext(): DirectorContext {
     plotDirective: 'continue',
     emotionDirective: 'neutral',
     responseLength: 'medium',
+    newLocation: undefined,
   };
 }
 
@@ -238,6 +278,11 @@ export function injectDirectorContextToPrompt(
   // 添加动作建议
   if (directorContext.actionHint) {
     enhanced += `\n\n## 动作建议\n${directorContext.actionHint}`;
+  }
+
+  // 添加场景切换指令
+  if (directorContext.newLocation) {
+    enhanced += `\n\n## 场景切换指令\n场景已切换到：${directorContext.newLocation}`;
   }
 
   // 添加回复长度建议

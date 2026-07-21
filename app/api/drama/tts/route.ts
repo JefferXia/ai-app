@@ -1,57 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { synthesizeSpeech } from '@/lib/minimax-tts';
-
-// 角色语音配置
-const VOICE_CONFIG: Record<string, {
-  speed: number;
-  vol: number;
-  emotion?: 'happy' | 'sad' | 'angry' | 'fearful' | 'disgusted' | 'surprised' | 'calm' | 'fluent' | 'whisper';
-}> = {
-  'wumei_yujie': {
-    speed: 0.85,
-    vol: 1,
-    emotion: 'whisper',
-  },
-  'female-shaonv-jingpin': {
-    speed: 0.9,
-    vol: 1,
-  },
-  'bingjiao_didi': {
-    speed: 1,
-    vol: 1,
-  },
-  // Drama 角色音色
-  'male-qn-badao': {
-    speed: 0.9,
-    vol: 1,
-    emotion: 'calm',
-  },
-  'male-qn-daxuesheng-jingpin': {
-    speed: 1.0,
-    vol: 1,
-    emotion: 'happy',
-  },
-  'female-shaonv': {
-    speed: 1.1,
-    vol: 1,
-    emotion: 'happy',
-  },
-  'lengdan_xiongzhang': {
-    speed: 0.85,
-    vol: 1,
-    emotion: 'calm',
-  },
-  'male-qn-jingying': {
-    speed: 0.9,
-    vol: 1,
-    emotion: 'calm',
-  },
-};
+import {
+  getDramaVoiceConfig,
+  preprocessTextForTTS,
+  type DramaVoiceConfig,
+} from '@/lib/drama-tts';
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { text, voiceId } = body;
+    const { characterId, text, affection } = body;
 
     if (!text || typeof text !== 'string') {
       return NextResponse.json(
@@ -60,10 +18,24 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const voiceConfig = VOICE_CONFIG[voiceId] || VOICE_CONFIG['wumei_yujie'];
+    if (!characterId || typeof characterId !== 'string') {
+      return NextResponse.json(
+        { success: false, error: '缺少角色ID' },
+        { status: 400 }
+      );
+    }
 
-    // 移除动作/表情（括号内容）用于 TTS
-    const textForTTS = text.replace(/[（(][^）)]+[）)]/g, '').replace(/\s+/g, ' ').trim();
+    // 获取角色语音配置
+    const voiceConfig = getDramaVoiceConfig(characterId, affection || 20);
+    if (!voiceConfig) {
+      return NextResponse.json(
+        { success: false, error: '未找到角色语音配置' },
+        { status: 400 }
+      );
+    }
+
+    // 预处理文本（移除动作/表情括号）
+    const textForTTS = preprocessTextForTTS(text);
 
     if (!textForTTS) {
       return NextResponse.json({
@@ -77,11 +49,11 @@ export async function POST(request: NextRequest) {
       text: textForTTS,
       model: 'speech-2.6-turbo',
       voice_setting: {
-        voice_id: voiceId || 'wumei_yujie',
+        voice_id: voiceConfig.voiceId,
         speed: voiceConfig.speed,
         vol: voiceConfig.vol,
-        pitch: 0,
-        ...(voiceConfig.emotion && { emotion: voiceConfig.emotion }),
+        pitch: voiceConfig.pitch,
+        emotion: voiceConfig.emotion,
       },
       audio_setting: {
         sample_rate: 32000,
@@ -104,9 +76,16 @@ export async function POST(request: NextRequest) {
       audio: ttsResult.data.audio,
       audioFormat: ttsResult.data.audio_format,
       audioLength: ttsResult.data.audio_length,
+      voiceConfig: {
+        voiceId: voiceConfig.voiceId,
+        speed: voiceConfig.speed,
+        vol: voiceConfig.vol,
+        pitch: voiceConfig.pitch,
+        emotion: voiceConfig.emotion,
+      },
     });
   } catch (error) {
-    console.error('TTS API 错误:', error);
+    console.error('Drama TTS API 错误:', error);
     return NextResponse.json(
       { success: false, error: error instanceof Error ? error.message : '服务器错误' },
       { status: 500 }

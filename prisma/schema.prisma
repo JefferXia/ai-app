@@ -314,9 +314,14 @@ model ProductViolation {
 model DramaSession {
   id            String   @id @default(cuid())
   userId        String
-  characterId   String   @db.VarChar(50)  // 角色ID，如 "luze"
+  characterId   String   @db.VarChar(50)  // 当前互动角色ID，如 "luze"
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
+
+  // Phase 4: 故事关联 (可选，支持故事模式和原有角色模式)
+  storyId       String?  @db.VarChar(50)   // 所属故事ID，如 "campus-romance"
+  currentChapter String?  @db.VarChar(50)    // 当前章节ID，如 "chapter-1"
+  chapterProgress Json?                    // 章节进度记录
 
   affection     Int      @default(20)     // 好感度 0-100
   tension       Int      @default(10)     // 张力 0-100
@@ -325,13 +330,19 @@ model DramaSession {
 
   storyMemory   Json     @default("{}")   // 故事记忆 { keyPlotPoints, characterDecisions, establishedFacts }
 
+  // Phase 4.5: 场景图片生成
+  generatedImages       Json?                    // 已生成的场景图片缓存 { location: base64 }
+  currentBackgroundImage String?  @db.Text       // 当前背景图 base64
+
   messages      DramaMessage[]
 
   user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, characterId])
+  @@unique([userId, storyId])  // 每个故事一个会话
   @@index([userId, createdAt(sort: Desc)])
   @@index([characterId])
+  @@index([storyId])
 }
 
 model DramaMessage {

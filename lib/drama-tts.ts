@@ -77,6 +77,48 @@ export const DRAMA_VOICE_CONFIGS: Record<string, DramaVoiceConfig> = {
       high: 'calm',
     },
   },
+
+  // 凛风 - 废土幸存者
+  linfeng: {
+    voiceId: 'Chinese (Mandarin)_Unrestrained_Young_Man', // 沉深男声
+    speed: 1,
+    vol: 5,
+    pitch: 0,
+    emotion: 'calm',
+    emotionByAffection: {
+      low: 'fearful',    // 警惕、冷淡
+      medium: 'calm',    // 略软化
+      high: 'calm',      // 信任但克制
+    },
+  },
+
+  // 雨晴 - 医疗兵（废土故事支援角色）
+  yuqing: {
+    voiceId: 'female-shaonv', // 温柔女声
+    speed: 1,
+    vol: 5,
+    pitch: 0,
+    emotion: 'calm',
+    emotionByAffection: {
+      low: 'calm',
+      medium: 'happy',
+      high: 'happy',
+    },
+  },
+
+  // 铁蝎 - 雇佣兵（废土故事支援角色）
+  tiexie: {
+    voiceId: 'male-qn-badao', // 霸总
+    speed: 1,
+    vol: 6,
+    pitch: 0,
+    emotion: 'angry',
+    emotionByAffection: {
+      low: 'angry',
+      medium: 'calm',
+      high: 'calm',
+    },
+  },
 };
 
 /**

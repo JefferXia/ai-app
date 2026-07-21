@@ -18,6 +18,63 @@ export interface SceneDescription {
 
 // 预定义场景
 export const PREDEFINED_SCENES: Record<string, SceneDescription> = {
+  // ========== 废土世界观场景 ==========
+  // 废墟边缘 - 故事开始的地方
+  '废墟边缘': {
+    location: '废墟边缘',
+    atmosphere: '末日废土，残破的建筑，漫天黄沙',
+    characterPose: '站在废墟高处，眺望远方',
+    lighting: '昏暗的天空，远处有微弱的光',
+    mood: '荒凉、紧张、生存',
+    prompt: 'Post-apocalyptic wasteland ruins, broken buildings, dusty sky, apocalyptic atmosphere, anime style, Japanese manga aesthetic, high quality illustration, cinematic composition, dramatic lighting',
+  },
+  // 废弃商场 - 资源搜索
+  '废弃商场': {
+    location: '废弃商场',
+    atmosphere: '破败的商业建筑，货架散落，尘埃漂浮',
+    characterPose: '在货架间搜索，表情警惕',
+    lighting: '透过破碎天窗的微光，阴影交错',
+    mood: '探索、警惕、神秘',
+    prompt: 'Abandoned shopping mall interior, broken shelves, dust particles floating, dim light through cracked skylight, post-apocalyptic anime style, mysterious atmosphere, dramatic shadows, high quality illustration',
+  },
+  // 废墟街道 - 遭遇危险
+  '废墟街道': {
+    location: '废墟街道',
+    atmosphere: '曾经繁华的街道，如今杂草丛生，汽车残骸',
+    characterPose: '快速穿行在废墟间，保持警戒',
+    lighting: '阴沉的天空，路灯残破',
+    mood: '危机四伏、希望与绝望并存',
+    prompt: 'Desolate post-apocalyptic street, overgrown with weeds, abandoned car wreckage, collapsed buildings, tense survival atmosphere, anime style, cinematic, muted colors, dramatic tension',
+  },
+  // 凛风要塞 - 希望的堡垒
+  '凛风要塞': {
+    location: '凛风要塞',
+    atmosphere: '人类最后的堡垒，坚固的围墙，温暖的灯火',
+    characterPose: '站在要塞入口，守护着人们',
+    lighting: '温暖的篝火光芒，夜幕降临',
+    mood: '安全、希望、人类最后的堡垒',
+    prompt: 'Fortified survivor base at night, warm campfire light, sturdy walls, last bastion of humanity, post-apocalyptic anime style, hopeful atmosphere, safe haven, cinematic lighting, detailed illustration',
+  },
+  // 要塞医务室 - 治愈与关怀
+  '要塞医务室': {
+    location: '要塞医务室',
+    atmosphere: '简陋但整洁的医疗室，药品稀缺但珍贵',
+    characterPose: '悉心照顾伤员，表情温柔',
+    lighting: '柔和的灯光，消毒水的气味',
+    mood: '温暖、关怀、治愈',
+    prompt: 'Medical room in post-apocalyptic base, simple but clean, soft warm lighting, anime style, healing atmosphere, gentle mood, detailed illustration, cinematic composition',
+  },
+  // 废墟营地 - 临时休息
+  '废墟营地': {
+    location: '废墟营地',
+    atmosphere: '临时搭建的帐篷，篝火摇曳，星空璀璨',
+    characterPose: '围坐篝火旁休息，警惕四周',
+    lighting: '篝火橙红色的光芒，星空背景',
+    mood: '粗犷、现实、江湖气息',
+    prompt: 'Temporary camp in ruins, tents, campfire flickering, starry night sky, post-apocalyptic anime style, gritty realistic atmosphere, natural lighting, detailed illustration',
+  },
+
+  // ========== 现代都市场景 ==========
   // 陆泽的办公室
   luze_office: {
     location: '陆氏集团办公室',
@@ -202,10 +259,15 @@ export function detectSceneTransition(
  */
 export function getDefaultLocationForCharacter(characterId: string): string {
   const defaults: Record<string, string> = {
+    // 现代都市场景
     luze: '陆氏集团办公室',
     linchen: '大学校园',
     suwan: '甜品店',
     chenmo: '大学图书馆',
+    // 废土场景
+    linfeng: '废墟边缘',
+    yuqing: '要塞医务室',
+    tiexie: '废墟街道',
   };
   return defaults[characterId] || '室内';
 }

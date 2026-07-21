@@ -47,6 +47,9 @@ export interface DirectorContext {
 
   // 导演备注（给开发者的内部注释）
   directorNote?: string;
+
+  // 新场景位置（当角色移动到新地点时）
+  newLocation?: string;
 }
 
 // 导演 Agent 输入
@@ -54,6 +57,7 @@ export interface DirectorInput {
   characterId: string;
   characterName: string;
   currentStage: string;
+  currentLocation: string;  // 当前场景位置
   affection: number;
   tension: number;  // 0-100，剧情张力值
   conversationHistory: Array<{
@@ -79,4 +83,5 @@ export interface DirectorLLMOutput {
   actionHint?: string;
   directorNote?: string;
   reasoning: string;  // 导演思考过程
+  newLocation?: string;  // 新场景位置（如果角色移动到新地点）
 }

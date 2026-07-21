@@ -1,6 +1,6 @@
 import { auth } from '@/app/(auth)/auth';
 import { redirect } from 'next/navigation';
-import CharacterSelect from '@/components/drama/CharacterSelect';
+import StorySelect from '@/components/drama/StorySelect';
 
 export default async function DramaPage() {
   const session = await auth();
@@ -9,5 +9,5 @@ export default async function DramaPage() {
     redirect('/login');
   }
 
-  return <CharacterSelect />;
+  return <StorySelect />;
 }

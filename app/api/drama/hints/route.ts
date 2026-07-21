@@ -57,6 +57,7 @@ export async function POST(request: NextRequest) {
       characterId: dramaSession.characterId,
       characterName: dramaSession.characterId,
       currentStage,
+      currentLocation: dramaSession.location || '',
       affection: dramaSession.affection,
       tension: dramaSession.tension || 10,
       conversationHistory,

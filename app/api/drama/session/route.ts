@@ -1,5 +1,6 @@
 /**
  * Drama Session API - 创建/获取会话
+ * 支持故事模式 (storyId) 和原有角色模式
  */
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -8,9 +9,18 @@ import prisma from '@/lib/prisma';
 import { getCharacterConfig, generateGreeting } from '@/lib/drama-character-agent';
 import { getDefaultLocationForCharacter } from '@/lib/drama-scene-generator';
 import { getUserProfileSummary, getConversationSummaries } from '@/lib/drama-memory-agent';
+import {
+  getStoryConfig,
+  getUnlockedChapters,
+  getCharacterInStory,
+} from '@/lib/drama-stories';
+import { initializeStoryProgress, type StoryProgress } from '@/lib/drama-story-agent';
 
 // 创建新会话
 export async function POST(request: NextRequest) {
+  let storyId: string | undefined;
+  let requestedCharacterId: string | undefined;
+
   try {
     const session = await auth();
     if (!session?.user?.id) {
@@ -21,9 +31,141 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { characterId = 'luze' } = body;
+    storyId = body.storyId;
+    requestedCharacterId = body.characterId;
 
-    // 验证角色是否存在
+    // 故事模式
+    if (storyId) {
+      const story = getStoryConfig(storyId);
+      if (!story) {
+        return NextResponse.json(
+          { success: false, error: '故事不存在' },
+          { status: 400 }
+        );
+      }
+
+      // 确定角色：优先使用请求的角色，否则使用故事默认角色
+      const characterId = requestedCharacterId || story.defaultCharacter || 'linchen';
+      const characterInStory = getCharacterInStory(storyId, characterId);
+      if (!characterInStory) {
+        return NextResponse.json(
+          { success: false, error: '角色不在此故事中' },
+          { status: 400 }
+        );
+      }
+
+      // 使用 findUnique 查找现有会话 (依赖 @@unique([userId, storyId]))
+      const existingSession = await prisma.dramaSession.findUnique({
+        where: {
+          userId_storyId: {
+            userId: session.user.id,
+            storyId,
+          },
+        },
+        include: {
+          messages: {
+            orderBy: { createdAt: 'desc' },
+            take: 50,
+          },
+        },
+      });
+
+      if (existingSession) {
+        // 计算已解锁章节
+        const unlockedChapters = getUnlockedChapters(storyId, existingSession.affection);
+        const chapterProgress = (existingSession.chapterProgress as unknown as StoryProgress) || {
+          completedChapters: [],
+          unlockedCharacters: story.characters.filter(c => c.role === 'protagonist').map(c => c.characterId),
+        };
+
+        return NextResponse.json({
+          success: true,
+          data: {
+            sessionId: existingSession.id,
+            storyId: existingSession.storyId,
+            currentChapter: existingSession.currentChapter,
+            characterId: existingSession.characterId,
+            affection: existingSession.affection,
+            tension: existingSession.tension,
+            currentStage: existingSession.currentStage,
+            location: existingSession.location,
+            unlockedChapters: unlockedChapters.map(ch => ch.id),
+            unlockedCharacters: chapterProgress.unlockedCharacters || [],
+            messages: existingSession.messages.reverse().map(m => ({
+              id: m.id,
+              role: m.role,
+              content: m.content,
+              affectionImpact: m.affectionImpact,
+              stageTransition: m.stageTransition,
+              createdAt: m.createdAt,
+            })),
+            isNew: false,
+          },
+        });
+      }
+
+      // 创建新故事会话
+      const greeting = generateGreeting(characterId);
+      const chapterProgress = initializeStoryProgress(story);
+      const defaultChapter = story.defaultChapter;
+
+      const newSession = await prisma.dramaSession.create({
+        data: {
+          userId: session.user.id,
+          characterId,
+          storyId,
+          currentChapter: defaultChapter,
+          chapterProgress: chapterProgress as any,
+          affection: characterInStory.defaultAffection || 20,
+          tension: 10,
+          currentStage: 'Initial',
+          location: story.chapters.find(ch => ch.id === defaultChapter)?.location || '未知',
+          storyMemory: {
+            keyPlotPoints: [],
+            characterDecisions: [],
+            establishedFacts: [],
+          },
+          messages: {
+            create: {
+              role: 'character',
+              content: greeting,
+            },
+          },
+        },
+        include: {
+          messages: true,
+        },
+      });
+
+      // 获取已解锁章节
+      const unlockedChapters = getUnlockedChapters(storyId, newSession.affection);
+
+      return NextResponse.json({
+        success: true,
+        data: {
+          sessionId: newSession.id,
+          storyId: newSession.storyId,
+          currentChapter: newSession.currentChapter,
+          characterId: newSession.characterId,
+          affection: newSession.affection,
+          tension: newSession.tension,
+          currentStage: newSession.currentStage,
+          location: newSession.location,
+          unlockedChapters: unlockedChapters.map(ch => ch.id),
+          unlockedCharacters: chapterProgress.unlockedCharacters,
+          messages: newSession.messages.map(m => ({
+            id: m.id,
+            role: m.role,
+            content: m.content,
+            createdAt: m.createdAt,
+          })),
+          isNew: true,
+        },
+      });
+    }
+
+    // 原有角色模式（向后兼容）
+    const characterId = requestedCharacterId || 'luze';
     const character = getCharacterConfig(characterId);
     if (!character) {
       return NextResponse.json(
@@ -156,23 +298,44 @@ export async function POST(request: NextRequest) {
           { status: 401 }
         );
       }
-      const body = request.json ? await request.json() : {};
-      const characterId = body.characterId || 'luze';
 
-      const existingSession = await prisma.dramaSession.findUnique({
-        where: {
-          userId_characterId: {
-            userId: resession.user.id,
-            characterId,
+      // storyId 和 requestedCharacterId 来自闭包
+      let existingSession = null;
+      if (storyId) {
+        existingSession = await prisma.dramaSession.findUnique({
+          where: {
+            userId_storyId: {
+              userId: resession.user.id,
+              storyId,
+            },
           },
-        },
-        include: {
-          messages: {
-            orderBy: { createdAt: 'desc' },
-            take: 50,
+          include: {
+            messages: {
+              orderBy: { createdAt: 'desc' },
+              take: 50,
+            },
           },
-        },
-      });
+        });
+      }
+
+      // 如果没找到故事会话，查找角色会话
+      if (!existingSession) {
+        const charId = requestedCharacterId || 'luze';
+        existingSession = await prisma.dramaSession.findUnique({
+          where: {
+            userId_characterId: {
+              userId: resession.user.id,
+              characterId: charId,
+            },
+          },
+          include: {
+            messages: {
+              orderBy: { createdAt: 'desc' },
+              take: 50,
+            },
+          },
+        });
+      }
 
       if (existingSession) {
         return NextResponse.json({
@@ -180,6 +343,8 @@ export async function POST(request: NextRequest) {
           data: {
             sessionId: existingSession.id,
             characterId: existingSession.characterId,
+            storyId: existingSession.storyId,
+            currentChapter: existingSession.currentChapter,
             affection: existingSession.affection,
             tension: existingSession.tension,
             currentStage: existingSession.currentStage,
@@ -227,6 +392,7 @@ export async function GET(request: NextRequest) {
       select: {
         id: true,
         characterId: true,
+        storyId: true,
         affection: true,
         currentStage: true,
         updatedAt: true,

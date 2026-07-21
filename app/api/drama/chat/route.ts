@@ -91,6 +91,7 @@ export async function POST(request: NextRequest) {
       characterId: dramaSession.characterId,
       characterName: dramaSession.characterId, // TODO: 从角色配置获取 displayName
       currentStage,
+      currentLocation: dramaSession.location || '',
       affection: dramaSession.affection,
       tension: dramaSession.tension || 10,
       conversationHistory,
@@ -152,7 +153,7 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    // 更新会话：好感度、阶段、故事记忆
+    // 更新会话：好感度、阶段、故事记忆、场景位置
     const updateData: Record<string, unknown> = {
       affection: newAffection,
       storyMemory: newStoryMemory,
@@ -161,6 +162,11 @@ export async function POST(request: NextRequest) {
 
     if (affectionAnalysis.stageTransition) {
       updateData.currentStage = affectionAnalysis.stageTransition;
+    }
+
+    // 如果导演决定切换场景，更新位置
+    if (directorContext.newLocation) {
+      updateData.location = directorContext.newLocation;
     }
 
     await prisma.dramaSession.update({
@@ -206,6 +212,7 @@ export async function POST(request: NextRequest) {
         affectionReason: affectionAnalysis.reason,
         stageTransition: affectionAnalysis.stageTransition || null,
         stageTransitionMessage: stageTransitionMessage || null,
+        newLocation: directorContext.newLocation || null,  // 新场景位置（如果有切换）
         storyMemory: newStoryMemory,
         directorContext: directorContext, // 导演指令（用于调试和展示）
       },
