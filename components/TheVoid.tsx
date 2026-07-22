@@ -18,13 +18,16 @@ const TheVoid = () => {
     setUiAction(null);
     setBookCard(null);
     try {
-      const response = await fetch('https://zen-ask.onrender.com/api/ask', {
+      const response = await fetch('/api/ask', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text: input }),
       });
       const dataJson = await response.json();
-      const data = dataJson.answer;
+      if (!response.ok || !dataJson.success) {
+        throw new Error(dataJson.error || 'request failed');
+      }
+      const data = dataJson.data.answer;
       setTimeout(() => {
         // 从 content.sting_text 获取答案
         setAnswer(data.content?.sting_text || '无答案');
