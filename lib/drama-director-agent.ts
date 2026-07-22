@@ -41,6 +41,7 @@ export async function analyzeWithDirector(
     conversationHistory,
     storyMemory,
     userMessage,
+    storyContext,
   } = input;
 
   // 构建对话历史摘要
@@ -48,7 +49,7 @@ export async function analyzeWithDirector(
     .slice(-10)
     .map((msg, i) => {
       const role = msg.role === 'user' ? '用户' : characterName;
-      return `${i + 1}. ${role}: ${msg.content.slice(0, 50)}${msg.content.length > 50 ? '...' : ''}`;
+      return `${i + 1}. ${role}: ${msg.content.slice(0, 120)}${msg.content.length > 120 ? '...' : ''}`;
     })
     .join('\n');
 
@@ -64,13 +65,15 @@ export async function analyzeWithDirector(
     ? storyMemory.keyPlotPoints.slice(-5).join(' | ')
     : '无';
 
-  const systemPrompt = `你是剧情导演，负责分析当前对话状态并制定下一步剧情指令。
+  const systemPrompt = `你是剧情导演，负责分析当前对话状态并制定下一步剧情指令。你的核心目标是推动剧情向前发展，避免对话原地打转。
 
 ## 你的职责
 1. 观察对话全局状态（好感度、张力、记忆、阶段）
 2. 判断当前剧情需要什么（继续、冲突、高潮、缓和）
-3. 判断是否需要切换场景
-4. 给出具体的导演指令
+3. 围绕章节剧情目标推进故事，制造具体的情节事件
+4. 判断本章剧情是否已充分展开（chapterComplete）
+5. 判断是否需要切换场景
+6. 给出具体的导演指令
 
 ## 当前状态
 - 角色: ${characterName} (${characterId})
@@ -79,7 +82,7 @@ export async function analyzeWithDirector(
 - 当前场景: ${currentLocation}
 - 剧情张力: ${tension}/100
 - 用户消息: "${userMessage}"
-
+${storyContext ? `\n## 故事背景与章节目标\n${storyContext}\n` : ''}
 ## 对话历史（最近10轮）
 ${historySummary || '暂无历史'}
 
@@ -94,6 +97,21 @@ ${plotPointsSummary || '无'}
 - 31-60: 适度紧张，适合推进关系
 - 61-80: 高度紧张，需要冲突或解决
 - 81-100: 危机时刻，可能是高潮或转折
+
+## 张力变化（tensionDelta）
+根据本轮对话对剧情节奏的影响，输出 -20 到 +20 的整数：
+- 出现危险、冲突、意外、悬念: +10 到 +20
+- 关系升温、适度推进: +3 到 +8
+- 平铺直叙的日常: 0
+- 冲突解决、气氛缓和: -5 到 -15
+张力需要有起有伏。长期停留在低张力时，应主动制造波折。
+
+## 章节完成判定（chapterComplete）
+当满足以下多数条件时输出 true：
+- 本章的核心情节事件已经发生（如相遇、考验、揭秘）
+- 对话已充分展开（通常 5 轮以上），而不是刚刚开始
+- 继续停留在本章只会重复、没有新内容
+否则输出 false。宁缺毋滥，不要过早判定完成。
 
 ## 剧情指令类型
 - continue: 当前节奏良好，继续推进
@@ -132,6 +150,8 @@ JSON 格式包含：
 {
   "plotDirective": "continue|introduce_conflict|escalate|climax|soften",
   "emotionDirective": "cold|warm|defensive|vulnerable|hostile|neutral",
+  "tensionDelta": 0,
+  "chapterComplete": false,
   "newLocation": "新场景位置（如果不需要切换则为空）",
   "suspenseHook": "悬念描述（可选）",
   "memoryToReveal": "记忆内容（可选）",
@@ -143,9 +163,9 @@ JSON 格式包含：
 }
 
 ## 重要原则
-1. 张力需要有起有伏，不能一直上升
-2. 冲突要有意义，服务于角色发展
-3. 每个阶段有合适的剧情节奏
+1. 剧情必须前进：每几轮对话就要有新的信息、事件或关系变化，禁止原地寒暄
+2. 张力需要有起有伏，不能一直上升
+3. 冲突要有意义，服务于角色发展和章节目标
 4. 利用已建立的事实制造戏剧性
 5. 不要连续引入冲突，需要有缓和期
 6. 你必须只返回 JSON，不要包含任何其他文字说明`;
@@ -195,9 +215,12 @@ JSON 格式包含：
     console.log('[Director Agent] 解析结果:', parsed);
 
     // 验证并构建 DirectorContext
+    const rawDelta = typeof parsed.tensionDelta === 'number' ? parsed.tensionDelta : 0;
     return {
       plotDirective: parsed.plotDirective || 'continue',
       emotionDirective: parsed.emotionDirective || 'neutral',
+      tensionDelta: Math.max(-20, Math.min(20, Math.round(rawDelta))),
+      chapterComplete: parsed.chapterComplete === true,
       newLocation: parsed.newLocation || undefined,
       suspenseHook: parsed.suspenseHook,
       memoryToReveal: parsed.memoryToReveal,
@@ -221,6 +244,7 @@ function getDefaultDirectorContext(): DirectorContext {
   return {
     plotDirective: 'continue',
     emotionDirective: 'neutral',
+    tensionDelta: 0,
     responseLength: 'medium',
     newLocation: undefined,
   };
@@ -235,6 +259,11 @@ export function injectDirectorContextToPrompt(
   affection: number
 ): string {
   let enhanced = characterPersonality;
+
+  // 添加故事背景与章节目标
+  if (directorContext.storyContext) {
+    enhanced += `\n\n## 故事背景与当前章节\n${directorContext.storyContext}\n你的回复要服务于章节剧情的推进，适当制造事件、透露信息或推动关系变化，不要原地寒暄。`;
+  }
 
   // 添加剧情指令
   if (directorContext.plotDirective === 'introduce_conflict') {
@@ -287,9 +316,9 @@ export function injectDirectorContextToPrompt(
 
   // 添加回复长度建议
   const lengthMap: Record<ResponseLength, string> = {
-    short: '回复应该简短，控制在20字以内。',
-    medium: '回复长度适中，控制在30-50字。',
-    long: '回复可以较长，详细表达情感，50-80字。',
+    short: '回复应该简短，控制在30字以内。',
+    medium: '回复长度适中，控制在50-100字，可以包含动作描写和情节信息。',
+    long: '回复可以较长，详细展开剧情与情感，100-180字。',
   };
   enhanced += `\n\n## 长度指令\n${lengthMap[directorContext.responseLength]}`;
 

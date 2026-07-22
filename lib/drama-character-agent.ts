@@ -136,7 +136,7 @@ export async function generateCharacterResponse(
     const response = await callMiniMaxLLM(messages, {
       model: 'M2-her',
       temperature: 0.8,
-      max_completion_tokens: 200,
+      max_completion_tokens: 400,
       system: systemPrompt,
     });
 

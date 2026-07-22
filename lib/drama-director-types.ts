@@ -50,6 +50,15 @@ export interface DirectorContext {
 
   // 新场景位置（当角色移动到新地点时）
   newLocation?: string;
+
+  // 张力变化值（-20 ~ +20，由导演根据剧情判断）
+  tensionDelta: number;
+
+  // 章节完成信号（本章剧情已充分展开，可推进到下一章）
+  chapterComplete?: boolean;
+
+  // 故事上下文（由 chat 路由注入，透传给角色提示词，非 LLM 输出）
+  storyContext?: string;
 }
 
 // 导演 Agent 输入
@@ -70,6 +79,9 @@ export interface DirectorInput {
     establishedFacts?: Record<string, string>;
   };
   userMessage: string;
+
+  // 故事上下文（当前故事、章节、剧情目标），无故事会话时为空
+  storyContext?: string;
 }
 
 // LLM 输出解析用
@@ -84,4 +96,6 @@ export interface DirectorLLMOutput {
   directorNote?: string;
   reasoning: string;  // 导演思考过程
   newLocation?: string;  // 新场景位置（如果角色移动到新地点）
+  tensionDelta?: number;  // 张力变化（-20 ~ +20）
+  chapterComplete?: boolean;  // 本章剧情是否已充分展开
 }

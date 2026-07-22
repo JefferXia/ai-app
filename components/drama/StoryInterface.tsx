@@ -30,7 +30,7 @@ interface StoryState {
 
 interface Message {
   id: string;
-  role: 'user' | 'character';
+  role: 'user' | 'character' | 'system';
   content: string;
   audio?: string;
   audioLoading?: boolean;
@@ -375,10 +375,48 @@ export default function StoryInterface({ storyId, initialCharacterId }: StoryInt
           setState(prev => ({ ...prev, affection: data.data.affection }));
         }
 
-        // 检查章节解锁
+        // 章节推进（好感度解锁或剧情完成）
         if (data.data.chapterUnlocked && story) {
           const unlockedChapters = getUnlockedChapters(storyId, data.data.affection);
-          setState(prev => ({ ...prev, unlockedChapters }));
+          setState(prev => ({
+            ...prev,
+            unlockedChapters,
+            currentChapter: data.data.currentChapter || prev.currentChapter,
+            completedChapters: data.data.currentChapter
+              ? [...new Set([...prev.completedChapters, prev.currentChapter])]
+              : prev.completedChapters,
+          }));
+
+          // 插入章节推进系统提示
+          setMessages(prev => [
+            ...prev,
+            {
+              id: `system-chapter-${Date.now()}`,
+              role: 'system' as const,
+              content: `📖 剧情推进：${data.data.chapterUnlocked.title}\n${data.data.chapterUnlocked.description}`,
+              createdAt: new Date(),
+            },
+          ]);
+        }
+
+        // 新角色解锁提示
+        if (data.data.newCharacter) {
+          const charConfig = getCharacterConfig(data.data.newCharacter);
+          setState(prev => ({
+            ...prev,
+            unlockedCharacters: prev.unlockedCharacters.includes(data.data.newCharacter)
+              ? prev.unlockedCharacters
+              : [...prev.unlockedCharacters, data.data.newCharacter],
+          }));
+          setMessages(prev => [
+            ...prev,
+            {
+              id: `system-char-${Date.now()}`,
+              role: 'system' as const,
+              content: `✨ 新角色「${charConfig?.displayName || data.data.newCharacter}」加入故事`,
+              createdAt: new Date(),
+            },
+          ]);
         }
 
         // 检查场景切换
@@ -636,6 +674,19 @@ export default function StoryInterface({ storyId, initialCharacterId }: StoryInt
             ) : (
               <>
                 {messages.map(message => {
+                  // 系统消息（章节推进等）：居中展示
+                  if (message.role === 'system') {
+                    return (
+                      <div key={message.id} className="flex justify-center">
+                        <div className="max-w-[85%] rounded-xl px-4 py-2 bg-[#A78BFA]/15 border border-[#A78BFA]/30 backdrop-blur-sm">
+                          <p className="text-xs text-[#A78BFA] whitespace-pre-wrap text-center leading-relaxed">
+                            {message.content}
+                          </p>
+                        </div>
+                      </div>
+                    );
+                  }
+
                   const { text, actions } = formatMessage(message.content);
                   const isPlaying = playingAudioId === message.id;
                   const isLoading = message.audioLoading;

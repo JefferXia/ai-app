@@ -20,6 +20,20 @@ import {
   generateConversationSummary,
   applyMemoryDecay,
 } from '@/lib/drama-memory-agent';
+import {
+  getStoryConfig,
+  isChapterUnlocked,
+  type StoryChapter,
+} from '@/lib/drama-stories';
+import {
+  initializeStoryProgress,
+  processStoryUpdate,
+  buildNarrativeContext,
+  advanceToNextChapter,
+  getCurrentChapterInfo,
+  type StoryProgress,
+} from '@/lib/drama-story-agent';
+import { getCharacterConfig } from '@/lib/drama-characters';
 
 export async function POST(request: NextRequest) {
   try {
@@ -86,18 +100,39 @@ export async function POST(request: NextRequest) {
       ? `${memoryContext}\n\n用户新消息: ${content.trim()}`
       : content.trim();
 
-    // 第一步：调用 Director Agent 分析剧情（注入记忆上下文）
+    // 第零步：加载故事配置与进度（故事主导范式）
+    const story = dramaSession.storyId
+      ? getStoryConfig(dramaSession.storyId)
+      : null;
+    const storyProgress: StoryProgress | null = story
+      ? ((dramaSession.chapterProgress as unknown as StoryProgress) ||
+          initializeStoryProgress(story))
+      : null;
+    const storyContext =
+      story && storyProgress
+        ? buildNarrativeContext(story, storyProgress, dramaSession.affection)
+        : undefined;
+
+    // 第一步：调用 Director Agent 分析剧情（注入记忆上下文 + 故事上下文）
     const directorContext = await analyzeWithDirector({
       characterId: dramaSession.characterId,
-      characterName: dramaSession.characterId, // TODO: 从角色配置获取 displayName
+      characterName:
+        getCharacterConfig(dramaSession.characterId)?.displayName ||
+        dramaSession.characterId,
       currentStage,
       currentLocation: dramaSession.location || '',
       affection: dramaSession.affection,
-      tension: dramaSession.tension || 10,
+      tension: dramaSession.tension ?? 10,
       conversationHistory,
       storyMemory: currentStoryMemory,
       userMessage: userMessageWithMemory,
+      storyContext,
     });
+
+    // 故事上下文透传给角色提示词
+    if (storyContext) {
+      directorContext.storyContext = storyContext;
+    }
 
     console.log('[Drama Chat] 导演指令:', JSON.stringify(directorContext, null, 2));
 
@@ -121,8 +156,65 @@ export async function POST(request: NextRequest) {
     // 计算新好感度
     const newAffection = Math.max(0, Math.min(100, dramaSession.affection + affectionAnalysis.delta));
 
+    // 计算新剧情张力（导演判定 + 持久化）
+    const newTension = Math.max(
+      0,
+      Math.min(100, (dramaSession.tension ?? 10) + directorContext.tensionDelta)
+    );
+
     // 更新故事记忆
     const newStoryMemory = updateStoryMemory(currentStoryMemory, affectionAnalysis.memoryUpdate);
+
+    // 章节推进（双触发：好感度阈值 + 导演剧情判定）
+    let chapterUnlocked: StoryChapter | null = null;
+    let newCharacter: string | null = null;
+
+    if (story && storyProgress) {
+      // 触发1：好感度阈值解锁
+      const unlockResult = processStoryUpdate(
+        story,
+        storyProgress,
+        dramaSession.affection,
+        newAffection
+      );
+      if (unlockResult.newChapter) chapterUnlocked = unlockResult.newChapter;
+      if (unlockResult.newCharacter) newCharacter = unlockResult.newCharacter;
+
+      // 触发2：导演判定本章剧情已充分展开
+      if (!chapterUnlocked && directorContext.chapterComplete) {
+        const nextChapterId = advanceToNextChapter(story, storyProgress.currentChapter);
+        if (nextChapterId && isChapterUnlocked(story.id, nextChapterId, newAffection)) {
+          chapterUnlocked = getCurrentChapterInfo(story, nextChapterId);
+        }
+      }
+
+      // 应用章节推进
+      if (chapterUnlocked && chapterUnlocked.id !== storyProgress.currentChapter) {
+        storyProgress.completedChapters = [
+          ...new Set([...storyProgress.completedChapters, storyProgress.currentChapter]),
+        ];
+        storyProgress.chapterHistory = [
+          ...(storyProgress.chapterHistory || []),
+          {
+            chapterId: storyProgress.currentChapter,
+            startedAt: new Date(),
+            completedAt: new Date(),
+            affectionAtEntry: dramaSession.affection,
+          },
+        ];
+        storyProgress.currentChapter = chapterUnlocked.id;
+
+        // 章节切换伴随场景切换
+        if (!directorContext.newLocation) {
+          directorContext.newLocation = chapterUnlocked.location;
+        }
+      }
+
+      // 应用角色解锁
+      if (newCharacter && !storyProgress.unlockedCharacters.includes(newCharacter)) {
+        storyProgress.unlockedCharacters.push(newCharacter);
+      }
+    }
 
     // 保存用户消息
     const userMessage = await prisma.dramaMessage.create({
@@ -153,15 +245,21 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    // 更新会话：好感度、阶段、故事记忆、场景位置
+    // 更新会话：好感度、张力、阶段、故事记忆、故事进度、场景位置
     const updateData: Record<string, unknown> = {
       affection: newAffection,
+      tension: newTension,
       storyMemory: newStoryMemory,
       updatedAt: new Date(),
     };
 
     if (affectionAnalysis.stageTransition) {
       updateData.currentStage = affectionAnalysis.stageTransition;
+    }
+
+    if (story && storyProgress) {
+      updateData.currentChapter = storyProgress.currentChapter;
+      updateData.chapterProgress = storyProgress as any;
     }
 
     // 如果导演决定切换场景，更新位置
@@ -210,9 +308,20 @@ export async function POST(request: NextRequest) {
         affection: newAffection,
         affectionDelta: affectionAnalysis.delta,
         affectionReason: affectionAnalysis.reason,
+        tension: newTension,
         stageTransition: affectionAnalysis.stageTransition || null,
         stageTransitionMessage: stageTransitionMessage || null,
         newLocation: directorContext.newLocation || null,  // 新场景位置（如果有切换）
+        currentChapter: storyProgress?.currentChapter || null,
+        chapterUnlocked: chapterUnlocked
+          ? {
+              id: chapterUnlocked.id,
+              title: chapterUnlocked.title,
+              description: chapterUnlocked.description,
+              location: chapterUnlocked.location,
+            }
+          : null,
+        newCharacter: newCharacter || null,
         storyMemory: newStoryMemory,
         directorContext: directorContext, // 导演指令（用于调试和展示）
       },
