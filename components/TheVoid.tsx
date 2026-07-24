@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import Link from 'next/link';
 import { Sparkles, ArrowRight, ArrowLeft } from 'lucide-react';
 import type { BookCard } from '@/lib/zen-ask';
 
@@ -87,6 +88,15 @@ const TheVoid = () => {
                   <ArrowRight size={20} className="md:w-6 md:h-6" />
                 </button>
               </form>
+              {/* 问心入口 */}
+              <div className="mt-8 md:mt-10 flex justify-center">
+                <Link
+                  href="/wenxin"
+                  className="wenxin-entry inline-block pl-7 pr-5 py-2.5 rounded-full border border-gray-800 bg-gray-900/60 text-xs md:text-sm tracking-[0.4em] text-gray-400 hover:text-white hover:border-amber-800/70 transition-colors duration-300"
+                >
+                  试试问心
+                </Link>
+              </div>
             </div>
           )}
           {loading && (
@@ -330,6 +340,29 @@ const bookStyles = `
 
   .animate-fade-in-slower {
     animation: fadeInSlower 0.6s ease-out;
+  }
+
+  /* 问心入口：呼吸动效 */
+  @keyframes breathe {
+    0%,
+    100% {
+      box-shadow: 0 0 0 0 rgba(245, 158, 11, 0);
+      border-color: rgb(31 41 55);
+    }
+    50% {
+      box-shadow: 0 0 18px 3px rgba(245, 158, 11, 0.1);
+      border-color: rgba(146, 108, 60, 0.55);
+    }
+  }
+
+  .wenxin-entry {
+    animation: breathe 3.6s ease-in-out infinite;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .wenxin-entry {
+      animation: none;
+    }
   }
 `;
 
