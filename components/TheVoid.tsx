@@ -1,22 +1,23 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Sparkles, ArrowRight } from 'lucide-react';
+import { Sparkles, ArrowRight, ArrowLeft } from 'lucide-react';
+import type { BookCard } from '@/lib/zen-ask';
 
 const TheVoid = () => {
   const [input, setInput] = useState('');
   const [answer, setAnswer] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [uiAction, setUiAction] = useState<string | null>(null);
-  const [bookCard, setBookCard] = useState<any>(null);
+  const [bookCards, setBookCards] = useState<BookCard[]>([]);
+  const [selectedBook, setSelectedBook] = useState<number | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!input.trim()) return;
     setLoading(true);
     setAnswer(null);
-    setUiAction(null);
-    setBookCard(null);
+    setBookCards([]);
+    setSelectedBook(null);
     try {
       const response = await fetch('/api/ask', {
         method: 'POST',
@@ -32,13 +33,8 @@ const TheVoid = () => {
         // 从 content.sting_text 获取答案
         setAnswer(data.content?.sting_text || '无答案');
         setLoading(false);
-
-        // 如果返回的数据包含ui_action，则处理相应的UI操作
-        if (data.ui_action) {
-          setUiAction(data.ui_action);
-          if (data.ui_action === 'show_book_card' && data.content?.book_card) {
-            setBookCard(data.content.book_card);
-          }
+        if (Array.isArray(data.content?.book_cards)) {
+          setBookCards(data.content.book_cards);
         }
       }, 1500);
     } catch (err) {
@@ -46,6 +42,9 @@ const TheVoid = () => {
       setAnswer('连接深渊失败...');
     }
   };
+
+  const activeBook =
+    selectedBook !== null ? (bookCards[selectedBook] ?? null) : null;
 
   return (
     <>
@@ -118,16 +117,60 @@ const TheVoid = () => {
                 </span>
               </div>
 
-              {bookCard && (
+              {/* 书单列表：未选中时展示 */}
+              {!activeBook && bookCards.length > 0 && (
+                <div className="mt-8 md:mt-12 animate-fade-in-slower">
+                  <p className="text-[10px] md:text-xs tracking-[0.3em] text-gray-600 uppercase mb-4 md:mb-6">
+                    对症书单
+                  </p>
+                  <div className="space-y-3 md:space-y-4 text-left">
+                    {bookCards.map((book, idx) => (
+                      <button
+                        key={idx}
+                        onClick={() => setSelectedBook(idx)}
+                        className="w-full group flex items-center justify-between gap-4 px-4 md:px-6 py-4 md:py-5 border border-gray-800 rounded-lg bg-gray-950/40 hover:border-amber-800/70 hover:bg-gray-900/60 transition-all duration-300"
+                      >
+                        <div className="min-w-0">
+                          <div className="flex items-baseline gap-2 flex-wrap">
+                            <span className="text-amber-100/90 text-base md:text-lg font-serif">
+                              《{book.title}》
+                            </span>
+                            <span className="text-gray-500 text-xs md:text-sm">
+                              {book.author}
+                            </span>
+                          </div>
+                          <p className="mt-1.5 text-gray-500 group-hover:text-gray-400 text-xs md:text-sm leading-relaxed line-clamp-2 transition-colors">
+                            {book.recommendation_reason}
+                          </p>
+                        </div>
+                        <ArrowRight
+                          size={16}
+                          className="shrink-0 text-gray-700 group-hover:text-amber-500 group-hover:translate-x-1 transition-all duration-300"
+                        />
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* 书籍详情：选中后展示 */}
+              {activeBook && (
                 <div className="mt-8 md:mt-12 animate-fade-in-slower relative">
-                  <div className="relative bg-white rounded-lg shadow-2xl border border-gray-300 open-book flex flex-col md:flex-row">
+                  <button
+                    onClick={() => setSelectedBook(null)}
+                    className="mb-4 md:mb-6 flex items-center gap-2 text-xs md:text-sm tracking-wider text-gray-500 hover:text-white transition-colors"
+                  >
+                    <ArrowLeft size={14} />
+                    返回书单
+                  </button>
+                  <div className="relative bg-white rounded-lg shadow-2xl border border-gray-300 open-book flex flex-col md:flex-row text-left">
                     {/* 左页内容 */}
                     <div className="w-full md:w-1/2 p-6 sm:p-8 md:p-12 relative z-10">
                       <div className="space-y-4 md:space-y-8">
                         {/* 标题 */}
                         <div>
                           <h3 className="text-xl sm:text-2xl md:text-3xl font-bold text-amber-900 mb-3 md:mb-4 leading-tight">
-                            《{bookCard.title}》
+                            《{activeBook.title}》
                           </h3>
                           <div className="h-px bg-gradient-to-r from-amber-400 via-amber-500 to-amber-400" />
                         </div>
@@ -139,7 +182,7 @@ const TheVoid = () => {
                               作者
                             </span>
                             <p className="text-base md:text-lg mt-1">
-                              {bookCard.author}
+                              {activeBook.author}
                             </p>
                           </div>
                           <div className="text-amber-800">
@@ -147,7 +190,7 @@ const TheVoid = () => {
                               章节
                             </span>
                             <p className="text-base md:text-lg mt-1">
-                              {bookCard.chapter}
+                              {activeBook.chapter}
                             </p>
                           </div>
                         </div>
@@ -159,7 +202,7 @@ const TheVoid = () => {
                               指路明灯
                             </p>
                             <p className="text-gray-700 text-xs md:text-sm text-left leading-relaxed">
-                              {bookCard.recommendation_reason}
+                              {activeBook.recommendation_reason}
                             </p>
                           </div>
                         </div>
@@ -170,7 +213,7 @@ const TheVoid = () => {
                     <div className="w-full md:w-1/2 p-6 sm:p-8 md:p-12 md:border-l border-gray-200 border-t md:border-t-0 relative z-10">
                       <div className="relative h-full flex items-start">
                         <p className="text-gray-800 text-sm sm:text-base md:text-lg leading-loose font-serif first-letter:text-4xl sm:first-letter:text-5xl md:first-letter:text-7xl first-letter:font-bold first-letter:float-left first-letter:mr-2 md:first-letter:mr-3 first-letter:mt-1 first-letter:text-amber-700">
-                          {bookCard.original_quote}
+                          {activeBook.original_quote}
                         </p>
                       </div>
                     </div>
@@ -182,8 +225,9 @@ const TheVoid = () => {
                 <button
                   onClick={() => {
                     setAnswer(null);
-                    setUiAction(null);
-                    setBookCard(null);
+                    setBookCards([]);
+                    setSelectedBook(null);
+                    setInput('');
                   }}
                   className="group relative overflow-hidden px-6 md:px-8 py-3 md:py-4 text-xs md:text-sm font-medium tracking-wider text-white bg-gradient-to-r from-gray-800 to-gray-700 hover:from-gray-700 hover:to-gray-600 rounded-lg border border-gray-600 hover:border-gray-500 transition-all duration-300 shadow-lg hover:shadow-xl"
                 >
@@ -217,7 +261,6 @@ const TheVoid = () => {
 // 添加动画样式
 const bookStyles = `
   .open-book {
-    animation: fadeInUp 0.8s ease-out;
     background: white;
     box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
   }

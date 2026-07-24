@@ -18,6 +18,7 @@ const SYSTEM_PROMPT = `
 
 2. **内部检索 (Internal Retrieval):**
 - 在该象限的经典著作中，搜索**最精准匹配**的一段原文。
+- 答案不一定只有一本书：可跨象限检索多本书交叉验证，从不同角度（如心理学 + 哲学 + 处世智慧 + 文学洞察）互相印证。
 - **严格约束:** 必须是你记忆中**确切存在**的名著名句，不要杜撰书名或内容。优先选择《被讨厌的勇气》、《查拉图斯特拉如是说》、《重新认识你自己》、《瓦尔登湖》、《道德经》等高知名度书籍。
 
 3. **金句炼成 (The Sting):**
@@ -34,15 +35,22 @@ const SYSTEM_PROMPT = `
     },
     "content": {
         "sting_text": "这里填写你生成的'降维打击'金句，不超过50字。",
-        "book_card": {
-            "title": "书名 (如：被讨厌的勇气)",
-            "author": "作者名",
-            "chapter": "最相关的章节名 (如：第二夜：一切烦恼都来自人际关系)",
-            "original_quote": "这里填写书中的原句，必须经典、有力。",
-            "recommendation_reason": "用一句话解释为什么要读这本书/这一章"
-        }
+        "book_cards": [
+            {
+                "title": "书名 (如：被讨厌的勇气)",
+                "author": "作者名",
+                "chapter": "最相关的章节名 (如：第二夜：一切烦恼都来自人际关系)",
+                "original_quote": "这里填写书中的原句，必须经典、有力。",
+                "recommendation_reason": "用一句话解释为什么要读这本书/这一章"
+            }
+        ]
     }
 }
+
+# Book Cards 规则
+- book_cards 通常包含 3~6 本书，最多不超过 10 本，按对症程度排序，第一本是最核心的药方。
+- 多本书应来自不同角度（心理学、哲学、处世智慧、文学等）交叉验证，彼此互补而非重复同一个观点。
+- 宁缺毋滥：所有书名、作者、章节、引文必须真实存在，绝不杜撰。
 
 # Example
 User: "我总是忍不住看前任的社交动态，哪怕知道他已经有新欢了。"
@@ -55,13 +63,22 @@ Model:
     },
     "content": {
         "sting_text": "你不是放不下他，你是放不下那个'被抛弃的自己'。你在通过视奸他的生活，来反复确认自己的受害者身份，这是一种心理自虐。",
-        "book_card": {
-            "title": "爱的艺术",
-            "author": "埃里希·弗洛姆",
-            "chapter": "第二章：爱的理论",
-            "original_quote": "如果不爱自己，依然能够爱别人，这不仅是错误的，而且是不可能的。",
-            "recommendation_reason": "去学习什么是成熟的爱，而不是病态的依恋。"
-        }
+        "book_cards": [
+            {
+                "title": "爱的艺术",
+                "author": "埃里希·弗洛姆",
+                "chapter": "第二章：爱的理论",
+                "original_quote": "如果不爱自己，依然能够爱别人，这不仅是错误的，而且是不可能的。",
+                "recommendation_reason": "去学习什么是成熟的爱，而不是病态的依恋。"
+            },
+            {
+                "title": "被讨厌的勇气",
+                "author": "岸见一郎",
+                "chapter": "第二夜：一切烦恼都是人际关系的烦恼",
+                "original_quote": "自由就是被别人讨厌。",
+                "recommendation_reason": "用课题分离切断对他人生活的执念，把注意力收回自己的人生。"
+            }
+        ]
     }
 }
 `;
@@ -90,8 +107,25 @@ export interface ZenAnswer {
   };
   content: {
     sting_text: string;
-    book_card?: BookCard;
+    book_cards?: BookCard[];
   };
+}
+
+/**
+ * 兼容处理模型输出：book_cards 数组 / 单本 book_card 都统一为数组，
+ * 过滤缺标题的无效条目，最多保留 3 本。
+ */
+function coerceBookCards(content: any): BookCard[] | undefined {
+  if (!content || typeof content !== 'object') return undefined;
+  const raw = Array.isArray(content.book_cards)
+    ? content.book_cards
+    : content.book_card
+      ? [content.book_card]
+      : [];
+  const cards = raw
+    .filter((c: any) => c && typeof c === 'object' && c.title)
+    .slice(0, 10);
+  return cards.length > 0 ? cards : undefined;
 }
 
 /**
@@ -105,7 +139,14 @@ function normalizeAnswer(rawText: string): ZenAnswer {
     try {
       const parsed = JSON.parse(s);
       if (parsed && typeof parsed === 'object' && parsed.content?.sting_text) {
-        return parsed as ZenAnswer;
+        return {
+          ui_action: parsed.ui_action ?? null,
+          analysis: parsed.analysis,
+          content: {
+            sting_text: parsed.content.sting_text,
+            book_cards: coerceBookCards(parsed.content),
+          },
+        };
       }
       return null;
     } catch {
@@ -156,7 +197,7 @@ export async function askZen(userQuery: string): Promise<ZenAnswer> {
       { role: 'user', content: userQuery },
     ],
     temperature: 0.7,
-    max_tokens: 1000,
+    max_tokens: 4000,
   });
 
   const raw = response.choices[0]?.message?.content?.trim();
