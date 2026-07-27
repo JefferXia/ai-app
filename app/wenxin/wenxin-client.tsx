@@ -36,10 +36,59 @@ function fmtTime(t: number): string {
   return `${prefix}${d.getMonth() + 1}月${d.getDate()}日 ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
-function fmtShort(t: number): string {
+/* ===== 感受锚点：人记住的不是 14:32，而是"周二的深夜" ===== */
+
+const WEEKDAYS = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
+const SEASONS = [
+  '深冬',
+  '冬末',
+  '初春',
+  '春',
+  '暮春',
+  '初夏',
+  '夏',
+  '盛夏',
+  '初秋',
+  '秋',
+  '深秋',
+  '初冬',
+];
+
+function getPeriod(h: number): string {
+  if (h >= 5 && h < 8) return '清晨';
+  if (h >= 8 && h < 11) return '上午';
+  if (h >= 11 && h < 13) return '午间';
+  if (h >= 13 && h < 17) return '午后';
+  if (h >= 17 && h < 19) return '黄昏';
+  if (h >= 19 && h < 23) return '夜晚';
+  return '深夜'; // 23:00 - 05:00
+}
+
+/** 纸团标签：周二的深夜 */
+function anchorLabel(t: number): string {
   const d = new Date(t);
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${d.getMonth() + 1}/${d.getDate()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  return `${WEEKDAYS[d.getDay()]}的${getPeriod(d.getHours())}`;
+}
+
+/** 书写流分隔线：初冬的清晨 · 11月25日 */
+function dividerLabel(t: number): string {
+  const d = new Date(t);
+  return `${SEASONS[d.getMonth()]}的${getPeriod(d.getHours())} · ${d.getMonth() + 1}月${d.getDate()}日`;
+}
+
+/** 以记录时间为种子的稳定伪随机数（散落位置不随刷新改变） */
+function seeded(seed: number, salt: number): number {
+  const x = Math.sin(seed * 0.7 + salt * 13.7) * 43758.5453;
+  return x - Math.floor(x);
+}
+
+/** 纸团大小按文字量分三档：写得越多，揉成的团越大 */
+function ballSize(text: string, t: number): number {
+  const len = text.trim().length;
+  const jitter = seeded(t, 3);
+  if (len < 100) return Math.round(20 + jitter * 6); // 短 20-26px
+  if (len < 300) return Math.round(27 + jitter * 6); // 中 27-33px
+  return Math.round(34 + jitter * 6); // 长 34-40px
 }
 
 function splitParagraphs(text: string): string[] {
@@ -95,8 +144,11 @@ export default function WenxinClient() {
   const [archiving, setArchiving] = useState(false);
   const [openEntry, setOpenEntry] = useState<ArchiveEntry | null>(null);
   const [lastAdded, setLastAdded] = useState<number | null>(null);
+  const [activeAnchor, setActiveAnchor] = useState<string | null>(null);
+  const [echo, setEcho] = useState<string | null>(null);
+  const [echoOut, setEchoOut] = useState(false);
   const taRef = useRef<HTMLTextAreaElement>(null);
-  const timelineRef = useRef<HTMLElement>(null);
+  const archiveRef = useRef<HTMLElement>(null);
 
   // 初始化：读取本地文字与主题
   useEffect(() => {
@@ -130,18 +182,31 @@ export default function WenxinClient() {
     setDark(localStorage.getItem(THEME_KEY) === 'dark');
 
     // 读取归档
+    let archiveList: ArchiveEntry[] = [];
     try {
       const rawArchive = localStorage.getItem(ARCHIVE_KEY);
       if (rawArchive) {
         const list = JSON.parse(rawArchive);
         if (Array.isArray(list)) {
-          setArchived(
-            list.filter((a) => a && typeof a.text === 'string' && a.t)
+          archiveList = list.filter(
+            (a) => a && typeof a.text === 'string' && a.t
           );
         }
       }
     } catch {
       // 忽略损坏的归档数据
+    }
+    setArchived(archiveList);
+
+    // 回声：小概率浮出一段旧碎片（不点名时间）
+    const pool: string[] = [];
+    segs.forEach((s) => s.text.trim() && pool.push(s.text));
+    archiveList.forEach((a) => a.text.trim() && pool.push(a.text));
+    if (pool.length > 0 && Math.random() < 0.35) {
+      const src = pool[Math.floor(Math.random() * pool.length)];
+      const paras = splitParagraphs(src);
+      const p = paras[Math.floor(Math.random() * paras.length)] ?? src;
+      setEcho(p.length > 120 ? p.slice(0, 120) + ' …' : p);
     }
 
     setHydrated(true);
@@ -191,6 +256,11 @@ export default function WenxinClient() {
   }, [hydrated]);
 
   const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    // 开始落笔，回声消散
+    if (echo && !echoOut) {
+      setEchoOut(true);
+      setTimeout(() => setEcho(null), 700);
+    }
     const val = e.target.value;
     setSegments((prev) => {
       if (!prev.length) return [{ t: Date.now(), text: val }];
@@ -252,8 +322,8 @@ export default function WenxinClient() {
 
     setArchiving(true);
 
-    // 纸团飞行：从书写区揉成球，飞到时间线末端
-    const to = timelineRef.current?.getBoundingClientRect();
+    // 纸团飞行：从书写区揉成球，飞到归档区
+    const to = archiveRef.current?.getBoundingClientRect();
     const startX = from.left + from.width / 2;
     const startY = Math.min(from.top + 60, window.innerHeight - 160);
     const endX = to ? to.left + 40 : window.innerWidth / 2;
@@ -324,6 +394,14 @@ export default function WenxinClient() {
   const past = segments.slice(0, -1);
   const active = segments[segments.length - 1];
 
+  // 锚点聚合：按时段统计碎片
+  const anchorCounts = new Map<string, number>();
+  archived.forEach((a) => {
+    const p = getPeriod(new Date(a.t).getHours());
+    anchorCounts.set(p, (anchorCounts.get(p) ?? 0) + 1);
+  });
+  const anchorChips = [...anchorCounts.entries()].sort((a, b) => b[1] - a[1]);
+
   return (
     <div
       className={`min-h-screen transition-colors duration-500 ${theme.page}`}
@@ -342,18 +420,36 @@ export default function WenxinClient() {
       <main
         className={`max-w-2xl mx-auto px-6 py-20 md:py-28 transition-opacity duration-500 ${archiving ? 'opacity-0' : 'opacity-100'}`}
       >
+        {/* 回声：旧碎片无端浮现，落笔即散 */}
+        {echo && (
+          <div
+            className={`mb-12 md:mb-16 transition-opacity duration-700 ${echoOut ? 'opacity-0' : 'opacity-100'}`}
+          >
+            <p
+              className={`text-[10px] tracking-[0.4em] ${theme.faint} mb-4 opacity-70`}
+            >
+              回声
+            </p>
+            <p
+              className={`text-sm md:text-base leading-loose italic ${theme.faint}`}
+            >
+              {echo}
+            </p>
+          </div>
+        )}
+
         {past.map((seg, i) => (
           <React.Fragment key={i}>
             <p className="whitespace-pre-wrap text-base md:text-lg leading-loose opacity-80">
               {seg.text}
             </p>
-            {/* 极淡的分隔线与时间 */}
+            {/* 极淡的分隔线与感受锚点 */}
             <div className="flex items-center gap-4 my-8 md:my-10 select-none">
               <div className={`flex-1 h-px ${theme.dividerLine} opacity-60`} />
               <span
                 className={`text-[10px] tracking-[0.3em] ${theme.dividerText}`}
               >
-                {fmtTime(segments[i + 1]?.t ?? seg.t)}
+                {dividerLabel(segments[i + 1]?.t ?? seg.t)}
               </span>
               <div className={`flex-1 h-px ${theme.dividerLine} opacity-60`} />
             </div>
@@ -390,40 +486,83 @@ export default function WenxinClient() {
         )}
       </main>
 
-      {/* 归档时间线：纸团陈列 */}
+      {/* 归档：纸团散落（空间取代时间） */}
       {archived.length > 0 && (
         <section
-          ref={timelineRef}
+          ref={archiveRef}
           className="max-w-2xl mx-auto px-6 mt-4 md:mt-8 pb-28"
         >
           <p className={`text-[10px] tracking-[0.4em] ${theme.faint} mb-8`}>
             归档
           </p>
-          <div className="relative">
-            <div
-              className={`absolute left-0 right-0 top-[13px] h-px ${theme.dividerLine}`}
-            />
-            <div className="relative flex gap-7 overflow-x-auto pb-2">
-              {archived.map((a) => (
+
+          {/* 锚点聚合：用心境而非日期组织记忆 */}
+          {anchorChips.length > 1 && (
+            <div className="flex flex-wrap gap-2 mb-10">
+              {anchorChips.map(([period, count]) => (
                 <button
-                  key={a.t}
-                  onClick={() => setOpenEntry(a)}
-                  aria-label={`归档于 ${fmtTime(a.t)}`}
-                  className="flex flex-col items-center gap-3 shrink-0"
+                  key={period}
+                  onClick={() =>
+                    setActiveAnchor((cur) => (cur === period ? null : period))
+                  }
+                  className={`px-3.5 py-1.5 rounded-full border text-[10px] tracking-[0.2em] transition-all duration-300 ${
+                    activeAnchor === period
+                      ? dark
+                        ? 'border-gray-500 text-gray-200 bg-gray-800/60'
+                        : 'border-[#a2947a] text-[#6b5f47] bg-white/70'
+                      : dark
+                        ? 'border-gray-800 text-gray-600 hover:text-gray-400 hover:border-gray-600'
+                        : 'border-[#e0d6c0] text-[#b8ad98] hover:text-[#8a7f6a] hover:border-[#c4b9a4]'
+                  }`}
                 >
-                  <div
-                    className={`paper-ball ${dark ? 'paper-ball-dark' : ''} ${
-                      a.t === lastAdded ? 'paper-ball-new' : ''
-                    }`}
-                  />
-                  <span
-                    className={`text-[9px] tracking-[0.15em] ${theme.dividerText} whitespace-nowrap`}
-                  >
-                    {fmtShort(a.t)}
-                  </span>
+                  {period} ×{count}
                 </button>
               ))}
             </div>
+          )}
+          {activeAnchor && (
+            <p
+              className={`text-[10px] tracking-[0.3em] ${theme.dividerText} mb-8`}
+            >
+              所有{activeAnchor}写下的字
+            </p>
+          )}
+
+          {/* 散落陈列：大小不一、错落有致的纸团 */}
+          <div className="relative flex flex-wrap justify-center gap-x-8 gap-y-16 py-10">
+            {archived.map((a) => {
+              const dim =
+                activeAnchor &&
+                getPeriod(new Date(a.t).getHours()) !== activeAnchor;
+              const dy = Math.round((seeded(a.t, 1) - 0.5) * 80);
+              const dx = Math.round((seeded(a.t, 5) - 0.5) * 20);
+              const rot = Math.round((seeded(a.t, 2) - 0.5) * 60);
+              const size = ballSize(a.text, a.t);
+              return (
+                <button
+                  key={a.t}
+                  title={fmtTime(a.t)}
+                  onClick={() => setOpenEntry(a)}
+                  aria-label={`归档于 ${anchorLabel(a.t)}`}
+                  className={`flex flex-col items-center gap-3 transition-opacity duration-300 ${dim ? 'opacity-15 pointer-events-none' : ''}`}
+                  style={{ transform: `translate(${dx}px, ${dy}px)` }}
+                >
+                  <div style={{ transform: `rotate(${rot}deg)` }}>
+                    <div
+                      className={`paper-ball ${dark ? 'paper-ball-dark' : ''} ${
+                        a.t === lastAdded ? 'paper-ball-new' : ''
+                      }`}
+                      style={{ width: size, height: size }}
+                    />
+                  </div>
+                  <span
+                    className={`text-[9px] tracking-[0.15em] ${theme.dividerText} whitespace-nowrap`}
+                  >
+                    {anchorLabel(a.t)}
+                  </span>
+                </button>
+              );
+            })}
           </div>
         </section>
       )}
