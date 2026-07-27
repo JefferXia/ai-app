@@ -2,7 +2,7 @@
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import { Moon, Sun, Archive, X } from 'lucide-react';
+import { Moon, Sun, Archive, X, Eye } from 'lucide-react';
 
 interface Segment {
   t: number; // 最后书写时间
@@ -463,10 +463,10 @@ export default function WenxinClient() {
         {dark ? <Sun size={16} /> : <Moon size={16} />}
       </button>
 
-      {/* 镜子：右下角小圆点（带提示气泡） */}
+      {/* 镜子：右下角悬浮按钮（带提示气泡） */}
       <div className="fixed bottom-6 right-6 z-40 group flex items-center">
         <span
-          className={`pointer-events-none absolute right-6 whitespace-nowrap rounded-full px-3 py-1.5 text-[10px] tracking-[0.2em] opacity-0 translate-x-1 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-300 shadow-md ${
+          className={`pointer-events-none absolute right-14 whitespace-nowrap rounded-full px-3 py-1.5 text-[10px] tracking-[0.2em] opacity-0 translate-x-1 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-300 shadow-md ${
             dark
               ? 'bg-gray-800 text-gray-300 border border-gray-700'
               : 'bg-white text-[#8a7f6a] border border-[#e5dcc8]'
@@ -477,8 +477,14 @@ export default function WenxinClient() {
         <button
           onClick={toggleMirror}
           aria-label="镜子"
-          className={`w-2.5 h-2.5 rounded-full transition-opacity opacity-60 group-hover:opacity-100 ${dark ? 'bg-gray-400' : 'bg-[#8a7f6a]'}`}
-        />
+          className={`w-11 h-11 rounded-full flex items-center justify-center border shadow-lg backdrop-blur transition-all duration-300 hover:scale-110 ${
+            dark
+              ? 'bg-gray-900/80 border-gray-700 text-gray-300 hover:text-white hover:border-gray-500'
+              : 'bg-white/85 border-[#e0d6c0] text-[#8a7f6a] hover:text-[#6b5f47] hover:border-[#c4b9a4]'
+          }`}
+        >
+          <Eye size={17} />
+        </button>
       </div>
 
       {/* 见（镜）：两个不同时刻的自己 */}
