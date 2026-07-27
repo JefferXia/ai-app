@@ -2,7 +2,7 @@
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import { Moon, Sun, Archive } from 'lucide-react';
+import { Moon, Sun, Archive, X } from 'lucide-react';
 
 interface Segment {
   t: number; // 最后书写时间
@@ -487,10 +487,15 @@ export default function WenxinClient() {
           className={`fixed inset-0 z-50 overflow-y-auto ${theme.page}`}
           onClick={() => setMirror(false)}
         >
-          <div
-            className="min-h-full max-w-5xl mx-auto px-6 md:px-10 py-16 md:py-24 grid md:grid-cols-2 gap-12 md:gap-16 items-start"
-            onClick={(e) => e.stopPropagation()}
+          {/* 关闭按钮（移动端主要退出方式） */}
+          <button
+            onClick={() => setMirror(false)}
+            aria-label="合上镜子"
+            className={`fixed top-6 right-6 z-50 transition-opacity opacity-60 hover:opacity-100 ${dark ? 'text-gray-400' : 'text-[#8a7f6a]'}`}
           >
+            <X size={18} />
+          </button>
+          <div className="min-h-full max-w-5xl mx-auto px-6 md:px-10 py-16 md:py-24 grid md:grid-cols-2 gap-12 md:gap-16 items-start">
             {pair ? (
               <>
                 <MirrorSide label="于此" passage={pair[0]} theme={theme} />
@@ -611,7 +616,10 @@ function MirrorSide({
       <p className={`text-[10px] tracking-[0.2em] ${theme.dividerText} mb-6`}>
         {fmtTime(passage.t)}
       </p>
-      <p className="text-lg md:text-xl leading-loose whitespace-pre-wrap">
+      <p
+        className="text-lg md:text-xl leading-loose whitespace-pre-wrap"
+        onClick={(e) => e.stopPropagation()}
+      >
         {passage.text}
       </p>
     </div>
