@@ -55,6 +55,8 @@ model User {
   dramaSessions   DramaSession[]                       // Drama 会话
   conversationSummaries ConversationSummary[]           // 对话摘要
   userMemories    UserMemory[]                        // 用户记忆
+  wenxinData     WenxinData?                          // 问心同步数据
+  wenxinEntries  WenxinEntry[]                        // 问心归档条目
 
   @@index([invite_code])
   @@index([invited_by])
@@ -425,4 +427,32 @@ model UserMemory {
 
   @@unique([userId, memoryKey])
   @@index([userId, memoryType])
+}
+
+// 问心数据 - 书写流与归档的云端同步副本（本地优先，云端为副本）
+model WenxinData {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+
+  segments  Json     // 书写流 Segment[]: { id?, t, text }
+  archive   Json?    // 旧格式遗留，已迁移到 WenxinEntry 表
+
+  updatedAt DateTime @updatedAt
+  createdAt DateTime @default(now())
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// 问心归档条目 - 每条归档一行（append-only，支持增量同步，承载数十万字节容量）
+model WenxinEntry {
+  id        String   @id // 客户端生成的稳定 id
+  userId    String
+  t         BigInt // 归档时间戳（毫秒）
+  text      String   @db.Text
+
+  createdAt DateTime @default(now())
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, t])
 }

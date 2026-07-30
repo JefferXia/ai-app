@@ -3,13 +3,16 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { Moon, Sun, Archive, X, Eye } from 'lucide-react';
+import { useGlobalContext } from '@/app/globalContext';
 
 interface Segment {
+  id?: string; // 稳定 id（跨端合并键），旧数据可能没有
   t: number; // 最后书写时间
   text: string;
 }
 
 interface ArchiveEntry {
+  id: string; // 稳定 id（跨端合并与去重键）
   t: number; // 归档时间
   text: string;
 }
@@ -91,6 +94,80 @@ function ballSize(text: string, t: number): number {
   return Math.round(34 + jitter * 6); // 长 34-40px
 }
 
+/* ===== 跨端同步：无冲突并集合并 ===== */
+
+function genId(): string {
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function segKey(s: Segment): string {
+  return s.id ?? `t${s.t}`;
+}
+
+/** 书写流合并：按稳定 id 取并集，同 id 取较新版本，按时间排序 */
+function mergeSegments(local: Segment[], remote: Segment[]): Segment[] {
+  const map = new Map<string, Segment>();
+  [...remote, ...local].forEach((s) => {
+    if (!s || typeof s.text !== 'string' || typeof s.t !== 'number') return;
+    const key = segKey(s);
+    const existing = map.get(key);
+    if (!existing || s.t >= existing.t) map.set(key, s);
+  });
+  let merged = [...map.values()].sort((a, b) => a.t - b.t);
+  // 去掉中间的空段，只保留最后一段（当前书写段）可以为空
+  merged = merged.filter((s, i) => s.text.trim() || i === merged.length - 1);
+  if (merged.length === 0) merged = [{ id: genId(), t: Date.now(), text: '' }];
+  return merged;
+}
+
+/** 归档合并：append-only，按稳定 id 去重取并集；
+ *  二级去重：同时间同内容的视为同一条（兼容新旧数据 id 不一致的遗留情况） */
+function mergeArchive(
+  local: ArchiveEntry[],
+  remote: ArchiveEntry[]
+): ArchiveEntry[] {
+  const map = new Map<string, ArchiveEntry>();
+  const fingerprint = new Set<string>();
+  [...remote, ...local].forEach((a) => {
+    if (!a || typeof a.text !== 'string' || typeof a.t !== 'number') return;
+    const fp = `${a.t}|${a.text}`;
+    if (fingerprint.has(fp)) return;
+    fingerprint.add(fp);
+    map.set(a.id ?? `t${a.t}`, a);
+  });
+  return [...map.values()].sort((a, b) => a.t - b.t);
+}
+
+/* 同步游标：记录已推送/已拉取到的归档时间戳，实现增量同步 */
+interface SyncMeta {
+  pushedT: number;
+  pulledT: number;
+}
+
+function loadSyncMeta(userId: string): SyncMeta {
+  try {
+    const raw = localStorage.getItem(`wenxin:syncMeta:${userId}`);
+    if (raw) {
+      const m = JSON.parse(raw);
+      return {
+        pushedT: Number(m.pushedT) || 0,
+        pulledT: Number(m.pulledT) || 0,
+      };
+    }
+  } catch {
+    // 忽略
+  }
+  return { pushedT: 0, pulledT: 0 };
+}
+
+function saveSyncMeta(userId: string, meta: SyncMeta) {
+  try {
+    localStorage.setItem(`wenxin:syncMeta:${userId}`, JSON.stringify(meta));
+  } catch {
+    // 静默失败
+  }
+}
+
 function splitParagraphs(text: string): string[] {
   return text
     .split(/\n\s*\n|\n/)
@@ -135,6 +212,8 @@ function pickPair(segments: Segment[]): [Passage, Passage] | null {
 }
 
 export default function WenxinClient() {
+  const { userInfo } = useGlobalContext();
+  const userId: string | undefined = userInfo?.id;
   const [hydrated, setHydrated] = useState(false);
   const [segments, setSegments] = useState<Segment[]>([]);
   const [dark, setDark] = useState(false);
@@ -147,6 +226,12 @@ export default function WenxinClient() {
   const [activeAnchor, setActiveAnchor] = useState<string | null>(null);
   const [echo, setEcho] = useState<string | null>(null);
   const [echoOut, setEchoOut] = useState(false);
+  const [syncStatus, setSyncStatus] = useState<
+    'local' | 'syncing' | 'synced' | 'error'
+  >('local');
+  const [pullDone, setPullDone] = useState(false);
+  const pulledRef = useRef(false);
+  const metaRef = useRef<SyncMeta>({ pushedT: 0, pulledT: 0 });
   const taRef = useRef<HTMLTextAreaElement>(null);
   const archiveRef = useRef<HTMLElement>(null);
 
@@ -170,11 +255,11 @@ export default function WenxinClient() {
     }
 
     if (segs.length === 0) {
-      segs = [{ t: now, text: '' }];
+      segs = [{ id: genId(), t: now, text: '' }];
     } else if (now - segs[segs.length - 1].t > GAP_MS) {
       // 间隔超过 1 小时：河流自己分出新的段落
       if (segs[segs.length - 1].text.trim()) {
-        segs.push({ t: now, text: '' });
+        segs.push({ id: genId(), t: now, text: '' });
       }
     }
 
@@ -188,9 +273,9 @@ export default function WenxinClient() {
       if (rawArchive) {
         const list = JSON.parse(rawArchive);
         if (Array.isArray(list)) {
-          archiveList = list.filter(
-            (a) => a && typeof a.text === 'string' && a.t
-          );
+          archiveList = list
+            .filter((a) => a && typeof a.text === 'string' && a.t)
+            .map((a) => ({ ...a, id: a.id ?? genId() })); // 旧数据补发 id
         }
       }
     } catch {
@@ -241,6 +326,84 @@ export default function WenxinClient() {
     }
   }, [archived, hydrated]);
 
+  // 跨端同步：打开页面时拉取云端并做并集合并（仅登录用户）
+  useEffect(() => {
+    if (!hydrated || !userId || pulledRef.current) return;
+    pulledRef.current = true;
+    (async () => {
+      setSyncStatus('syncing');
+      try {
+        // 1) 书写流（全量，体积小）
+        const res = await fetch('/api/wenxin/sync');
+        const json = await res.json();
+        if (!res.ok || !json.success) {
+          setSyncStatus('error');
+          return;
+        }
+        setSegments((cur) => mergeSegments(cur, json.data?.segments ?? []));
+
+        // 2) 归档（游标增量拉取，分页）
+        const meta = loadSyncMeta(userId);
+        let after = meta.pulledT;
+        for (let page = 0; page < 20; page++) {
+          const er = await fetch(`/api/wenxin/entries?after=${after}`);
+          const ej = await er.json();
+          if (!er.ok || !ej.success) break;
+          const entries: ArchiveEntry[] = ej.data?.entries ?? [];
+          if (entries.length > 0) {
+            setArchived((cur) => mergeArchive(cur, entries));
+            after = entries[entries.length - 1].t;
+            meta.pulledT = Math.max(meta.pulledT, after);
+          }
+          if (!ej.data?.hasMore) break;
+        }
+        saveSyncMeta(userId, meta);
+        metaRef.current = meta;
+
+        setPullDone(true);
+        setSyncStatus('synced');
+      } catch {
+        setSyncStatus('error');
+      }
+    })();
+  }, [hydrated, userId]);
+
+  // 跨端同步：本地变更后防抖推送（仅拉取成功后，避免覆盖云端）
+  useEffect(() => {
+    if (!hydrated || !userId || !pullDone) return;
+    const id = setTimeout(async () => {
+      try {
+        setSyncStatus('syncing');
+        // 1) 书写流（全量 upsert）
+        const res = await fetch('/api/wenxin/sync', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ segments }),
+        });
+        // 2) 归档（只推游标之后的新条目，服务端按 id 去重）
+        const meta = metaRef.current;
+        const newEntries = archived.filter((a) => a.t > meta.pushedT);
+        let pushOk = true;
+        if (newEntries.length > 0) {
+          const pr = await fetch('/api/wenxin/entries', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ entries: newEntries }),
+          });
+          pushOk = pr.ok;
+          if (pr.ok) {
+            meta.pushedT = Math.max(...newEntries.map((a) => a.t));
+            saveSyncMeta(userId, meta);
+          }
+        }
+        setSyncStatus(res.ok && pushOk ? 'synced' : 'error');
+      } catch {
+        setSyncStatus('error');
+      }
+    }, 3000);
+    return () => clearTimeout(id);
+  }, [segments, archived, hydrated, userId, pullDone]);
+
   const activeText = segments.length ? segments[segments.length - 1].text : '';
 
   //  textarea 自动增高 + 聚焦
@@ -263,9 +426,16 @@ export default function WenxinClient() {
     }
     const val = e.target.value;
     setSegments((prev) => {
-      if (!prev.length) return [{ t: Date.now(), text: val }];
+      if (!prev.length) return [{ id: genId(), t: Date.now(), text: val }];
       const next = [...prev];
-      next[next.length - 1] = { t: Date.now(), text: val };
+      const last = next[next.length - 1];
+      // 保持段落 id 稳定（跨端合并键），旧数据首次编辑时补发 id
+      next[next.length - 1] = {
+        ...last,
+        id: last.id ?? genId(),
+        t: Date.now(),
+        text: val,
+      };
       return next;
     });
   };
@@ -276,7 +446,7 @@ export default function WenxinClient() {
       if (!prev.length) return prev;
       const last = prev[prev.length - 1];
       if (last.text.trim() && Date.now() - last.t > GAP_MS) {
-        return [...prev, { t: Date.now(), text: '' }];
+        return [...prev, { id: genId(), t: Date.now(), text: '' }];
       }
       return prev;
     });
@@ -301,10 +471,10 @@ export default function WenxinClient() {
       .join('\n\n');
     if (!text) return;
 
-    const entry: ArchiveEntry = { t: Date.now(), text };
+    const entry: ArchiveEntry = { id: genId(), t: Date.now(), text };
     const commit = () => {
       setArchived((prev) => [...prev, entry]);
-      setSegments([{ t: Date.now(), text: '' }]);
+      setSegments([{ id: genId(), t: Date.now(), text: '' }]);
       setArchiving(false);
       setLastAdded(entry.t);
       taRef.current?.focus();
@@ -415,6 +585,28 @@ export default function WenxinClient() {
       >
         禅问
       </Link>
+
+      {/* 同步状态 */}
+      <div
+        className={`fixed top-6 right-6 z-40 text-[10px] tracking-[0.3em] opacity-50 ${theme.faint}`}
+      >
+        {userId ? (
+          syncStatus === 'syncing' ? (
+            '同步中'
+          ) : syncStatus === 'synced' ? (
+            '已同步'
+          ) : (
+            '同步失败'
+          )
+        ) : (
+          <Link
+            href="/login"
+            className="transition-opacity hover:opacity-100 opacity-80"
+          >
+            本地 · 登录可同步
+          </Link>
+        )}
+      </div>
 
       {/* 纸：一条持续流动的文字 */}
       <main
@@ -540,7 +732,7 @@ export default function WenxinClient() {
               const size = ballSize(a.text, a.t);
               return (
                 <button
-                  key={a.t}
+                  key={a.id}
                   title={fmtTime(a.t)}
                   onClick={() => setOpenEntry(a)}
                   aria-label={`归档于 ${anchorLabel(a.t)}`}
