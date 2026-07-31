@@ -22,6 +22,8 @@ import {
   cut,
   loadArchive,
   saveArchive,
+  loadDeletedIds,
+  saveDeletedIds,
   PaperBall,
   archiveStyles,
 } from './shared';
@@ -198,8 +200,9 @@ export default function WenxinClient() {
     setSegments(segs);
     setDark(localStorage.getItem(THEME_KEY) === 'dark');
 
-    // 读取归档
-    const archiveList = loadArchive();
+    // 读取归档（过滤已删除的 tombstone）
+    const deleted = new Set(loadDeletedIds());
+    const archiveList = loadArchive().filter((a) => !deleted.has(a.id));
     setArchived(archiveList);
 
     // 回声：小概率浮出一段旧碎片（不点名时间）
@@ -257,6 +260,17 @@ export default function WenxinClient() {
         }
         setSegments((cur) => mergeSegments(cur, json.data?.segments ?? []));
 
+        // 应用云端 tombstone：其他设备删除的条目本地也要删掉
+        const serverDeleted: string[] = Array.isArray(json.data?.deletedIds)
+          ? json.data.deletedIds
+          : [];
+        if (serverDeleted.length > 0) {
+          const ids = [...new Set([...loadDeletedIds(), ...serverDeleted])];
+          saveDeletedIds(ids);
+          const del = new Set(ids);
+          setArchived((cur) => cur.filter((a) => !del.has(a.id)));
+        }
+
         // 2) 归档（游标增量拉取，分页）
         const meta = loadSyncMeta(userId);
         let after = meta.pulledT;
@@ -289,11 +303,11 @@ export default function WenxinClient() {
     const id = setTimeout(async () => {
       try {
         setSyncStatus('syncing');
-        // 1) 书写流（全量 upsert）
+        // 1) 书写流（全量 upsert）+ 删除 tombstone
         const res = await fetch('/api/wenxin/sync', {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ segments }),
+          body: JSON.stringify({ segments, deletedIds: loadDeletedIds() }),
         });
         // 2) 归档（只推游标之后的新条目，服务端按 id 去重）
         const meta = metaRef.current;

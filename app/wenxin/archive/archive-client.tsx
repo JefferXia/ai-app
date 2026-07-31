@@ -3,9 +3,11 @@
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Moon, Sun } from 'lucide-react';
+import { useGlobalContext } from '@/app/globalContext';
 import {
   SERIF,
   THEME_KEY,
+  STORAGE_KEY,
   ArchiveEntry,
   getTheme,
   fmtTime,
@@ -13,6 +15,8 @@ import {
   getPeriod,
   seeded,
   loadArchive,
+  loadDeletedIds,
+  deleteArchiveEntry,
   EntryModal,
   archiveStyles,
 } from '../shared';
@@ -42,6 +46,8 @@ function noteColor(t: number, dark: boolean) {
 }
 
 export default function ArchiveClient() {
+  const { userInfo } = useGlobalContext();
+  const userId: string | undefined = userInfo?.id;
   const [hydrated, setHydrated] = useState(false);
   const [archived, setArchived] = useState<ArchiveEntry[]>([]);
   const [dark, setDark] = useState(false);
@@ -49,7 +55,8 @@ export default function ArchiveClient() {
   const [activeAnchor, setActiveAnchor] = useState<string | null>(null);
 
   useEffect(() => {
-    setArchived(loadArchive());
+    const deleted = new Set(loadDeletedIds());
+    setArchived(loadArchive().filter((a) => !deleted.has(a.id)));
     setDark(localStorage.getItem(THEME_KEY) === 'dark');
     setHydrated(true);
   }, []);
@@ -59,6 +66,30 @@ export default function ArchiveClient() {
     if (!hydrated) return;
     localStorage.setItem(THEME_KEY, dark ? 'dark' : 'light');
   }, [dark, hydrated]);
+
+  // 删除：本地移除 + tombstone，登录用户同步服务器
+  const handleDelete = (entry: ArchiveEntry) => {
+    setArchived(deleteArchiveEntry(entry.id));
+    setOpenEntry(null);
+
+    if (!userId) return;
+    // 删服务器上的条目（失败无碍，tombstone 会兜底）
+    fetch(`/api/wenxin/entries?id=${encodeURIComponent(entry.id)}`, {
+      method: 'DELETE',
+    }).catch(() => {});
+    // tombstone 随 sync 推送，传播到其他设备
+    let segments: unknown = [];
+    try {
+      segments = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? '[]');
+    } catch {
+      // 忽略
+    }
+    fetch('/api/wenxin/sync', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ segments, deletedIds: loadDeletedIds() }),
+    }).catch(() => {});
+  };
 
   const theme = getTheme(dark);
 
@@ -186,6 +217,7 @@ export default function ArchiveClient() {
           dark={dark}
           theme={theme}
           onClose={() => setOpenEntry(null)}
+          onDelete={() => handleDelete(openEntry)}
         />
       )}
     </div>

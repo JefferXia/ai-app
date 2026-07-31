@@ -142,3 +142,37 @@ export async function POST(req: Request) {
     );
   }
 }
+
+// 删除单条归档：?id=<条目 id>（只能删自己的）
+export async function DELETE(req: Request) {
+  try {
+    const session = await auth();
+    if (!session?.user?.id) {
+      return NextResponse.json(
+        { success: false, error: '未授权访问' },
+        { status: 401 }
+      );
+    }
+
+    const url = new URL(req.url);
+    const id = url.searchParams.get('id');
+    if (!id) {
+      return NextResponse.json(
+        { success: false, error: '缺少 id' },
+        { status: 400 }
+      );
+    }
+
+    await prisma.wenxinEntry.deleteMany({
+      where: { id: id.slice(0, 40), userId: session.user.id },
+    });
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error('[wenxin entries] DELETE error:', error);
+    return NextResponse.json(
+      { success: false, error: '删除失败' },
+      { status: 500 }
+    );
+  }
+}

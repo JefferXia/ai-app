@@ -436,6 +436,7 @@ model WenxinData {
 
   segments  Json     // 书写流 Segment[]: { id?, t, text }
   archive   Json?    // 旧格式遗留，已迁移到 WenxinEntry 表
+  deletedIds Json?   // 已删除归档条目 id（tombstone，跨端删除传播）
 
   updatedAt DateTime @updatedAt
   createdAt DateTime @default(now())

@@ -26,6 +26,14 @@ function sanitizeSegments(input: unknown) {
     }));
 }
 
+function sanitizeDeletedIds(input: unknown): string[] {
+  if (!Array.isArray(input)) return [];
+  return input
+    .filter((id): id is string => typeof id === 'string')
+    .slice(0, MAX_ITEMS)
+    .map((id) => id.slice(0, 40));
+}
+
 export async function GET() {
   try {
     const session = await auth();
@@ -45,6 +53,7 @@ export async function GET() {
       success: true,
       data: {
         segments: data?.segments ?? [],
+        deletedIds: data?.deletedIds ?? [],
         updatedAt: data?.updatedAt ?? null,
       },
     });
@@ -76,11 +85,22 @@ export async function PUT(req: Request) {
     }
 
     const segments = sanitizeSegments(body.segments);
+    const incomingDeleted = sanitizeDeletedIds(body.deletedIds);
+    const userId = session.user.id;
+
+    // deletedIds 取并集（tombstone 只增不减）
+    const existing = await prisma.wenxinData.findUnique({
+      where: { userId },
+    });
+    const existingDeleted = Array.isArray(existing?.deletedIds)
+      ? (existing.deletedIds as string[])
+      : [];
+    const deletedIds = [...new Set([...existingDeleted, ...incomingDeleted])];
 
     await prisma.wenxinData.upsert({
-      where: { userId: session.user.id },
-      create: { userId: session.user.id, segments, archive: [] },
-      update: { segments },
+      where: { userId },
+      create: { userId, segments, archive: [], deletedIds },
+      update: { segments, deletedIds },
     });
 
     return NextResponse.json({ success: true });

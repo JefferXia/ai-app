@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 
 /* ===== 问心共享模块：类型、锚点、纸团组件、样式 ===== */
 
@@ -160,6 +160,39 @@ export function saveArchive(list: ArchiveEntry[]) {
   }
 }
 
+/* ===== 删除（tombstone：本地删除 + 跨端传播） ===== */
+
+export const DELETED_KEY = 'wenxin:deletedIds';
+
+export function loadDeletedIds(): string[] {
+  try {
+    const raw = localStorage.getItem(DELETED_KEY);
+    if (raw) {
+      const list = JSON.parse(raw);
+      if (Array.isArray(list)) return list.filter((i) => typeof i === 'string');
+    }
+  } catch {
+    // 忽略
+  }
+  return [];
+}
+
+export function saveDeletedIds(ids: string[]) {
+  try {
+    localStorage.setItem(DELETED_KEY, JSON.stringify(ids));
+  } catch {
+    // 静默失败
+  }
+}
+
+/** 本地删除一条归档并记录 tombstone，返回剩余列表 */
+export function deleteArchiveEntry(id: string): ArchiveEntry[] {
+  const list = loadArchive().filter((a) => a.id !== id);
+  saveArchive(list);
+  saveDeletedIds([...new Set([...loadDeletedIds(), id])]);
+  return list;
+}
+
 /* ===== 组件 ===== */
 
 export function PaperBall({
@@ -191,12 +224,17 @@ export function EntryModal({
   dark,
   theme,
   onClose,
+  onDelete,
 }: {
   entry: ArchiveEntry;
   dark: boolean;
   theme: Theme;
   onClose: () => void;
+  onDelete?: () => void;
 }) {
+  const [confirming, setConfirming] = useState(false);
+  const confirmTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose();
@@ -204,6 +242,24 @@ export function EntryModal({
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose]);
+
+  useEffect(() => {
+    return () => {
+      if (confirmTimer.current) clearTimeout(confirmTimer.current);
+    };
+  }, []);
+
+  // 两步确认：第一次点击进入确认态，3 秒内第二次点击才删除
+  const handleDeleteClick = () => {
+    if (!onDelete) return;
+    if (confirming) {
+      if (confirmTimer.current) clearTimeout(confirmTimer.current);
+      onDelete();
+      return;
+    }
+    setConfirming(true);
+    confirmTimer.current = setTimeout(() => setConfirming(false), 3000);
+  };
 
   return (
     <div
@@ -222,6 +278,22 @@ export function EntryModal({
         <p className="whitespace-pre-wrap text-base md:text-lg leading-loose">
           {entry.text}
         </p>
+        {onDelete && (
+          <div className="mt-10 flex justify-end">
+            <button
+              onClick={handleDeleteClick}
+              className={`text-[10px] tracking-[0.3em] transition-all duration-300 ${
+                confirming
+                  ? dark
+                    ? 'text-red-400'
+                    : 'text-red-700'
+                  : `${theme.faint} opacity-60 hover:opacity-100`
+              }`}
+            >
+              {confirming ? '再点一次，揉碎它' : '揉碎这团纸'}
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );
