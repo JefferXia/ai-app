@@ -1,0 +1,375 @@
+import React, { useEffect } from 'react';
+
+/* ===== 问心共享模块：类型、锚点、纸团组件、样式 ===== */
+
+export const SERIF = '"Noto Serif SC", "Songti SC", serif';
+export const STORAGE_KEY = 'wenxin:segments';
+export const ARCHIVE_KEY = 'wenxin:archive';
+export const THEME_KEY = 'wenxin:theme';
+export const GAP_MS = 60 * 60 * 1000; // 两次书写间隔超过 1 小时，自动分出段落
+const EXCERPT_MAX = 280;
+
+export interface Segment {
+  id?: string; // 稳定 id（跨端合并键），旧数据可能没有
+  t: number; // 最后书写时间
+  text: string;
+}
+
+export interface ArchiveEntry {
+  id: string; // 稳定 id（跨端合并与去重键）
+  t: number; // 归档时间
+  text: string;
+}
+
+export interface Passage {
+  text: string;
+  t: number;
+}
+
+export interface Theme {
+  page: string;
+  faint: string;
+  dividerText: string;
+  dividerLine: string;
+  caret: string;
+  placeholder: string;
+}
+
+export function getTheme(dark: boolean): Theme {
+  return dark
+    ? {
+        page: 'bg-[#0b0b0c] text-gray-300',
+        faint: 'text-gray-700',
+        dividerText: 'text-gray-700',
+        dividerLine: 'bg-gray-800',
+        caret: 'caret-gray-500',
+        placeholder: 'placeholder-gray-800',
+      }
+    : {
+        page: 'bg-[#f6f1e7] text-[#33302a]',
+        faint: 'text-[#b8ad98]',
+        dividerText: 'text-[#c4b9a4]',
+        dividerLine: 'bg-[#ddd3bf]',
+        caret: 'caret-amber-800',
+        placeholder: 'placeholder-[#cfc4ae]',
+      };
+}
+
+export function fmtTime(t: number): string {
+  const d = new Date(t);
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const now = new Date();
+  const prefix =
+    d.getFullYear() !== now.getFullYear() ? `${d.getFullYear()}年` : '';
+  return `${prefix}${d.getMonth() + 1}月${d.getDate()}日 ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+/* ===== 感受锚点：人记住的不是 14:32，而是"周二的深夜" ===== */
+
+const WEEKDAYS = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
+const SEASONS = [
+  '深冬',
+  '冬末',
+  '初春',
+  '春',
+  '暮春',
+  '初夏',
+  '夏',
+  '盛夏',
+  '初秋',
+  '秋',
+  '深秋',
+  '初冬',
+];
+
+export function getPeriod(h: number): string {
+  if (h >= 5 && h < 8) return '清晨';
+  if (h >= 8 && h < 11) return '上午';
+  if (h >= 11 && h < 13) return '午间';
+  if (h >= 13 && h < 17) return '午后';
+  if (h >= 17 && h < 19) return '黄昏';
+  if (h >= 19 && h < 23) return '夜晚';
+  return '深夜'; // 23:00 - 05:00
+}
+
+/** 纸团标签：周二的深夜 */
+export function anchorLabel(t: number): string {
+  const d = new Date(t);
+  return `${WEEKDAYS[d.getDay()]}的${getPeriod(d.getHours())}`;
+}
+
+/** 书写流分隔线：初冬的清晨 · 11月25日 */
+export function dividerLabel(t: number): string {
+  const d = new Date(t);
+  return `${SEASONS[d.getMonth()]}的${getPeriod(d.getHours())} · ${d.getMonth() + 1}月${d.getDate()}日`;
+}
+
+/** 以记录时间为种子的稳定伪随机数（位置/大小不随刷新改变） */
+export function seeded(seed: number, salt: number): number {
+  const x = Math.sin(seed * 0.7 + salt * 13.7) * 43758.5453;
+  return x - Math.floor(x);
+}
+
+/** 纸团大小按文字量分三档：写得越多，揉成的团越大 */
+export function ballSize(text: string, t: number): number {
+  const len = text.trim().length;
+  const jitter = seeded(t, 3);
+  if (len < 100) return Math.round(20 + jitter * 6); // 短 20-26px
+  if (len < 300) return Math.round(27 + jitter * 6); // 中 27-33px
+  return Math.round(34 + jitter * 6); // 长 34-40px
+}
+
+export function genId(): string {
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+export function splitParagraphs(text: string): string[] {
+  return text
+    .split(/\n\s*\n|\n/)
+    .map((p) => p.trim())
+    .filter(Boolean);
+}
+
+export function cut(s: string): string {
+  return s.length > EXCERPT_MAX ? s.slice(0, EXCERPT_MAX) + ' …' : s;
+}
+
+/** 读取本地归档（旧数据补发 id） */
+export function loadArchive(): ArchiveEntry[] {
+  try {
+    const raw = localStorage.getItem(ARCHIVE_KEY);
+    if (raw) {
+      const list = JSON.parse(raw);
+      if (Array.isArray(list)) {
+        return list
+          .filter((a) => a && typeof a.text === 'string' && a.t)
+          .map((a) => ({ ...a, id: a.id ?? genId() }));
+      }
+    }
+  } catch {
+    // 忽略损坏的归档数据
+  }
+  return [];
+}
+
+export function saveArchive(list: ArchiveEntry[]) {
+  try {
+    localStorage.setItem(ARCHIVE_KEY, JSON.stringify(list));
+  } catch {
+    // 静默失败
+  }
+}
+
+/* ===== 组件 ===== */
+
+export function PaperBall({
+  dark,
+  size,
+  isNew,
+  rot = 0,
+}: {
+  dark: boolean;
+  size: number;
+  isNew?: boolean;
+  rot?: number;
+}) {
+  return (
+    <div style={{ transform: `rotate(${rot}deg)` }}>
+      <div
+        className={`paper-ball ${dark ? 'paper-ball-dark' : ''} ${
+          isNew ? 'paper-ball-new' : ''
+        }`}
+        style={{ width: size, height: size }}
+      />
+    </div>
+  );
+}
+
+/** 展开的纸：重读归档（Esc / 点击空白合上） */
+export function EntryModal({
+  entry,
+  dark,
+  theme,
+  onClose,
+}: {
+  entry: ArchiveEntry;
+  dark: boolean;
+  theme: Theme;
+  onClose: () => void;
+}) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-black/30 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      <div
+        className={`unfold-paper w-full max-w-xl max-h-[70vh] overflow-y-auto p-8 md:p-10 rounded-sm shadow-2xl ${
+          dark ? 'bg-[#17171a] text-gray-300' : 'bg-[#fbf7ec] text-[#33302a]'
+        }`}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <p className={`text-[10px] tracking-[0.3em] ${theme.faint} mb-6`}>
+          {fmtTime(entry.t)}
+        </p>
+        <p className="whitespace-pre-wrap text-base md:text-lg leading-loose">
+          {entry.text}
+        </p>
+      </div>
+    </div>
+  );
+}
+
+/* ===== 样式：飞行中的纸团、陈列的纸团、展开动画 ===== */
+
+export const archiveStyles = `
+  .crumple-fly {
+    position: fixed;
+    width: 60px;
+    height: 60px;
+    z-index: 60;
+    pointer-events: none;
+    background:
+      repeating-linear-gradient(45deg, rgba(0, 0, 0, 0.045) 0 2px, transparent 2px 6px),
+      radial-gradient(circle at 35% 30%, #fffdf7, #ece4d0 65%, #d3c8ae);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  }
+
+  .crumple-fly.crumple-dark {
+    background:
+      repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.035) 0 2px, transparent 2px 6px),
+      radial-gradient(circle at 35% 30%, #3a3a3e, #26262a 65%, #1a1a1d);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+  }
+
+  .paper-ball {
+    width: 26px;
+    height: 26px;
+    border-radius: 9999px;
+    background:
+      repeating-linear-gradient(115deg, rgba(0, 0, 0, 0.05) 0 1.5px, transparent 1.5px 5px),
+      radial-gradient(circle at 35% 30%, #fffdf7, #e9e1cd 60%, #c9bda2);
+    box-shadow:
+      inset -2px -3px 6px rgba(0, 0, 0, 0.18),
+      0 2px 5px rgba(0, 0, 0, 0.18);
+    transition: transform 0.2s ease;
+  }
+
+  .paper-ball:hover {
+    transform: translateY(-3px) rotate(-8deg);
+  }
+
+  .paper-ball-dark {
+    background:
+      repeating-linear-gradient(115deg, rgba(255, 255, 255, 0.04) 0 1.5px, transparent 1.5px 5px),
+      radial-gradient(circle at 35% 30%, #4a4a4f, #2e2e33 60%, #1c1c20);
+    box-shadow:
+      inset -2px -3px 6px rgba(0, 0, 0, 0.5),
+      0 2px 5px rgba(0, 0, 0, 0.5);
+  }
+
+  @keyframes ballPop {
+    0% {
+      transform: scale(0);
+    }
+    60% {
+      transform: scale(1.25);
+    }
+    100% {
+      transform: scale(1);
+    }
+  }
+
+  .paper-ball-new {
+    animation: ballPop 0.45s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+
+  @keyframes unfold {
+    from {
+      transform: scale(0.3) rotate(-6deg);
+      opacity: 0;
+    }
+    to {
+      transform: scale(1) rotate(0deg);
+      opacity: 1;
+    }
+  }
+
+  .unfold-paper {
+    animation: unfold 0.35s cubic-bezier(0.34, 1.2, 0.64, 1);
+  }
+
+  /* 墙壁便利贴：固定大小，交错排列 */
+  .sticky-grid > *:nth-child(2n) {
+    margin-top: 28px;
+  }
+
+  @media (min-width: 768px) {
+    .sticky-grid > *:nth-child(2n) {
+      margin-top: 0;
+    }
+    .sticky-grid > *:nth-child(3n + 2) {
+      margin-top: 32px;
+    }
+  }
+
+  .sticky-note {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    padding: 14px 14px 10px;
+    border-radius: 2px;
+    box-shadow:
+      inset 0 14px 14px -14px rgba(0, 0, 0, 0.15),
+      0 4px 10px rgba(0, 0, 0, 0.14);
+    display: flex;
+    flex-direction: column;
+    text-align: left;
+    transition:
+      transform 0.25s ease,
+      box-shadow 0.25s ease;
+  }
+
+  .sticky-note:hover {
+    transform: translateY(-3px) scale(1.02);
+    box-shadow:
+      inset 0 14px 14px -14px rgba(0, 0, 0, 0.15),
+      0 10px 20px rgba(0, 0, 0, 0.2);
+  }
+
+  .sticky-note-text {
+    flex: 1;
+    overflow-y: auto;
+    font-size: 13px;
+    line-height: 1.9;
+    white-space: pre-wrap;
+    word-break: break-word;
+    scrollbar-width: thin;
+  }
+
+  .sticky-note-text::-webkit-scrollbar {
+    width: 3px;
+  }
+
+  .sticky-note-text::-webkit-scrollbar-thumb {
+    background: rgba(0, 0, 0, 0.15);
+    border-radius: 2px;
+  }
+
+  .sticky-note-meta {
+    margin-top: 8px;
+    font-size: 9px;
+    letter-spacing: 0.15em;
+    opacity: 0.7;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+`;
