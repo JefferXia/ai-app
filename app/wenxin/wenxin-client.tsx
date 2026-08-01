@@ -8,13 +8,11 @@ import {
   SERIF,
   STORAGE_KEY,
   THEME_KEY,
-  GAP_MS,
   Segment,
   ArchiveEntry,
   Passage,
   getTheme,
   fmtTime,
-  dividerLabel,
   seeded,
   ballSize,
   genId,
@@ -34,7 +32,7 @@ function segKey(s: Segment): string {
   return s.id ?? `t${s.t}`;
 }
 
-/** 书写流合并：按稳定 id 取并集，同 id 取较新版本，按时间排序 */
+/** 书写流合并：一张纸模型——同 id 取较新版本，全部文字按时间拼接为一段 */
 function mergeSegments(local: Segment[], remote: Segment[]): Segment[] {
   const map = new Map<string, Segment>();
   [...remote, ...local].forEach((s) => {
@@ -43,11 +41,12 @@ function mergeSegments(local: Segment[], remote: Segment[]): Segment[] {
     const existing = map.get(key);
     if (!existing || s.t >= existing.t) map.set(key, s);
   });
-  let merged = [...map.values()].sort((a, b) => a.t - b.t);
-  // 去掉中间的空段，只保留最后一段（当前书写段）可以为空
-  merged = merged.filter((s, i) => s.text.trim() || i === merged.length - 1);
-  if (merged.length === 0) merged = [{ id: genId(), t: Date.now(), text: '' }];
-  return merged;
+  const merged = [...map.values()].sort((a, b) => a.t - b.t);
+  const text = merged
+    .map((s) => s.text.trim())
+    .filter(Boolean)
+    .join('\n\n');
+  return [{ id: merged[merged.length - 1]?.id ?? genId(), t: Date.now(), text }];
 }
 
 /** 归档合并：append-only，按稳定 id 去重取并集；
@@ -182,20 +181,12 @@ export default function WenxinClient() {
       ? segs.filter((s) => s && typeof s.text === 'string')
       : [];
 
-    const now = Date.now();
-    // 去掉空白段（保留最后一段作为当前书写段）
-    while (segs.length > 1 && !segs[segs.length - 1].text.trim()) {
-      segs.pop();
-    }
-
-    if (segs.length === 0) {
-      segs = [{ id: genId(), t: now, text: '' }];
-    } else if (now - segs[segs.length - 1].t > GAP_MS) {
-      // 间隔超过 1 小时：河流自己分出新的段落
-      if (segs[segs.length - 1].text.trim()) {
-        segs.push({ id: genId(), t: now, text: '' });
-      }
-    }
+    // 一张纸：未归档的文字永远恢复到输入框，不再按时间分段
+    const text = segs
+      .map((s) => s.text.trim())
+      .filter(Boolean)
+      .join('\n\n');
+    segs = [{ id: segs[segs.length - 1]?.id ?? genId(), t: Date.now(), text }];
 
     setSegments(segs);
     setDark(localStorage.getItem(THEME_KEY) === 'dark');
@@ -369,18 +360,6 @@ export default function WenxinClient() {
     });
   };
 
-  // 页面一直开着、停笔超过 1 小时后再次落笔：同样分出段落
-  const handleFocus = () => {
-    setSegments((prev) => {
-      if (!prev.length) return prev;
-      const last = prev[prev.length - 1];
-      if (last.text.trim() && Date.now() - last.t > GAP_MS) {
-        return [...prev, { id: genId(), t: Date.now(), text: '' }];
-      }
-      return prev;
-    });
-  };
-
   const toggleMirror = useCallback(() => {
     setMirror((prev) => {
       const next = !prev;
@@ -481,7 +460,6 @@ export default function WenxinClient() {
     return <div className="min-h-screen bg-[#f6f1e7]" />;
   }
 
-  const past = segments.slice(0, -1);
   const pileRows = buildPile(archived);
 
   return (
@@ -542,29 +520,10 @@ export default function WenxinClient() {
           </div>
         )}
 
-        {past.map((seg, i) => (
-          <React.Fragment key={i}>
-            <p className="whitespace-pre-wrap text-base md:text-lg leading-loose opacity-80">
-              {seg.text}
-            </p>
-            {/* 极淡的分隔线与感受锚点 */}
-            <div className="flex items-center gap-4 my-8 md:my-10 select-none">
-              <div className={`flex-1 h-px ${theme.dividerLine} opacity-60`} />
-              <span
-                className={`text-[10px] tracking-[0.3em] ${theme.dividerText}`}
-              >
-                {dividerLabel(segments[i + 1]?.t ?? seg.t)}
-              </span>
-              <div className={`flex-1 h-px ${theme.dividerLine} opacity-60`} />
-            </div>
-          </React.Fragment>
-        ))}
-
         <textarea
           ref={taRef}
           value={activeText}
           onChange={handleChange}
-          onFocus={handleFocus}
           placeholder="此刻心里有什么，就写什么"
           rows={3}
           className={`w-full bg-transparent border-none outline-none resize-none overflow-hidden text-base md:text-lg leading-loose ${theme.caret} ${theme.placeholder}`}
