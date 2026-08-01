@@ -450,6 +450,8 @@ model WenxinEntry {
   userId    String
   t         BigInt // 归档时间戳（毫秒）
   text      String   @db.Text
+  mood      String? // 归档时 AI 匹配的十种心境之一，匹配不上为 null
+  guide     String?  @db.Text // 觉知者的从旁引导（一句话）
 
   createdAt DateTime @default(now())
 

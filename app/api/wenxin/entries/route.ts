@@ -13,6 +13,8 @@ interface EntryInput {
   id: string;
   t: number;
   text: string;
+  mood?: string | null;
+  guide?: string | null;
 }
 
 function sanitizeEntries(input: unknown): EntryInput[] {
@@ -31,6 +33,10 @@ function sanitizeEntries(input: unknown): EntryInput[] {
       id: e.id.slice(0, 40),
       t: e.t,
       text: e.text.slice(0, MAX_TEXT_LEN),
+      ...(typeof e.mood === 'string' ? { mood: e.mood.slice(0, 20) } : {}),
+      ...(typeof e.guide === 'string'
+        ? { guide: e.guide.slice(0, 500) }
+        : {}),
     }));
 }
 
@@ -90,6 +96,8 @@ export async function GET(req: Request) {
       id: r.id,
       t: Number(r.t),
       text: r.text,
+      mood: r.mood,
+      guide: r.guide,
     }));
 
     return NextResponse.json({ success: true, data: { entries, hasMore } });
@@ -126,9 +134,20 @@ export async function POST(req: Request) {
         userId,
         t: BigInt(e.t),
         text: e.text,
+        mood: e.mood ?? null,
+        guide: e.guide ?? null,
       })),
       skipDuplicates: true,
     });
+
+    // 心境分析结果通常在条目首次推送后补回：对带 mood/guide 的已存在条目做更新
+    const withReflection = entries.filter((e) => e.mood || e.guide);
+    for (const e of withReflection) {
+      await prisma.wenxinEntry.updateMany({
+        where: { id: e.id, userId },
+        data: { mood: e.mood ?? null, guide: e.guide ?? null },
+      });
+    }
 
     return NextResponse.json({
       success: true,

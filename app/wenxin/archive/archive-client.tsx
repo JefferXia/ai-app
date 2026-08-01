@@ -53,6 +53,7 @@ export default function ArchiveClient() {
   const [dark, setDark] = useState(false);
   const [openEntry, setOpenEntry] = useState<ArchiveEntry | null>(null);
   const [activeAnchor, setActiveAnchor] = useState<string | null>(null);
+  const [activeMood, setActiveMood] = useState<string | null>(null);
 
   useEffect(() => {
     const deleted = new Set(loadDeletedIds());
@@ -105,12 +106,21 @@ export default function ArchiveClient() {
   });
   const anchorChips = [...anchorCounts.entries()].sort((a, b) => b[1] - a[1]);
 
-  // 新的在前；锚点过滤
+  // 心境聚合：AI 分析出的心境分布
+  const moodCounts = new Map<string, number>();
+  archived.forEach((a) => {
+    if (a.mood) moodCounts.set(a.mood, (moodCounts.get(a.mood) ?? 0) + 1);
+  });
+  const moodChips = [...moodCounts.entries()].sort((a, b) => b[1] - a[1]);
+
+  // 新的在前；锚点/心境过滤
   const list = [...archived]
     .sort((a, b) => b.t - a.t)
     .filter(
       (a) =>
-        !activeAnchor || getPeriod(new Date(a.t).getHours()) === activeAnchor
+        (!activeAnchor ||
+          getPeriod(new Date(a.t).getHours()) === activeAnchor) &&
+        (!activeMood || a.mood === activeMood)
     );
 
   return (
@@ -134,34 +144,59 @@ export default function ArchiveClient() {
         </p>
 
         {/* 锚点聚合：用心境而非日期组织记忆 */}
-        {anchorChips.length > 1 && (
+        {(anchorChips.length > 1 || moodChips.length > 0) && (
           <div className="flex flex-wrap gap-2 mb-10">
-            {anchorChips.map(([period, count]) => (
+            {anchorChips.length > 1 &&
+              anchorChips.map(([period, count]) => (
+                <button
+                  key={period}
+                  onClick={() =>
+                    setActiveAnchor((cur) => (cur === period ? null : period))
+                  }
+                  className={`px-3.5 py-1.5 rounded-full border text-[10px] tracking-[0.2em] transition-all duration-300 ${
+                    activeAnchor === period
+                      ? dark
+                        ? 'border-gray-500 text-gray-200 bg-gray-800/60'
+                        : 'border-[#a2947a] text-[#6b5f47] bg-white/70'
+                      : dark
+                        ? 'border-gray-800 text-gray-600 hover:text-gray-400 hover:border-gray-600'
+                        : 'border-[#e0d6c0] text-[#b8ad98] hover:text-[#8a7f6a] hover:border-[#c4b9a4]'
+                  }`}
+                >
+                  {period} ×{count}
+                </button>
+              ))}
+            {moodChips.map(([mood, count]) => (
               <button
-                key={period}
+                key={mood}
                 onClick={() =>
-                  setActiveAnchor((cur) => (cur === period ? null : period))
+                  setActiveMood((cur) => (cur === mood ? null : mood))
                 }
                 className={`px-3.5 py-1.5 rounded-full border text-[10px] tracking-[0.2em] transition-all duration-300 ${
-                  activeAnchor === period
+                  activeMood === mood
                     ? dark
-                      ? 'border-gray-500 text-gray-200 bg-gray-800/60'
-                      : 'border-[#a2947a] text-[#6b5f47] bg-white/70'
+                      ? 'border-amber-700 text-amber-200 bg-amber-950/40'
+                      : 'border-amber-800/60 text-amber-900 bg-amber-50/80'
                     : dark
-                      ? 'border-gray-800 text-gray-600 hover:text-gray-400 hover:border-gray-600'
-                      : 'border-[#e0d6c0] text-[#b8ad98] hover:text-[#8a7f6a] hover:border-[#c4b9a4]'
+                      ? 'border-gray-800 text-gray-500 hover:text-amber-200/80 hover:border-amber-900'
+                      : 'border-[#e0d6c0] text-[#b8ad98] hover:text-amber-900/70 hover:border-amber-800/40'
                 }`}
               >
-                {period} ×{count}
+                {mood} ×{count}
               </button>
             ))}
           </div>
         )}
-        {activeAnchor && (
+        {(activeAnchor || activeMood) && (
           <p
             className={`text-[10px] tracking-[0.3em] ${theme.dividerText} mb-8`}
           >
-            所有{activeAnchor}写下的字
+            {[
+              activeAnchor && `所有${activeAnchor}写下的字`,
+              activeMood && `心境「${activeMood}」`,
+            ]
+              .filter(Boolean)
+              .join(' · ')}
           </p>
         )}
 
@@ -169,7 +204,9 @@ export default function ArchiveClient() {
           <p className={`text-sm tracking-[0.2em] ${theme.faint} pt-16 text-center`}>
             {archived.length === 0
               ? '还没有归档 —— 写完的纸，揉起来才会到这里'
-              : `没有${activeAnchor}写下的字`}
+              : activeMood
+                ? `还没有心境「${activeMood}」的字`
+                : `没有${activeAnchor}写下的字`}
           </p>
         ) : (
           /* 墙壁便利贴：固定大小，交错排列，文字超出滚动 */
@@ -191,6 +228,7 @@ export default function ArchiveClient() {
                   >
                     <div className="sticky-note-text">{a.text}</div>
                     <p className="sticky-note-meta">
+                      {a.mood ? `${a.mood} · ` : ''}
                       {anchorLabel(a.t)} · {fmtTime(a.t)}
                     </p>
                   </button>

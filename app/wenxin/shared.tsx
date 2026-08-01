@@ -19,6 +19,8 @@ export interface ArchiveEntry {
   id: string; // 稳定 id（跨端合并与去重键）
   t: number; // 归档时间
   text: string;
+  mood?: string | null; // AI 匹配的十种心境之一
+  guide?: string | null; // 觉知者的从旁引导（一句话）
 }
 
 export interface Passage {
@@ -278,6 +280,22 @@ export function EntryModal({
         <p className="whitespace-pre-wrap text-base md:text-lg leading-loose">
           {entry.text}
         </p>
+        {(entry.mood || entry.guide) && (
+          <div className={`mt-10 pt-8 border-t ${dark ? 'border-gray-800' : 'border-[#e5dcc8]'}`}>
+            {entry.mood && (
+              <p
+                className={`text-[10px] tracking-[0.4em] ${theme.faint} mb-4`}
+              >
+                心境 · {entry.mood}
+              </p>
+            )}
+            {entry.guide && (
+              <p className="text-sm md:text-base leading-loose italic opacity-80">
+                {entry.guide}
+              </p>
+            )}
+          </div>
+        )}
         {onDelete && (
           <div className="mt-10 flex justify-end">
             <button

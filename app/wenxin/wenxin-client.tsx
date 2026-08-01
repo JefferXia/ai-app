@@ -62,7 +62,15 @@ function mergeArchive(
     const fp = `${a.t}|${a.text}`;
     if (fingerprint.has(fp)) return;
     fingerprint.add(fp);
-    map.set(a.id ?? `t${a.t}`, a);
+    const key = a.id ?? `t${a.t}`;
+    const existing = map.get(key);
+    // 同 id 合并：mood/guide 可能被另一端补全，优先保留非空值
+    map.set(
+      key,
+      existing
+        ? { ...a, mood: a.mood ?? existing.mood, guide: a.guide ?? existing.guide }
+        : a
+    );
   });
   return [...map.values()].sort((a, b) => a.t - b.t);
 }
@@ -386,6 +394,37 @@ export default function WenxinClient() {
       setArchiving(false);
       setLastAdded(entry.t);
       taRef.current?.focus();
+
+      // 心境分析：归档落纸后异步进行，不阻塞书写；仅登录用户
+      if (userId) {
+        (async () => {
+          try {
+            const rr = await fetch('/api/wenxin/reflect', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ text }),
+            });
+            const rj = await rr.json();
+            const mood = rj?.data?.mood ?? null;
+            const guide = rj?.data?.guide ?? null;
+            if (!rr.ok || !rj?.success || (!mood && !guide)) return;
+            // 回填本地（自动持久化并随防抖同步推送更新到云端）
+            setArchived((prev) =>
+              prev.map((a) => (a.id === entry.id ? { ...a, mood, guide } : a))
+            );
+            // 该条目可能已被推送过（游标之后无新条目），直接补推一次分析结果
+            fetch('/api/wenxin/entries', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                entries: [{ ...entry, mood, guide }],
+              }),
+            }).catch(() => {});
+          } catch {
+            // 分析失败不影响归档
+          }
+        })();
+      }
     };
 
     const reduceMotion = window.matchMedia(
