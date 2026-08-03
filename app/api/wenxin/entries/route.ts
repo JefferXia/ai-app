@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { randomUUID } from 'crypto';
-import { auth } from '@/app/(auth)/auth';
 import prisma from '@/lib/prisma';
+import { getWenxinUser } from '@/lib/wenxin-auth';
 
 export const runtime = 'nodejs';
 
@@ -40,12 +40,29 @@ function sanitizeEntries(input: unknown): EntryInput[] {
     }));
 }
 
-/** 旧版 JSON 归档一次性迁移到 WenxinEntry 表 */
-async function migrateLegacyArchive(userId: string) {
-  const data = await prisma.wenxinData.findUnique({ where: { userId } });
-  const legacy = data?.archive;
-  if (!Array.isArray(legacy) || legacy.length === 0) return;
+function sanitizeDeletedIds(input: unknown): string[] {
+  if (!Array.isArray(input)) return [];
+  return input
+    .filter((id): id is string => typeof id === 'string')
+    .slice(0, MAX_BATCH)
+    .map((id) => id.slice(0, 40));
+}
 
+/** 旧版 WenxinData 表一次性迁移（表已废弃删除；查询失败即视为无旧数据，跳过） */
+async function migrateLegacyWenxinData(userId: string) {
+  let rows: { archive: unknown; deletedIds: unknown }[];
+  try {
+    rows = await prisma.$queryRaw`
+      SELECT "archive", "deletedIds" FROM "WenxinData" WHERE "userId" = ${userId} LIMIT 1
+    `;
+  } catch {
+    return; // 表已删除
+  }
+  const row = rows[0];
+  if (!row) return;
+
+  // 旧 JSON 归档 → 条目
+  const legacy = Array.isArray(row.archive) ? row.archive : [];
   const valid = legacy.filter(
     (a): a is { t: number; text: string } =>
       !!a && typeof a === 'object' && typeof (a as any).t === 'number' && typeof (a as any).text === 'string'
@@ -61,25 +78,55 @@ async function migrateLegacyArchive(userId: string) {
       skipDuplicates: true,
     });
   }
-  await prisma.wenxinData.update({
-    where: { userId },
-    data: { archive: [] },
+
+  // 旧 tombstone → 软删除
+  const ids = sanitizeDeletedIds(row.deletedIds);
+  if (ids.length > 0) {
+    await applyDeletions(userId, ids);
+  }
+
+  // 清空旧数据，避免重复迁移
+  try {
+    await prisma.$executeRaw`
+      UPDATE "WenxinData" SET "archive" = '[]', "deletedIds" = '[]' WHERE "userId" = ${userId}
+    `;
+  } catch {
+    // 忽略
+  }
+}
+
+/** 软删除：已有行置 deletedAt 并清空 text（揉碎）；未知 id 建占位行防止他端重推复活 */
+async function applyDeletions(userId: string, ids: string[]) {
+  const now = new Date();
+  await prisma.wenxinEntry.updateMany({
+    where: { id: { in: ids }, userId, deletedAt: null },
+    data: { deletedAt: now, text: '' },
+  });
+  await prisma.wenxinEntry.createMany({
+    data: ids.map((id) => ({
+      id,
+      userId,
+      t: BigInt(Date.now()),
+      text: '',
+      deletedAt: now,
+    })),
+    skipDuplicates: true,
   });
 }
 
-// 增量拉取：?after=<毫秒时间戳>，返回 t > after 的条目（分页）
+// 增量拉取：?after=<毫秒时间戳>，返回 t > after 的条目（分页，含软删除 tombstone）
 export async function GET(req: Request) {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
+    const identity = await getWenxinUser(req);
+    if (!identity) {
       return NextResponse.json(
         { success: false, error: '未授权访问' },
         { status: 401 }
       );
     }
-    const userId = session.user.id;
+    const userId = identity.userId;
 
-    await migrateLegacyArchive(userId);
+    await migrateLegacyWenxinData(userId);
 
     const url = new URL(req.url);
     const afterRaw = Number(url.searchParams.get('after') ?? 0);
@@ -95,9 +142,10 @@ export async function GET(req: Request) {
     const entries = rows.slice(0, PAGE_SIZE).map((r) => ({
       id: r.id,
       t: Number(r.t),
-      text: r.text,
-      mood: r.mood,
-      guide: r.guide,
+      // tombstone 不下发内容（删除即揉碎）
+      ...(r.deletedAt
+        ? { text: '', deleted: true as const }
+        : { text: r.text, mood: r.mood, guide: r.guide }),
     }));
 
     return NextResponse.json({ success: true, data: { entries, hasMore } });
@@ -110,87 +158,56 @@ export async function GET(req: Request) {
   }
 }
 
-// 批量推送：append-only，服务端按 id 去重
+// 推送：{ entries: 新归档（append-only，按 id 去重）, deletedIds: 待删除（软删除） }
 export async function POST(req: Request) {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
+    const identity = await getWenxinUser(req);
+    if (!identity) {
       return NextResponse.json(
         { success: false, error: '未授权访问' },
         { status: 401 }
       );
     }
+    const userId = identity.userId;
 
     const body = await req.json().catch(() => null);
     const entries = sanitizeEntries(body?.entries);
-    if (entries.length === 0) {
-      return NextResponse.json({ success: true, data: { inserted: 0 } });
-    }
+    const deletedIds = sanitizeDeletedIds(body?.deletedIds);
 
-    const userId = session.user.id;
-    const result = await prisma.wenxinEntry.createMany({
-      data: entries.map((e) => ({
-        id: e.id,
-        userId,
-        t: BigInt(e.t),
-        text: e.text,
-        mood: e.mood ?? null,
-        guide: e.guide ?? null,
-      })),
-      skipDuplicates: true,
-    });
-
-    // 心境分析结果通常在条目首次推送后补回：对带 mood/guide 的已存在条目做更新
-    const withReflection = entries.filter((e) => e.mood || e.guide);
-    for (const e of withReflection) {
-      await prisma.wenxinEntry.updateMany({
-        where: { id: e.id, userId },
-        data: { mood: e.mood ?? null, guide: e.guide ?? null },
+    let inserted = 0;
+    if (entries.length > 0) {
+      const result = await prisma.wenxinEntry.createMany({
+        data: entries.map((e) => ({
+          id: e.id,
+          userId,
+          t: BigInt(e.t),
+          text: e.text,
+          mood: e.mood ?? null,
+          guide: e.guide ?? null,
+        })),
+        skipDuplicates: true,
       });
+      inserted = result.count;
+
+      // 心境分析结果通常在条目首次推送后补回：对带 mood/guide 的已存在条目做更新
+      const withReflection = entries.filter((e) => e.mood || e.guide);
+      for (const e of withReflection) {
+        await prisma.wenxinEntry.updateMany({
+          where: { id: e.id, userId, deletedAt: null },
+          data: { mood: e.mood ?? null, guide: e.guide ?? null },
+        });
+      }
     }
 
-    return NextResponse.json({
-      success: true,
-      data: { inserted: result.count },
-    });
+    if (deletedIds.length > 0) {
+      await applyDeletions(userId, deletedIds);
+    }
+
+    return NextResponse.json({ success: true, data: { inserted } });
   } catch (error) {
     console.error('[wenxin entries] POST error:', error);
     return NextResponse.json(
       { success: false, error: '同步失败' },
-      { status: 500 }
-    );
-  }
-}
-
-// 删除单条归档：?id=<条目 id>（只能删自己的）
-export async function DELETE(req: Request) {
-  try {
-    const session = await auth();
-    if (!session?.user?.id) {
-      return NextResponse.json(
-        { success: false, error: '未授权访问' },
-        { status: 401 }
-      );
-    }
-
-    const url = new URL(req.url);
-    const id = url.searchParams.get('id');
-    if (!id) {
-      return NextResponse.json(
-        { success: false, error: '缺少 id' },
-        { status: 400 }
-      );
-    }
-
-    await prisma.wenxinEntry.deleteMany({
-      where: { id: id.slice(0, 40), userId: session.user.id },
-    });
-
-    return NextResponse.json({ success: true });
-  } catch (error) {
-    console.error('[wenxin entries] DELETE error:', error);
-    return NextResponse.json(
-      { success: false, error: '删除失败' },
       { status: 500 }
     );
   }

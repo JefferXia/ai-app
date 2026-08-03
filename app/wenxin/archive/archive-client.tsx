@@ -7,7 +7,6 @@ import { useGlobalContext } from '@/app/globalContext';
 import {
   SERIF,
   THEME_KEY,
-  STORAGE_KEY,
   ArchiveEntry,
   getTheme,
   fmtTime,
@@ -17,6 +16,8 @@ import {
   loadArchive,
   loadDeletedIds,
   deleteArchiveEntry,
+  loadAnonToken,
+  anonHeaders,
   EntryModal,
   archiveStyles,
 } from '../shared';
@@ -68,27 +69,16 @@ export default function ArchiveClient() {
     localStorage.setItem(THEME_KEY, dark ? 'dark' : 'light');
   }, [dark, hydrated]);
 
-  // 删除：本地移除 + tombstone，登录用户同步服务器
+  // 删除：本地移除 + tombstone；tombstone 立即推送（幂等），下次同步时他端拉取生效
   const handleDelete = (entry: ArchiveEntry) => {
     setArchived(deleteArchiveEntry(entry.id));
     setOpenEntry(null);
 
-    if (!userId) return;
-    // 删服务器上的条目（失败无碍，tombstone 会兜底）
-    fetch(`/api/wenxin/entries?id=${encodeURIComponent(entry.id)}`, {
-      method: 'DELETE',
-    }).catch(() => {});
-    // tombstone 随 sync 推送，传播到其他设备
-    let segments: unknown = [];
-    try {
-      segments = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? '[]');
-    } catch {
-      // 忽略
-    }
-    fetch('/api/wenxin/sync', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ segments, deletedIds: loadDeletedIds() }),
+    if (!userId && !loadAnonToken()) return;
+    fetch('/api/wenxin/entries', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...anonHeaders() },
+      body: JSON.stringify({ entries: [], deletedIds: loadDeletedIds() }),
     }).catch(() => {});
   };
 

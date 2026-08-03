@@ -1,0 +1,20 @@
+# 构建产物
+dist/
+build/
+.next/
+coverage/
+
+# 依赖和锁文件
+node_modules/
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# 生成代码
+*.generated.ts
+openapi.json
+
+# 日志和大文件
+*.log
+*.min.js
+*.min.css

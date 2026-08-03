@@ -22,32 +22,22 @@ import {
   saveArchive,
   loadDeletedIds,
   saveDeletedIds,
+  ensureAnonToken,
+  anonHeaders,
+  isAnonRegistered,
+  registerAnon,
+  markAnonRegistered,
+  parseRecoveryCode,
+  saveAnonToken,
+  loadAnonToken,
   PaperBall,
   archiveStyles,
 } from './shared';
 
-/* ===== 跨端同步：无冲突并集合并 ===== */
+/* ===== 跨端同步：手动触发，先拉合并再推本地 ===== */
 
-function segKey(s: Segment): string {
-  return s.id ?? `t${s.t}`;
-}
-
-/** 书写流合并：一张纸模型——同 id 取较新版本，全部文字按时间拼接为一段 */
-function mergeSegments(local: Segment[], remote: Segment[]): Segment[] {
-  const map = new Map<string, Segment>();
-  [...remote, ...local].forEach((s) => {
-    if (!s || typeof s.text !== 'string' || typeof s.t !== 'number') return;
-    const key = segKey(s);
-    const existing = map.get(key);
-    if (!existing || s.t >= existing.t) map.set(key, s);
-  });
-  const merged = [...map.values()].sort((a, b) => a.t - b.t);
-  const text = merged
-    .map((s) => s.text.trim())
-    .filter(Boolean)
-    .join('\n\n');
-  return [{ id: merged[merged.length - 1]?.id ?? genId(), t: Date.now(), text }];
-}
+// 心境分析开关：暂时停用（接口 /api/wenxin/reflect 保留，置 true 即重新启用）
+const REFLECT_ENABLED = false;
 
 /** 归档合并：append-only，按稳定 id 去重取并集；
  *  二级去重：同时间同内容的视为同一条（兼容新旧数据 id 不一致的遗留情况） */
@@ -100,6 +90,25 @@ function loadSyncMeta(userId: string): SyncMeta {
 function saveSyncMeta(userId: string, meta: SyncMeta) {
   try {
     localStorage.setItem(`wenxin:syncMeta:${userId}`, JSON.stringify(meta));
+  } catch {
+    // 静默失败
+  }
+}
+
+const LAST_SYNC_KEY = 'wenxin:lastSyncAt';
+
+function loadLastSync(): number | null {
+  try {
+    const v = Number(localStorage.getItem(LAST_SYNC_KEY));
+    return Number.isFinite(v) && v > 0 ? v : null;
+  } catch {
+    return null;
+  }
+}
+
+function saveLastSync(t: number) {
+  try {
+    localStorage.setItem(LAST_SYNC_KEY, String(t));
   } catch {
     // 静默失败
   }
@@ -170,9 +179,10 @@ export default function WenxinClient() {
   const [syncStatus, setSyncStatus] = useState<
     'local' | 'syncing' | 'synced' | 'error'
   >('local');
-  const [pullDone, setPullDone] = useState(false);
-  const pulledRef = useRef(false);
-  const metaRef = useRef<SyncMeta>({ pushedT: 0, pulledT: 0 });
+  const [lastSync, setLastSync] = useState<number | null>(null);
+  const [anonId, setAnonId] = useState<string | null>(null);
+  const [showRecovery, setShowRecovery] = useState(false);
+  const syncingRef = useRef(false);
   const taRef = useRef<HTMLTextAreaElement>(null);
   const pileRef = useRef<HTMLDivElement>(null);
 
@@ -198,6 +208,14 @@ export default function WenxinClient() {
 
     setSegments(segs);
     setDark(localStorage.getItem(THEME_KEY) === 'dark');
+    setLastSync(loadLastSync());
+
+    // 未登录：自动创建并注册匿名身份（首次进入即完成，无感）
+    if (!userId) {
+      const t = ensureAnonToken();
+      setAnonId(t.id);
+      if (!isAnonRegistered()) registerAnon();
+    }
 
     // 读取归档（过滤已删除的 tombstone）
     const deleted = new Set(loadDeletedIds());
@@ -243,94 +261,100 @@ export default function WenxinClient() {
     saveArchive(archived);
   }, [archived, hydrated]);
 
-  // 跨端同步：打开页面时拉取云端并做并集合并（仅登录用户）
-  useEffect(() => {
-    if (!hydrated || !userId || pulledRef.current) return;
-    pulledRef.current = true;
-    (async () => {
-      setSyncStatus('syncing');
-      try {
-        // 1) 书写流（全量，体积小）
-        const res = await fetch('/api/wenxin/sync');
-        const json = await res.json();
-        if (!res.ok || !json.success) {
-          setSyncStatus('error');
+  // 手动同步：点击"同步云端"触发 —— 先拉取合并（含 tombstone），再推送本地新条目与删除
+  const syncKey = userId ?? anonId;
+  const handleSync = async () => {
+    if (syncingRef.current) return;
+    syncingRef.current = true;
+    setSyncStatus('syncing');
+    try {
+      // 最多两轮：匿名身份在服务端不存在（如服务端数据被重置）时，
+      // 第一轮会 401 —— 强制重新注册后重试一次（自愈）
+      for (let attempt = 0; attempt < 2; attempt++) {
+        const result = await syncOnce();
+        if (result === 'ok') {
+          const now = Date.now();
+          setLastSync(now);
+          saveLastSync(now);
+          setSyncStatus('synced');
           return;
         }
-        setSegments((cur) => mergeSegments(cur, json.data?.segments ?? []));
-
-        // 应用云端 tombstone：其他设备删除的条目本地也要删掉
-        const serverDeleted: string[] = Array.isArray(json.data?.deletedIds)
-          ? json.data.deletedIds
-          : [];
-        if (serverDeleted.length > 0) {
-          const ids = [...new Set([...loadDeletedIds(), ...serverDeleted])];
-          saveDeletedIds(ids);
-          const del = new Set(ids);
-          setArchived((cur) => cur.filter((a) => !del.has(a.id)));
-        }
-
-        // 2) 归档（游标增量拉取，分页）
-        const meta = loadSyncMeta(userId);
-        let after = meta.pulledT;
-        for (let page = 0; page < 20; page++) {
-          const er = await fetch(`/api/wenxin/entries?after=${after}`);
-          const ej = await er.json();
-          if (!er.ok || !ej.success) break;
-          const entries: ArchiveEntry[] = ej.data?.entries ?? [];
-          if (entries.length > 0) {
-            setArchived((cur) => mergeArchive(cur, entries));
-            after = entries[entries.length - 1].t;
-            meta.pulledT = Math.max(meta.pulledT, after);
+        if (result === 'unauthorized' && !userId && attempt === 0) {
+          const registered = await registerAnon();
+          if (registered) {
+            // 重新注册意味着服务端是全新身份（旧数据已随旧身份丢失），
+            // 重置同步游标，让本地全部数据重新推送
+            const key = syncKey ?? ensureAnonToken().id;
+            saveSyncMeta(key, { pushedT: 0, pulledT: 0 });
+            continue;
           }
-          if (!ej.data?.hasMore) break;
         }
-        saveSyncMeta(userId, meta);
-        metaRef.current = meta;
-
-        setPullDone(true);
-        setSyncStatus('synced');
-      } catch {
         setSyncStatus('error');
+        return;
       }
-    })();
-  }, [hydrated, userId]);
+    } catch {
+      setSyncStatus('error');
+    } finally {
+      syncingRef.current = false;
+    }
+  };
 
-  // 跨端同步：本地变更后防抖推送（仅拉取成功后，避免覆盖云端）
-  useEffect(() => {
-    if (!hydrated || !userId || !pullDone) return;
-    const id = setTimeout(async () => {
-      try {
-        setSyncStatus('syncing');
-        // 1) 书写流（全量 upsert）+ 删除 tombstone
-        const res = await fetch('/api/wenxin/sync', {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ segments, deletedIds: loadDeletedIds() }),
+  // 单轮同步：返回 ok / unauthorized（401）/ error
+  const syncOnce = async (): Promise<'ok' | 'unauthorized' | 'error'> => {
+    try {
+      const key = syncKey ?? ensureAnonToken().id;
+      const meta = loadSyncMeta(key);
+
+      // 1) 拉取：合并云端条目，应用 tombstone（他端删除的本地也删）
+      let current = loadArchive().filter(
+        (a) => !loadDeletedIds().includes(a.id)
+      );
+      let after = meta.pulledT;
+      for (let page = 0; page < 20; page++) {
+        const er = await fetch(`/api/wenxin/entries?after=${after}`, {
+          headers: { ...anonHeaders() },
         });
-        // 2) 归档（只推游标之后的新条目，服务端按 id 去重）
-        const meta = metaRef.current;
-        const newEntries = archived.filter((a) => a.t > meta.pushedT);
-        let pushOk = true;
-        if (newEntries.length > 0) {
-          const pr = await fetch('/api/wenxin/entries', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ entries: newEntries }),
-          });
-          pushOk = pr.ok;
-          if (pr.ok) {
-            meta.pushedT = Math.max(...newEntries.map((a) => a.t));
-            saveSyncMeta(userId, meta);
-          }
+        if (er.status === 401) return 'unauthorized';
+        const ej = await er.json().catch(() => null);
+        if (!er.ok || !ej?.success) return 'error';
+        const entries: ArchiveEntry[] = ej.data?.entries ?? [];
+        const tombs = entries.filter((e) => e.deleted).map((e) => e.id);
+        if (tombs.length > 0) {
+          const tset = new Set(tombs);
+          current = current.filter((a) => !tset.has(a.id));
+          saveDeletedIds([...new Set([...loadDeletedIds(), ...tombs])]);
         }
-        setSyncStatus(res.ok && pushOk ? 'synced' : 'error');
-      } catch {
-        setSyncStatus('error');
+        const fresh = entries.filter((e) => !e.deleted);
+        if (fresh.length > 0) current = mergeArchive(current, fresh);
+        if (entries.length > 0) {
+          after = entries[entries.length - 1].t;
+          meta.pulledT = Math.max(meta.pulledT, after);
+        }
+        if (!ej.data?.hasMore) break;
       }
-    }, 3000);
-    return () => clearTimeout(id);
-  }, [segments, archived, hydrated, userId, pullDone]);
+      setArchived(current);
+
+      // 2) 推送：游标之后的新条目 + 本地全部删除记录（服务端幂等）
+      const newEntries = current.filter((a) => a.t > meta.pushedT);
+      const pr = await fetch('/api/wenxin/entries', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...anonHeaders() },
+        body: JSON.stringify({
+          entries: newEntries,
+          deletedIds: loadDeletedIds(),
+        }),
+      });
+      if (pr.status === 401) return 'unauthorized';
+      if (!pr.ok) return 'error';
+      if (newEntries.length > 0) {
+        meta.pushedT = Math.max(...newEntries.map((a) => a.t));
+      }
+      saveSyncMeta(key, meta);
+      return 'ok';
+    } catch {
+      return 'error';
+    }
+  };
 
   const activeText = segments.length ? segments[segments.length - 1].text : '';
 
@@ -395,27 +419,27 @@ export default function WenxinClient() {
       setLastAdded(entry.t);
       taRef.current?.focus();
 
-      // 心境分析：归档落纸后异步进行，不阻塞书写；仅登录用户
-      if (userId) {
+      // 心境分析：暂时停用（REFLECT_ENABLED）；接口保留以备后续启用
+      if (REFLECT_ENABLED && syncKey) {
         (async () => {
           try {
             const rr = await fetch('/api/wenxin/reflect', {
               method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
+              headers: { 'Content-Type': 'application/json', ...anonHeaders() },
               body: JSON.stringify({ text }),
             });
             const rj = await rr.json();
             const mood = rj?.data?.mood ?? null;
             const guide = rj?.data?.guide ?? null;
             if (!rr.ok || !rj?.success || (!mood && !guide)) return;
-            // 回填本地（自动持久化并随防抖同步推送更新到云端）
+            // 回填本地（自动持久化，随下次手动同步推送）
             setArchived((prev) =>
               prev.map((a) => (a.id === entry.id ? { ...a, mood, guide } : a))
             );
             // 该条目可能已被推送过（游标之后无新条目），直接补推一次分析结果
             fetch('/api/wenxin/entries', {
               method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
+              headers: { 'Content-Type': 'application/json', ...anonHeaders() },
               body: JSON.stringify({
                 entries: [{ ...entry, mood, guide }],
               }),
@@ -515,25 +539,30 @@ export default function WenxinClient() {
         禅问
       </Link>
 
-      {/* 同步状态 */}
+      {/* 同步云端：手动触发 */}
       <div
-        className={`fixed top-6 right-6 z-40 text-[10px] tracking-[0.3em] opacity-50 ${theme.faint}`}
+        className={`fixed top-6 right-6 z-40 flex items-center gap-4 text-[10px] tracking-[0.3em] opacity-50 ${theme.faint}`}
       >
-        {userId ? (
-          syncStatus === 'syncing' ? (
-            '同步中'
-          ) : syncStatus === 'synced' ? (
-            '已同步'
-          ) : (
-            '同步失败'
-          )
-        ) : (
-          <Link
-            href="/login"
-            className="transition-opacity hover:opacity-100 opacity-80"
+        <button
+          onClick={handleSync}
+          disabled={syncStatus === 'syncing'}
+          className="transition-opacity hover:opacity-100"
+        >
+          {syncStatus === 'syncing'
+            ? '同步中'
+            : syncStatus === 'synced'
+              ? `已同步${lastSync ? ` · ${fmtTime(lastSync)}` : ''}`
+              : syncStatus === 'error'
+                ? '同步失败 · 重试'
+                : '同步云端'}
+        </button>
+        {!userId && (
+          <button
+            onClick={() => setShowRecovery(true)}
+            className="transition-opacity opacity-80 hover:opacity-100"
           >
-            本地 · 登录可同步
-          </Link>
+            恢复码
+          </button>
         )}
       </div>
 
@@ -657,6 +686,15 @@ export default function WenxinClient() {
         </button>
       </div>
 
+      {/* 恢复码：匿名身份的全部凭证 */}
+      {showRecovery && (
+        <RecoveryModal
+          dark={dark}
+          theme={theme}
+          onClose={() => setShowRecovery(false)}
+        />
+      )}
+
       {/* 见（镜）：两个不同时刻的自己 */}
       {mirror && (
         <div
@@ -692,6 +730,151 @@ export default function WenxinClient() {
           </p>
         </div>
       )}
+    </div>
+  );
+}
+
+/** 恢复码弹窗：展示本机身份码（抄下来收好），或输入旧码恢复身份 */
+function RecoveryModal({
+  dark,
+  theme,
+  onClose,
+}: {
+  dark: boolean;
+  theme: { faint: string };
+  onClose: () => void;
+}) {
+  const [copied, setCopied] = useState(false);
+  const [restoreInput, setRestoreInput] = useState('');
+  const [restoreError, setRestoreError] = useState<string | null>(null);
+  const [restoring, setRestoring] = useState(false);
+  const token = loadAnonToken();
+  const code = token ? `${token.id}.${token.secret}` : '';
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(code);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // 剪贴板不可用时用户可自行全选复制
+    }
+  };
+
+  // 恢复：校验格式 → 本地保存 → 服务端校验（幂等注册）→ 重载拉取数据
+  const handleRestore = async () => {
+    const parsed = parseRecoveryCode(restoreInput);
+    if (!parsed) {
+      setRestoreError('恢复码格式不对');
+      return;
+    }
+    setRestoring(true);
+    setRestoreError(null);
+    try {
+      saveAnonToken(parsed);
+      const res = await fetch('/api/wenxin/anon/register', {
+        method: 'POST',
+        headers: { 'x-wenxin-token': `${parsed.id}.${parsed.secret}` },
+      });
+      const json = await res.json().catch(() => null);
+      if (!res.ok || !json?.success) {
+        setRestoreError(
+          res.status === 409 ? '恢复码不对，身份对不上' : '恢复失败，请稍后再试'
+        );
+        setRestoring(false);
+        return;
+      }
+      markAnonRegistered();
+      window.location.reload();
+    } catch {
+      setRestoreError('恢复失败，请检查网络');
+      setRestoring(false);
+    }
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-black/30 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      <div
+        className={`w-full max-w-md p-8 md:p-10 rounded-sm shadow-2xl ${
+          dark ? 'bg-[#17171a] text-gray-300' : 'bg-[#fbf7ec] text-[#33302a]'
+        }`}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <p className={`text-[10px] tracking-[0.4em] ${theme.faint} mb-6`}>
+          恢复码
+        </p>
+        <p className="text-sm leading-loose opacity-80 mb-6">
+          这串代码是你在问心的全部身份 —— 没有账号，没有密码。抄下来收好；换设备时在下方输入它，字就跟过来。
+        </p>
+
+        {code && (
+          <>
+            <p
+              className={`text-xs leading-relaxed break-all select-all p-4 rounded-sm mb-4 ${
+                dark ? 'bg-black/40 text-gray-400' : 'bg-[#f1ead9] text-[#6b5f47]'
+              }`}
+            >
+              {code}
+            </p>
+            <div className="flex justify-end mb-8">
+              <button
+                onClick={handleCopy}
+                className={`text-[10px] tracking-[0.3em] transition-opacity opacity-60 hover:opacity-100 ${theme.faint}`}
+              >
+                {copied ? '已复制' : '复制'}
+              </button>
+            </div>
+          </>
+        )}
+
+        <p className={`text-[10px] tracking-[0.4em] ${theme.faint} mb-4`}>
+          用旧码恢复
+        </p>
+        <textarea
+          value={restoreInput}
+          onChange={(e) => setRestoreInput(e.target.value)}
+          placeholder="粘贴之前收好的恢复码"
+          rows={2}
+          className={`w-full text-xs leading-relaxed p-3 rounded-sm bg-transparent border outline-none resize-none mb-3 ${
+            dark
+              ? 'border-gray-800 placeholder-gray-700'
+              : 'border-[#e0d6c0] placeholder-[#cfc4ae]'
+          }`}
+        />
+        {restoreError && (
+          <p
+            className={`text-[10px] tracking-[0.2em] mb-3 ${
+              dark ? 'text-red-400' : 'text-red-700'
+            }`}
+          >
+            {restoreError}
+          </p>
+        )}
+        <div className="flex justify-end">
+          <button
+            onClick={handleRestore}
+            disabled={restoring || !restoreInput.trim()}
+            className={`text-[10px] tracking-[0.3em] transition-opacity ${
+              restoring || !restoreInput.trim()
+                ? 'opacity-30'
+                : 'opacity-60 hover:opacity-100'
+            } ${theme.faint}`}
+          >
+            {restoring ? '恢复中' : '恢复'}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

@@ -1,19 +1,43 @@
 import { NextResponse } from 'next/server';
-import { auth } from '@/app/(auth)/auth';
 import { analyzeMood } from '@/lib/wenxin';
+import { getWenxinUser } from '@/lib/wenxin-auth';
 
 export const runtime = 'nodejs';
 
 const MAX_TEXT_LEN = 50_000;
 
+// 匿名用户限流：每个匿名身份每天最多分析 30 次（内存实现，重启清零）
+// 防止匿名接口被当作免费 LLM 代理刷量
+const anonHits = new Map<string, { day: number; count: number }>();
+const ANON_DAILY_LIMIT = 30;
+
+function anonAllowed(userId: string): boolean {
+  const day = Math.floor(Date.now() / 86_400_000);
+  const hit = anonHits.get(userId);
+  if (!hit || hit.day !== day) {
+    anonHits.set(userId, { day, count: 1 });
+    return true;
+  }
+  if (hit.count >= ANON_DAILY_LIMIT) return false;
+  hit.count++;
+  return true;
+}
+
 // 归档时分析心境：输入文字，产出 { mood, guide }
 export async function POST(req: Request) {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
+    const identity = await getWenxinUser(req);
+    if (!identity) {
       return NextResponse.json(
         { success: false, error: '未授权访问' },
         { status: 401 }
+      );
+    }
+
+    if (identity.anonymous && !anonAllowed(identity.userId)) {
+      return NextResponse.json(
+        { success: false, error: '今日分析次数已用完' },
+        { status: 429 }
       );
     }
 

@@ -55,8 +55,8 @@ model User {
   dramaSessions   DramaSession[]                       // Drama 会话
   conversationSummaries ConversationSummary[]           // 对话摘要
   userMemories    UserMemory[]                        // 用户记忆
-  wenxinData     WenxinData?                          // 问心同步数据
   wenxinEntries  WenxinEntry[]                        // 问心归档条目
+  wenxinAnon     WenxinAnon?                          // 问心匿名身份凭证
 
   @@index([invite_code])
   @@index([invited_by])
@@ -429,33 +429,30 @@ model UserMemory {
   @@index([userId, memoryType])
 }
 
-// 问心数据 - 书写流与归档的云端同步副本（本地优先，云端为副本）
-model WenxinData {
-  id        String   @id @default(cuid())
-  userId    String   @unique
-
-  segments  Json     // 书写流 Segment[]: { id?, t, text }
-  archive   Json?    // 旧格式遗留，已迁移到 WenxinEntry 表
-  deletedIds Json?   // 已删除归档条目 id（tombstone，跨端删除传播）
-
-  updatedAt DateTime @updatedAt
-  createdAt DateTime @default(now())
-
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-}
-
 // 问心归档条目 - 每条归档一行（append-only，支持增量同步，承载数十万字节容量）
 model WenxinEntry {
-  id        String   @id // 客户端生成的稳定 id
+  id        String    @id // 客户端生成的稳定 id
   userId    String
   t         BigInt // 归档时间戳（毫秒）
-  text      String   @db.Text
+  text      String    @db.Text
   mood      String? // 归档时 AI 匹配的十种心境之一，匹配不上为 null
-  guide     String?  @db.Text // 觉知者的从旁引导（一句话）
+  guide     String?   @db.Text // 觉知者的从旁引导（一句话）
+  deletedAt DateTime? // 软删除（tombstone）：删除即置时间并清空 text，跨端传播
 
-  createdAt DateTime @default(now())
+  createdAt DateTime  @default(now())
 
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, t])
+}
+
+// 问心匿名身份 - 免登录的可认证用户：anonId + secret 哈希即账号（恢复码）
+model WenxinAnon {
+  id         String   @id // 客户端生成的 anonId（UUID）
+  secretHash String // sha256(secret) 十六进制，服务端不存明文
+  userId     String   @unique
+
+  createdAt  DateTime @default(now())
+
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
