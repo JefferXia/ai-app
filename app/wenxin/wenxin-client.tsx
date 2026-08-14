@@ -13,13 +13,15 @@ import {
   Passage,
   getTheme,
   fmtTime,
-  seeded,
   ballSize,
   genId,
   splitParagraphs,
   cut,
   loadArchive,
-  saveArchive,
+  putEntry,
+  updateEntryReflection,
+  mergeEntriesIntoDb,
+  deleteEntryRows,
   loadDeletedIds,
   saveDeletedIds,
   ensureAnonToken,
@@ -30,7 +32,6 @@ import {
   parseRecoveryCode,
   saveAnonToken,
   loadAnonToken,
-  PaperBall,
   archiveStyles,
 } from './shared';
 
@@ -38,6 +39,9 @@ import {
 
 // 心境分析开关：暂时停用（接口 /api/wenxin/reflect 保留，置 true 即重新启用）
 const REFLECT_ENABLED = false;
+
+// 回声开关：暂时隐藏（置 true 即恢复旧碎片浮现）
+const ECHO_ENABLED = false;
 
 /** 归档合并：append-only，按稳定 id 去重取并集；
  *  二级去重：同时间同内容的视为同一条（兼容新旧数据 id 不一致的遗留情况） */
@@ -146,23 +150,6 @@ function pickPair(segments: Segment[]): [Passage, Passage] | null {
   return null;
 }
 
-/** 纸团堆：最近 9 团按大球垫底摆成金字塔 */
-function buildPile(archived: ArchiveEntry[]): ArchiveEntry[][] {
-  const PILE_ROWS = [4, 3, 2]; // 从底到顶每行数量
-  const balls = archived.slice(-9);
-  const sorted = [...balls].sort(
-    (a, b) => ballSize(b.text, b.t) - ballSize(a.text, a.t)
-  );
-  const bottomUp: ArchiveEntry[][] = [];
-  let idx = 0;
-  for (const n of PILE_ROWS) {
-    const row = sorted.slice(idx, idx + n);
-    if (row.length) bottomUp.push(row);
-    idx += n;
-  }
-  return bottomUp.reverse(); // 自顶向下渲染
-}
-
 export default function WenxinClient() {
   const { userInfo } = useGlobalContext();
   const userId: string | undefined = userInfo?.id;
@@ -173,7 +160,6 @@ export default function WenxinClient() {
   const [pair, setPair] = useState<[Passage, Passage] | null>(null);
   const [archived, setArchived] = useState<ArchiveEntry[]>([]);
   const [archiving, setArchiving] = useState(false);
-  const [lastAdded, setLastAdded] = useState<number | null>(null);
   const [echo, setEcho] = useState<string | null>(null);
   const [echoOut, setEchoOut] = useState(false);
   const [syncStatus, setSyncStatus] = useState<
@@ -184,56 +170,61 @@ export default function WenxinClient() {
   const [showRecovery, setShowRecovery] = useState(false);
   const syncingRef = useRef(false);
   const taRef = useRef<HTMLTextAreaElement>(null);
-  const pileRef = useRef<HTMLDivElement>(null);
+  const flowRef = useRef<HTMLDivElement>(null);
+  const flowEndRef = useRef<HTMLDivElement>(null);
 
-  // 初始化：读取本地文字与主题
+  // 初始化：读取本地文字与主题（归档在 IndexedDB，异步加载）
   useEffect(() => {
-    let segs: Segment[] = [];
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (raw) segs = JSON.parse(raw);
-    } catch {
-      segs = [];
-    }
-    segs = Array.isArray(segs)
-      ? segs.filter((s) => s && typeof s.text === 'string')
-      : [];
+    (async () => {
+      let segs: Segment[] = [];
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (raw) segs = JSON.parse(raw);
+      } catch {
+        segs = [];
+      }
+      segs = Array.isArray(segs)
+        ? segs.filter((s) => s && typeof s.text === 'string')
+        : [];
 
-    // 一张纸：未归档的文字永远恢复到输入框，不再按时间分段
-    const text = segs
-      .map((s) => s.text.trim())
-      .filter(Boolean)
-      .join('\n\n');
-    segs = [{ id: segs[segs.length - 1]?.id ?? genId(), t: Date.now(), text }];
+      // 一张纸：未归档的文字永远恢复到输入框，不再按时间分段
+      const text = segs
+        .map((s) => s.text.trim())
+        .filter(Boolean)
+        .join('\n\n');
+      segs = [{ id: segs[segs.length - 1]?.id ?? genId(), t: Date.now(), text }];
 
-    setSegments(segs);
-    setDark(localStorage.getItem(THEME_KEY) === 'dark');
-    setLastSync(loadLastSync());
+      setSegments(segs);
+      setDark(localStorage.getItem(THEME_KEY) === 'dark');
+      setLastSync(loadLastSync());
 
-    // 未登录：自动创建并注册匿名身份（首次进入即完成，无感）
-    if (!userId) {
-      const t = ensureAnonToken();
-      setAnonId(t.id);
-      if (!isAnonRegistered()) registerAnon();
-    }
+      // 未登录：自动创建并注册匿名身份（首次进入即完成，无感）
+      if (!userId) {
+        const t = ensureAnonToken();
+        setAnonId(t.id);
+        if (!isAnonRegistered()) registerAnon();
+      }
 
-    // 读取归档（过滤已删除的 tombstone）
-    const deleted = new Set(loadDeletedIds());
-    const archiveList = loadArchive().filter((a) => !deleted.has(a.id));
-    setArchived(archiveList);
+      // 读取归档（过滤已删除的 tombstone）
+      const deleted = new Set(loadDeletedIds());
+      const archiveList = (await loadArchive()).filter((a) => !deleted.has(a.id));
+      setArchived(archiveList);
 
-    // 回声：小概率浮出一段旧碎片（不点名时间）
-    const pool: string[] = [];
-    segs.forEach((s) => s.text.trim() && pool.push(s.text));
-    archiveList.forEach((a) => a.text.trim() && pool.push(a.text));
-    if (pool.length > 0 && Math.random() < 0.35) {
-      const src = pool[Math.floor(Math.random() * pool.length)];
-      const paras = splitParagraphs(src);
-      const p = paras[Math.floor(Math.random() * paras.length)] ?? src;
-      setEcho(p.length > 120 ? p.slice(0, 120) + ' …' : p);
-    }
+      // 回声：小概率浮出一段旧碎片（不点名时间）—— 暂时隐藏（ECHO_ENABLED）
+      if (ECHO_ENABLED) {
+        const pool: string[] = [];
+        segs.forEach((s) => s.text.trim() && pool.push(s.text));
+        archiveList.forEach((a) => a.text.trim() && pool.push(a.text));
+        if (pool.length > 0 && Math.random() < 0.35) {
+          const src = pool[Math.floor(Math.random() * pool.length)];
+          const paras = splitParagraphs(src);
+          const p = paras[Math.floor(Math.random() * paras.length)] ?? src;
+          setEcho(p.length > 120 ? p.slice(0, 120) + ' …' : p);
+        }
+      }
 
-    setHydrated(true);
+      setHydrated(true);
+    })();
   }, []);
 
   // 自动保存（防抖）
@@ -254,12 +245,6 @@ export default function WenxinClient() {
     if (!hydrated) return;
     localStorage.setItem(THEME_KEY, dark ? 'dark' : 'light');
   }, [dark, hydrated]);
-
-  // 归档持久化
-  useEffect(() => {
-    if (!hydrated) return;
-    saveArchive(archived);
-  }, [archived, hydrated]);
 
   // 手动同步：点击"同步云端"触发 —— 先拉取合并（含 tombstone），再推送本地新条目与删除
   const syncKey = userId ?? anonId;
@@ -306,9 +291,11 @@ export default function WenxinClient() {
       const meta = loadSyncMeta(key);
 
       // 1) 拉取：合并云端条目，应用 tombstone（他端删除的本地也删）
-      let current = loadArchive().filter(
+      let current = (await loadArchive()).filter(
         (a) => !loadDeletedIds().includes(a.id)
       );
+      const allTombs: string[] = [];
+      const allFresh: ArchiveEntry[] = [];
       let after = meta.pulledT;
       for (let page = 0; page < 20; page++) {
         const er = await fetch(`/api/wenxin/entries?after=${after}`, {
@@ -322,16 +309,25 @@ export default function WenxinClient() {
         if (tombs.length > 0) {
           const tset = new Set(tombs);
           current = current.filter((a) => !tset.has(a.id));
-          saveDeletedIds([...new Set([...loadDeletedIds(), ...tombs])]);
+          allTombs.push(...tombs);
         }
         const fresh = entries.filter((e) => !e.deleted);
-        if (fresh.length > 0) current = mergeArchive(current, fresh);
+        if (fresh.length > 0) {
+          current = mergeArchive(current, fresh);
+          allFresh.push(...fresh);
+        }
         if (entries.length > 0) {
           after = entries[entries.length - 1].t;
           meta.pulledT = Math.max(meta.pulledT, after);
         }
         if (!ej.data?.hasMore) break;
       }
+      // 落库：tombstone 删除 + 新条目并入（粒度写，不全量重写）
+      if (allTombs.length > 0) {
+        saveDeletedIds([...new Set([...loadDeletedIds(), ...allTombs])]);
+        await deleteEntryRows(allTombs);
+      }
+      if (allFresh.length > 0) await mergeEntriesIntoDb(allFresh);
       setArchived(current);
 
       // 2) 推送：游标之后的新条目 + 本地全部删除记录（服务端幂等）
@@ -357,6 +353,13 @@ export default function WenxinClient() {
   };
 
   const activeText = segments.length ? segments[segments.length - 1].text : '';
+
+  // 历史流：初次加载后停在最底部（最新一条贴着输入框）
+  useEffect(() => {
+    if (!hydrated) return;
+    const el = flowRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [hydrated]);
 
   //  textarea 自动增高 + 聚焦
   useEffect(() => {
@@ -414,10 +417,22 @@ export default function WenxinClient() {
     const entry: ArchiveEntry = { id: genId(), t: Date.now(), text };
     const commit = () => {
       setArchived((prev) => [...prev, entry]);
-      setSegments([{ id: genId(), t: Date.now(), text: '' }]);
+      putEntry(entry);
+      // 清空纸面并立即持久化（不走防抖，避免归档后立刻关页面导致文字复活）
+      const blank: Segment[] = [{ id: genId(), t: Date.now(), text: '' }];
+      setSegments(blank);
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(blank));
+      } catch {
+        // 静默失败
+      }
       setArchiving(false);
-      setLastAdded(entry.t);
       taRef.current?.focus();
+      // 滚到历史流最底部，露出刚落进去的一条
+      requestAnimationFrame(() => {
+        const el = flowRef.current;
+        if (el) el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
+      });
 
       // 心境分析：暂时停用（REFLECT_ENABLED）；接口保留以备后续启用
       if (REFLECT_ENABLED && syncKey) {
@@ -432,10 +447,11 @@ export default function WenxinClient() {
             const mood = rj?.data?.mood ?? null;
             const guide = rj?.data?.guide ?? null;
             if (!rr.ok || !rj?.success || (!mood && !guide)) return;
-            // 回填本地（自动持久化，随下次手动同步推送）
+            // 回填本地（IndexedDB 粒度更新，随下次手动同步推送）
             setArchived((prev) =>
               prev.map((a) => (a.id === entry.id ? { ...a, mood, guide } : a))
             );
+            updateEntryReflection(entry.id, mood, guide);
             // 该条目可能已被推送过（游标之后无新条目），直接补推一次分析结果
             fetch('/api/wenxin/entries', {
               method: 'POST',
@@ -463,12 +479,12 @@ export default function WenxinClient() {
 
     setArchiving(true);
 
-    // 掉落：从书写区揉成球，加速落到纸团堆顶
-    const to = pileRef.current?.getBoundingClientRect();
+    // 掉落：从书写区揉成球，加速落进历史流末尾
+    const to = flowEndRef.current?.getBoundingClientRect();
     const startX = from.left + from.width / 2;
     const startY = Math.min(from.top + 60, window.innerHeight - 200);
     const endX = to ? to.left + to.width / 2 : window.innerWidth / 2;
-    const endY = to ? to.top + 20 : window.innerHeight - 160;
+    const endY = to ? to.top : window.innerHeight * 0.4;
     const targetScale = ballSize(entry.text, entry.t) / 60;
 
     const el = document.createElement('div');
@@ -523,11 +539,9 @@ export default function WenxinClient() {
     return <div className="min-h-screen bg-[#f6f1e7]" />;
   }
 
-  const pileRows = buildPile(archived);
-
   return (
     <div
-      className={`min-h-screen transition-colors duration-500 ${theme.page}`}
+      className={`h-screen h-dvh flex flex-col overflow-hidden transition-colors duration-500 ${theme.page}`}
       style={{ fontFamily: SERIF }}
     >
       <style dangerouslySetInnerHTML={{ __html: archiveStyles }} />
@@ -566,92 +580,101 @@ export default function WenxinClient() {
         )}
       </div>
 
-      {/* 纸：一条持续流动的文字 */}
+      {/* 主流区：上方历史流，输入框居于页面中央 */}
       <main
-        className={`max-w-2xl mx-auto px-6 py-20 md:py-28 transition-opacity duration-500 ${archiving ? 'opacity-0' : 'opacity-100'}`}
+        className={`flex-1 flex flex-col justify-center min-h-0 transition-opacity duration-500 ${archiving ? 'opacity-0' : 'opacity-100'}`}
       >
-        {/* 回声：旧碎片无端浮现，落笔即散 */}
-        {echo && (
+        {/* 历史流：按时间先后排列，最新贴着输入框；顶部透明渐隐 */}
+        {archived.length > 0 && (
           <div
-            className={`mb-12 md:mb-16 transition-opacity duration-700 ${echoOut ? 'opacity-0' : 'opacity-100'}`}
+            ref={flowRef}
+            className="min-h-0 overflow-y-auto"
+            style={{
+              maskImage: 'linear-gradient(to bottom, transparent 0, black 120px)',
+              WebkitMaskImage:
+                'linear-gradient(to bottom, transparent 0, black 120px)',
+            }}
           >
-            <p
-              className={`text-[10px] tracking-[0.4em] ${theme.faint} mb-4 opacity-70`}
-            >
-              回声
-            </p>
-            <p
-              className={`text-sm md:text-base leading-loose italic ${theme.faint}`}
-            >
-              {echo}
-            </p>
-          </div>
-        )}
-
-        <textarea
-          ref={taRef}
-          value={activeText}
-          onChange={handleChange}
-          placeholder="此刻心里有什么，就写什么"
-          rows={3}
-          className={`w-full bg-transparent border-none outline-none resize-none overflow-hidden text-base md:text-lg leading-loose ${theme.caret} ${theme.placeholder}`}
-          style={{ fontFamily: SERIF }}
-        />
-
-        {/* 归档按钮 */}
-        {hasContent && (
-          <div className="mt-12 flex justify-end">
-            <button
-              onClick={handleArchive}
-              disabled={archiving}
-              className={`flex items-center gap-2 px-5 py-2 rounded-full border text-xs tracking-[0.3em] transition-all duration-300 ${
-                dark
-                  ? 'border-gray-800 text-gray-500 hover:text-gray-200 hover:border-gray-600'
-                  : 'border-[#ddd3bf] text-[#a2947a] hover:text-[#6b5f47] hover:border-[#c4b9a4]'
-              }`}
-            >
-              <Archive size={13} />
-              归档
-            </button>
-          </div>
-        )}
-      </main>
-
-      {/* 纸团堆：点击进入归档页 */}
-      {archived.length > 0 && (
-        <section className="max-w-2xl mx-auto px-6 mt-2 pb-28">
-          <Link href="/wenxin/archive" className="group block">
-            <div
-              ref={pileRef}
-              className="flex flex-col items-center pt-6"
-              aria-label={`归档，共 ${archived.length} 团`}
-            >
-              {pileRows.map((row, ri) => (
-                <div
-                  key={ri}
-                  className={`flex justify-center ${ri > 0 ? '-mt-2' : ''}`}
-                >
-                  {row.map((a) => (
-                    <div key={a.id} className="-mx-1">
-                      <PaperBall
-                        dark={dark}
-                        size={ballSize(a.text, a.t)}
-                        isNew={a.t === lastAdded}
-                        rot={Math.round((seeded(a.t, 2) - 0.5) * 40)}
-                      />
-                    </div>
-                  ))}
+            <div className="max-w-2xl mx-auto px-6 pt-28 pb-4">
+              {archived.map((a) => (
+                <div key={a.id} className="relative flex gap-5 md:gap-7">
+                  {/* 纵向时间轴：竖线贯穿列表，每条记录对应一个圆点 */}
+                  <div className="relative w-3 shrink-0">
+                    <span
+                      className={`absolute left-1/2 top-0 bottom-0 w-px -translate-x-1/2 opacity-70 ${theme.dividerLine}`}
+                    />
+                    <span
+                      className={`absolute left-1/2 top-1.5 -translate-x-1/2 w-1.5 h-1.5 rounded-full ${
+                        dark ? 'bg-gray-600' : 'bg-[#c4b9a4]'
+                      }`}
+                    />
+                  </div>
+                  <div className="flex-1 pb-10 md:pb-12">
+                    <p
+                      className={`text-[10px] tracking-[0.3em] ${theme.dividerText} mb-3`}
+                    >
+                      {fmtTime(a.t)}
+                    </p>
+                    <p className="text-sm md:text-base leading-loose whitespace-pre-wrap opacity-75">
+                      {a.text}
+                    </p>
+                  </div>
                 </div>
               ))}
+              <div ref={flowEndRef} />
+            </div>
+          </div>
+        )}
+
+        {/* 纸：一条持续流动的文字，居于页面中央 */}
+        <div className="max-w-2xl w-full mx-auto px-6 py-8 md:py-10 shrink-0">
+          {/* 回声：旧碎片无端浮现，落笔即散（ECHO_ENABLED 关闭时不出现） */}
+          {echo && (
+            <div
+              className={`mb-10 transition-opacity duration-700 ${echoOut ? 'opacity-0' : 'opacity-100'}`}
+            >
               <p
-                className={`mt-5 text-[10px] tracking-[0.3em] ${theme.faint} opacity-70 group-hover:opacity-100 transition-opacity`}
+                className={`text-[10px] tracking-[0.4em] ${theme.faint} mb-4 opacity-70`}
               >
-                共 {archived.length} 团 · 查看归档
+                回声
+              </p>
+              <p
+                className={`text-sm md:text-base leading-loose italic ${theme.faint}`}
+              >
+                {echo}
               </p>
             </div>
-          </Link>
-        </section>
-      )}
+          )}
+
+          <textarea
+            ref={taRef}
+            value={activeText}
+            onChange={handleChange}
+            placeholder="此刻心里有什么，就写什么"
+            rows={3}
+            className={`w-full bg-transparent border-none outline-none resize-none overflow-hidden text-base md:text-lg leading-loose ${theme.caret} ${theme.placeholder}`}
+            style={{ fontFamily: SERIF }}
+          />
+
+          {/* 归档按钮 */}
+          {hasContent && (
+            <div className="mt-10 flex justify-end">
+              <button
+                onClick={handleArchive}
+                disabled={archiving}
+                className={`flex items-center gap-2 px-5 py-2 rounded-full border text-xs tracking-[0.3em] transition-all duration-300 ${
+                  dark
+                    ? 'border-gray-800 text-gray-500 hover:text-gray-200 hover:border-gray-600'
+                    : 'border-[#ddd3bf] text-[#a2947a] hover:text-[#6b5f47] hover:border-[#c4b9a4]'
+                }`}
+              >
+                <Archive size={13} />
+                归档
+              </button>
+            </div>
+          )}
+        </div>
+      </main>
 
       {/* 暗色开关：左下角 */}
       <button

@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import Dexie, { type EntityTable } from 'dexie';
 
 /* ===== 问心共享模块：类型、锚点、纸团组件、样式 ===== */
 
@@ -137,27 +138,91 @@ export function cut(s: string): string {
   return s.length > EXCERPT_MAX ? s.slice(0, EXCERPT_MAX) + ' …' : s;
 }
 
-/** 读取本地归档（旧数据补发 id） */
-export function loadArchive(): ArchiveEntry[] {
-  try {
-    const raw = localStorage.getItem(ARCHIVE_KEY);
-    if (raw) {
-      const list = JSON.parse(raw);
-      if (Array.isArray(list)) {
-        return list
-          .filter((a) => a && typeof a.text === 'string' && a.t)
-          .map((a) => ({ ...a, id: a.id ?? genId() }));
-      }
-    }
-  } catch {
-    // 忽略损坏的归档数据
+/* ===== 本地存储：内容数据（归档条目）走 IndexedDB；配置/凭证/游标走 localStorage ===== */
+
+// Dexie 懒初始化：SSR 时没有 indexedDB，首次实际操作才打开
+type WenxinDB = Dexie & { entries: EntityTable<ArchiveEntry, 'id'> };
+let _db: WenxinDB | null = null;
+function getDb(): WenxinDB | null {
+  if (typeof indexedDB === 'undefined') return null;
+  if (!_db) {
+    _db = new Dexie('wenxin') as WenxinDB;
+    _db.version(1).stores({ entries: 'id, t' });
   }
-  return [];
+  return _db;
 }
 
-export function saveArchive(list: ArchiveEntry[]) {
+const IDB_MIGRATED_KEY = 'wenxin:idbMigrated';
+
+/** 读取本地归档（按归档时间升序）。首次使用时把 localStorage 旧数据迁入 IndexedDB */
+export async function loadArchive(): Promise<ArchiveEntry[]> {
+  const db = getDb();
+  if (!db) return [];
   try {
-    localStorage.setItem(ARCHIVE_KEY, JSON.stringify(list));
+    if (localStorage.getItem(IDB_MIGRATED_KEY) !== '1') {
+      const raw = localStorage.getItem(ARCHIVE_KEY);
+      if (raw) {
+        const list = JSON.parse(raw);
+        if (Array.isArray(list)) {
+          const valid = list
+            .filter((a) => a && typeof a.text === 'string' && a.t)
+            .map((a) => ({ ...a, id: a.id ?? genId() }));
+          if (valid.length > 0) await db.entries.bulkPut(valid);
+        }
+      }
+      localStorage.setItem(IDB_MIGRATED_KEY, '1');
+      localStorage.removeItem(ARCHIVE_KEY);
+    }
+    return await db.entries.orderBy('t').toArray();
+  } catch {
+    return [];
+  }
+}
+
+/** 新增/更新单条归档（粒度写入，不再全量重写） */
+export async function putEntry(e: ArchiveEntry) {
+  try {
+    await getDb()?.entries.put(e);
+  } catch {
+    // 静默失败
+  }
+}
+
+/** 归档后补回心境分析结果 */
+export async function updateEntryReflection(
+  id: string,
+  mood: string | null,
+  guide: string | null
+) {
+  try {
+    await getDb()?.entries.update(id, { mood, guide });
+  } catch {
+    // 静默失败
+  }
+}
+
+/** 云端拉取的条目并入本地：同 id 字段级合并，mood/guide 优先保留非空值 */
+export async function mergeEntriesIntoDb(fresh: ArchiveEntry[]) {
+  const db = getDb();
+  if (!db || fresh.length === 0) return;
+  try {
+    const existing = await db.entries.bulkGet(fresh.map((f) => f.id));
+    const merged = fresh.map((f, i) => {
+      const ex = existing[i];
+      return ex
+        ? { ...f, mood: f.mood ?? ex.mood, guide: f.guide ?? ex.guide }
+        : f;
+    });
+    await db.entries.bulkPut(merged);
+  } catch {
+    // 静默失败
+  }
+}
+
+/** 从本地库删除若干条目（tombstone 生效/用户删除） */
+export async function deleteEntryRows(ids: string[]) {
+  try {
+    await getDb()?.entries.bulkDelete(ids);
   } catch {
     // 静默失败
   }
@@ -188,12 +253,10 @@ export function saveDeletedIds(ids: string[]) {
   }
 }
 
-/** 本地删除一条归档并记录 tombstone，返回剩余列表 */
-export function deleteArchiveEntry(id: string): ArchiveEntry[] {
-  const list = loadArchive().filter((a) => a.id !== id);
-  saveArchive(list);
+/** 本地删除一条归档并记录 tombstone（tombstone 待下次同步推送） */
+export async function deleteArchiveEntry(id: string) {
+  await deleteEntryRows([id]);
   saveDeletedIds([...new Set([...loadDeletedIds(), id])]);
-  return list;
 }
 
 /* ===== 匿名身份：anonId + secret 即账号，恢复码 = "anonId.secret" ===== */

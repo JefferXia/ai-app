@@ -57,10 +57,12 @@ export default function ArchiveClient() {
   const [activeMood, setActiveMood] = useState<string | null>(null);
 
   useEffect(() => {
-    const deleted = new Set(loadDeletedIds());
-    setArchived(loadArchive().filter((a) => !deleted.has(a.id)));
-    setDark(localStorage.getItem(THEME_KEY) === 'dark');
-    setHydrated(true);
+    (async () => {
+      const deleted = new Set(loadDeletedIds());
+      setArchived((await loadArchive()).filter((a) => !deleted.has(a.id)));
+      setDark(localStorage.getItem(THEME_KEY) === 'dark');
+      setHydrated(true);
+    })();
   }, []);
 
   // 主题持久化（与书写页共用同一个 key）
@@ -71,7 +73,8 @@ export default function ArchiveClient() {
 
   // 删除：本地移除 + tombstone；tombstone 立即推送（幂等），下次同步时他端拉取生效
   const handleDelete = (entry: ArchiveEntry) => {
-    setArchived(deleteArchiveEntry(entry.id));
+    deleteArchiveEntry(entry.id);
+    setArchived((cur) => cur.filter((a) => a.id !== entry.id));
     setOpenEntry(null);
 
     if (!userId && !loadAnonToken()) return;
