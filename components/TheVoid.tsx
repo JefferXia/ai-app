@@ -88,10 +88,10 @@ const TheVoid = () => {
                   <ArrowRight size={20} className="md:w-6 md:h-6" />
                 </button>
               </form>
-              {/* 问心入口 */}
+              {/* 心镜入口（问心已迁至首页） */}
               <div className="mt-8 md:mt-10 flex justify-center">
                 <Link
-                  href="/wenxin"
+                  href="/"
                   className="wenxin-entry inline-block pl-7 pr-5 py-2.5 rounded-full border border-gray-800 bg-gray-900/60 text-xs md:text-sm tracking-[0.4em] text-gray-400 hover:text-white hover:border-amber-800/70 transition-colors duration-300"
                 >
                   试试问心

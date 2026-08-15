@@ -42,6 +42,9 @@ const REFLECT_ENABLED = false;
 // 回声开关：暂时隐藏（置 true 即恢复旧碎片浮现）
 const ECHO_ENABLED = false;
 
+// 禅问入口开关：暂时隐藏（置 true 即恢复 logo 旁的禅问链接）
+const ZEN_ASK_ENTRY = false;
+
 /** 归档合并：append-only，按稳定 id 去重取并集；
  *  二级去重：同时间同内容的视为同一条（兼容新旧数据 id 不一致的遗留情况） */
 function mergeArchive(
@@ -489,22 +492,37 @@ export default function WenxinClient() {
       style={{ fontFamily: SERIF }}
     >
       <style dangerouslySetInnerHTML={{ __html: archiveStyles }} />
-      {/* 返回禅问 */}
-      <Link
-        href="/"
-        className={`fixed top-6 left-6 z-40 text-xs tracking-[0.4em] transition-opacity opacity-60 hover:opacity-100 ${dark ? 'text-gray-400' : 'text-[#8a7f6a]'}`}
-      >
-        禅问
-      </Link>
+      {/* logo：心镜（禅问入口暂时隐藏，恢复时去掉 ZEN_ASK_ENTRY 条件即可） */}
+      <div className="fixed top-6 left-6 z-40 flex items-baseline gap-5">
+        <span
+          className={`text-sm tracking-[0.4em] ${dark ? 'text-gray-300' : 'text-[#6a5f4a]'}`}
+        >
+          心镜
+        </span>
+        {ZEN_ASK_ENTRY && (
+          <Link
+            href="/zen-ask"
+            className={`text-xs tracking-[0.4em] transition-opacity opacity-60 hover:opacity-100 ${dark ? 'text-gray-400' : 'text-[#8a7f6a]'}`}
+          >
+            禅问
+          </Link>
+        )}
+      </div>
 
-      {/* 同步云端：手动触发 */}
-      <div
-        className={`fixed top-6 right-6 z-40 flex items-center gap-4 text-[10px] tracking-[0.3em] opacity-50 ${theme.faint}`}
-      >
+      {/* 同步云端：手动触发（胶囊样式沿用原登录按钮）；恢复码在左侧 */}
+      <div className="fixed top-2 right-0 z-40 flex items-center gap-4">
+        {!userId && (
+          <button
+            onClick={() => setShowRecovery(true)}
+            className={`text-[10px] tracking-[0.3em] opacity-50 transition-opacity hover:opacity-100 ${theme.faint}`}
+          >
+            恢复码
+          </button>
+        )}
         <button
           onClick={handleSync}
           disabled={syncStatus === 'syncing'}
-          className="transition-opacity hover:opacity-100"
+          className="h-11 inline-flex items-center px-5 bg-black/30 backdrop-blur-sm rounded-l-full text-white/80 hover:text-white hover:bg-black/40 transition-colors text-sm tracking-[0.2em]"
         >
           {syncStatus === 'syncing'
             ? '同步中'
@@ -514,14 +532,6 @@ export default function WenxinClient() {
                 ? '同步失败 · 重试'
                 : '同步云端'}
         </button>
-        {!userId && (
-          <button
-            onClick={() => setShowRecovery(true)}
-            className="transition-opacity opacity-80 hover:opacity-100"
-          >
-            恢复码
-          </button>
-        )}
       </div>
 
       {/* 主流区：上方历史流，下方输入框，自顶向下排列 */}

@@ -44,6 +44,11 @@ export function Navbar({ user }: { user: User | undefined }) {
   // 页面类型判断
   const isHomePage = pathname === '/';
   const isHistoryPage = pathname === '/history';
+  const isWenxinPage = pathname === '/wenxin';
+
+  // 心镜首页/问心页：匿名访客不显示「登录」按钮（页面自带「同步云端」入口）；
+  // 已登录用户仍显示账户菜单
+  if ((isHomePage || isWenxinPage) && !user) return null;
 
   // History页面只有UserSection的情况
   if (isHistoryPage) {
