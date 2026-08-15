@@ -45,6 +45,46 @@ const ECHO_ENABLED = false;
 // 禅问入口开关：暂时隐藏（置 true 即恢复 logo 旁的禅问链接）
 const ZEN_ASK_ENTRY = false;
 
+// 首访欢迎：历史为空时写入一封初始日记，并以打字机效果呈现（仅一次）
+const WELCOME_KEY = 'wenxin_welcome_v1';
+const WELCOME_TEXT = `你终于来了，我是你的心镜。
+
+我不是内容生产工具，也不是知识管理工具，我只是一个无目的地自我观察的空间。打开，写，关掉。
+
+吾日三省吾身，我想做你内心的一面镜子，助你照见自己。这里无账号，无分析，无总结，无追踪，所有数据存储在本地。
+
+你只管放心写，心镜会适时帮助你，帮你更清楚地看到自己——而看到本身就是全部。
+
+向外求索，终究徒劳；向内觉知，方得圆满。`;
+
+/** 打字机：逐字显现，标点与换行处稍作停顿 */
+function Typewriter({
+  text,
+  onTick,
+  onDone,
+}: {
+  text: string;
+  onTick?: () => void;
+  onDone?: () => void;
+}) {
+  const [n, setN] = useState(0);
+  useEffect(() => {
+    if (n >= text.length) {
+      onDone?.();
+      return;
+    }
+    const ch = text[n];
+    const delay = ch === '\n' ? 260 : /[，。；、？！：—…]/.test(ch) ? 130 : 42;
+    const t = setTimeout(() => {
+      setN(n + 1);
+      onTick?.();
+    }, delay);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [n, text]);
+  return <>{text.slice(0, n)}</>;
+}
+
 /** 归档合并：append-only，按稳定 id 去重取并集；
  *  二级去重：同时间同内容的视为同一条（兼容新旧数据 id 不一致的遗留情况） */
 function mergeArchive(
@@ -162,6 +202,7 @@ export default function WenxinClient() {
   const [pair, setPair] = useState<[Passage, Passage] | null>(null);
   const [archived, setArchived] = useState<ArchiveEntry[]>([]);
   const [lastAdded, setLastAdded] = useState<string | null>(null);
+  const [typingId, setTypingId] = useState<string | null>(null);
   const [echo, setEcho] = useState<string | null>(null);
   const [echoOut, setEchoOut] = useState(false);
   const [syncStatus, setSyncStatus] = useState<
@@ -209,6 +250,23 @@ export default function WenxinClient() {
       // 读取归档（过滤已删除的 tombstone）
       const deleted = new Set(loadDeletedIds());
       const archiveList = (await loadArchive()).filter((a) => !deleted.has(a.id));
+
+      // 首访欢迎：历史为空且从未展示过时，写入一封初始日记（打字机呈现）
+      if (archiveList.length === 0) {
+        try {
+          if (!localStorage.getItem(WELCOME_KEY)) {
+            const entry: ArchiveEntry = {
+              id: genId(),
+              t: Date.now(),
+              text: WELCOME_TEXT,
+            };
+            archiveList.push(entry);
+            putEntry(entry);
+            setTypingId(entry.id);
+            localStorage.setItem(WELCOME_KEY, '1');
+          }
+        } catch {}
+      }
       setArchived(archiveList);
 
       // 回声：小概率浮出一段旧碎片（不点名时间）—— 暂时隐藏（ECHO_ENABLED）
@@ -571,7 +629,18 @@ export default function WenxinClient() {
                       {fmtTime(a.t)}
                     </p>
                     <p className="text-sm md:text-base leading-loose whitespace-pre-wrap opacity-75">
-                      {a.text}
+                      {a.id === typingId ? (
+                        <Typewriter
+                          text={a.text}
+                          onTick={() => {
+                            const el = flowRef.current;
+                            if (el) el.scrollTop = el.scrollHeight;
+                          }}
+                          onDone={() => setTypingId(null)}
+                        />
+                      ) : (
+                        a.text
+                      )}
                     </p>
                   </div>
                 </div>
