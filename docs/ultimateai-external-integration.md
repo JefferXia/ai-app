@@ -6,7 +6,7 @@
 
 ## 一、环境说明
 
-- **基础域名**: `https://ai.ultimateai.vip`
+- **基础域名**: `https://www.wenxinbiji.com`
 - **字符编码**: UTF-8
 - **返回格式**: `application/json`
 - **跨域支持**: 默认允许浏览器直接调用（已设置 CORS 头）
@@ -24,7 +24,7 @@
 ### 2. 请求示例
 
 ```http
-GET https://ai.ultimateai.vip/api/session
+GET https://www.wenxinbiji.com/api/session
 ```
 
 > 建议在请求中附带业务方的 Cookie / Token 等（如果你通过浏览器直接访问，一般会自动携带 Cookie）。
@@ -71,7 +71,7 @@ GET https://ai.ultimateai.vip/api/session
   - 正常进入业务流程。
 - **未登录 (`authenticated = false` 或状态码 401)**
   - 引导用户跳转到登录页：
-    - `https://ai.ultimateai.vip/login`
+    - `https://www.wenxinbiji.com/login`
 
 ---
 
@@ -97,7 +97,7 @@ GET https://ai.ultimateai.vip/api/session
 ### 3. 请求示例
 
 ```http
-POST https://ai.ultimateai.vip/api/billing/consume
+POST https://www.wenxinbiji.com/api/billing/consume
 Content-Type: application/json
 
 {
@@ -146,7 +146,7 @@ Content-Type: application/json
 **处理建议：**
 
 - 业务方前端拿到 401 或 `authenticated = false` 时，跳转到登录页：
-  - `https://ai.ultimateai.vip/login`
+  - `https://www.wenxinbiji.com/login`
 
 ### 6. 积分不足响应
 
@@ -171,14 +171,14 @@ Content-Type: application/json
 - 前端/接入方在检测到 `status = 402` 或 `error = "积分不足"` 时，应提示用户：
   > 积分不足，请先充值
 - 同时提供“去充值”的按钮或引导，跳转到充值页面：
-  - `https://ai.ultimateai.vip/recharge`
+  - `https://www.wenxinbiji.com/recharge`
 
 前端伪代码示例（仅示意）：
 
 ```javascript
 if (response.status === 402 && data.error === '积分不足') {
   alert('积分不足，请先充值');
-  window.location.href = 'https://ai.ultimateai.vip/recharge';
+  window.location.href = 'https://www.wenxinbiji.com/recharge';
 }
 ```
 
@@ -228,7 +228,7 @@ if (response.status === 402 && data.error === '积分不足') {
 1. **进入业务页面时**
 
    - 调用 `GET /api/session` 检查是否登录。
-   - 未登录 => 跳转到 `https://ai.ultimateai.vip/login`。
+   - 未登录 => 跳转到 `https://www.wenxinbiji.com/login`。
    - 已登录 => 缓存用户信息、积分余额等。
 
 2. **执行需要扣费的操作前**
@@ -237,7 +237,7 @@ if (response.status === 402 && data.error === '积分不足') {
    - `success = true` => 执行业务逻辑（例如解锁内容、开始任务等）。
    - `status = 402`/`error = "积分不足"` =>
      - 弹窗提示“积分不足，请先充值”；
-     - 引导用户跳转 `https://ai.ultimateai.vip/recharge`。
+     - 引导用户跳转 `https://www.wenxinbiji.com/recharge`。
 
 3. **充值完成后**
    - 用户返回业务页面时，可再次调用 `GET /api/session` 获取最新 `balance`，再尝试调用扣费接口。

@@ -18,17 +18,17 @@ const instrumentSerif = Instrument_Serif({
 });
 
 export const metadata: Metadata = {
-  metadataBase: new URL('https://ai.ultimateai.vip'),
-  title: 'AI驱动的网页任务助手',
+  metadataBase: new URL('https://www.wenxinbiji.com'),
+  title: '心镜',
   description:
-    '洞若观火，为你洞察繁杂的网页信息。AI驱动的浏览器扩展，智能提取各类网页内容，并进行分析和处理。',
+    '一个无目的地自我观察的空间。打开，写，关掉。帮你更清楚地看到自己——而看到本身就是全部。向外求索，终究徒劳；向内觉知，方得圆满。',
   keywords:
-    '浏览器扩展,Chrome扩展,网页信息提取,AI工具,内容识别,违规检测,监控竞品,舆情跟踪',
-  authors: [{ name: '光环效应(杭州)人工智能应用技术有限公司' }],
+    '自我观察,了解自己,照见自己,向内求,觉知,记录,心境,心镜',
+  authors: [{ name: 'Jeffer Xia' }],
   openGraph: {
-    title: 'AI驱动的网页任务助手',
+    title: '心镜',
     description:
-      '洞若观火，为你洞察繁杂的网页信息。AI驱动的浏览器扩展，智能提取各类网页内容，并进行分析和处理。',
+      '一个无目的地自我观察的空间。打开，写，关掉。帮你更清楚地看到自己——而看到本身就是全部。向外求索，终究徒劳；向内觉知，方得圆满。',
     type: 'website',
   },
 };

@@ -62,8 +62,8 @@ export async function callLLM(
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${apiKey}`,
-        'HTTP-Referer': process.env.HTTP_REFERER || 'https://ai.ultimateai.vip',
-        'X-Title': process.env.APP_NAME || 'Aura',
+        'HTTP-Referer': process.env.HTTP_REFERER || 'https://www.wenxinbiji.com',
+        'X-Title': process.env.APP_NAME || 'Wenxin',
       },
       body: JSON.stringify(requestBody),
     });

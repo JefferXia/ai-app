@@ -580,7 +580,7 @@ export default function WenxinClient() {
         <button
           onClick={handleSync}
           disabled={syncStatus === 'syncing'}
-          className="h-11 inline-flex items-center px-5 bg-black/30 backdrop-blur-sm rounded-l-full text-white/80 hover:text-white hover:bg-black/40 transition-colors text-sm tracking-[0.2em]"
+          className="h-9 inline-flex items-center px-4 bg-black/30 backdrop-blur-sm rounded-l-full text-white/80 hover:text-white hover:bg-black/40 transition-colors text-xs tracking-[0.2em]"
         >
           {syncStatus === 'syncing'
             ? '同步中'
@@ -588,7 +588,7 @@ export default function WenxinClient() {
               ? `已同步${lastSync ? ` · ${fmtTime(lastSync)}` : ''}`
               : syncStatus === 'error'
                 ? '同步失败 · 重试'
-                : '同步云端'}
+                : '跨端同步'}
         </button>
       </div>
 
