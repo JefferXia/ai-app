@@ -494,23 +494,19 @@ export function EntryModal({
 /* ===== 样式：飞行中的纸团、陈列的纸团、展开动画 ===== */
 
 export const archiveStyles = `
-  .crumple-fly {
-    position: fixed;
-    width: 60px;
-    height: 60px;
-    z-index: 60;
-    pointer-events: none;
-    background:
-      repeating-linear-gradient(45deg, rgba(0, 0, 0, 0.045) 0 2px, transparent 2px 6px),
-      radial-gradient(circle at 35% 30%, #fffdf7, #ece4d0 65%, #d3c8ae);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  .wx-fade-in {
+    animation: wxFadeIn 0.6s ease-out both;
   }
 
-  .crumple-fly.crumple-dark {
-    background:
-      repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.035) 0 2px, transparent 2px 6px),
-      radial-gradient(circle at 35% 30%, #3a3a3e, #26262a 65%, #1a1a1d);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+  @keyframes wxFadeIn {
+    from {
+      opacity: 0;
+      transform: translateY(-8px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
   }
 
   .paper-ball {

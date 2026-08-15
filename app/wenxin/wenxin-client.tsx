@@ -13,7 +13,6 @@ import {
   Passage,
   getTheme,
   fmtTime,
-  ballSize,
   genId,
   splitParagraphs,
   cut,
@@ -159,7 +158,7 @@ export default function WenxinClient() {
   const [mirror, setMirror] = useState(false);
   const [pair, setPair] = useState<[Passage, Passage] | null>(null);
   const [archived, setArchived] = useState<ArchiveEntry[]>([]);
-  const [archiving, setArchiving] = useState(false);
+  const [lastAdded, setLastAdded] = useState<string | null>(null);
   const [echo, setEcho] = useState<string | null>(null);
   const [echoOut, setEchoOut] = useState(false);
   const [syncStatus, setSyncStatus] = useState<
@@ -171,7 +170,6 @@ export default function WenxinClient() {
   const syncingRef = useRef(false);
   const taRef = useRef<HTMLTextAreaElement>(null);
   const flowRef = useRef<HTMLDivElement>(null);
-  const flowEndRef = useRef<HTMLDivElement>(null);
 
   // 初始化：读取本地文字与主题（归档在 IndexedDB，异步加载）
   useEffect(() => {
@@ -405,9 +403,8 @@ export default function WenxinClient() {
 
   const hasContent = segments.some((s) => s.text.trim());
 
-  // 归档：纸面文字揉成纸团，掉落到纸团堆上
+  // 归档：输入框清空，文字在历史流末尾淡入
   const handleArchive = () => {
-    if (archiving) return;
     const text = segments
       .map((s) => s.text.trim())
       .filter(Boolean)
@@ -415,108 +412,55 @@ export default function WenxinClient() {
     if (!text) return;
 
     const entry: ArchiveEntry = { id: genId(), t: Date.now(), text };
-    const commit = () => {
-      setArchived((prev) => [...prev, entry]);
-      putEntry(entry);
-      // 清空纸面并立即持久化（不走防抖，避免归档后立刻关页面导致文字复活）
-      const blank: Segment[] = [{ id: genId(), t: Date.now(), text: '' }];
-      setSegments(blank);
-      try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(blank));
-      } catch {
-        // 静默失败
-      }
-      setArchiving(false);
-      taRef.current?.focus();
-      // 滚到历史流最底部，露出刚落进去的一条
-      requestAnimationFrame(() => {
-        const el = flowRef.current;
-        if (el) el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
-      });
-
-      // 心境分析：暂时停用（REFLECT_ENABLED）；接口保留以备后续启用
-      if (REFLECT_ENABLED && syncKey) {
-        (async () => {
-          try {
-            const rr = await fetch('/api/wenxin/reflect', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json', ...anonHeaders() },
-              body: JSON.stringify({ text }),
-            });
-            const rj = await rr.json();
-            const mood = rj?.data?.mood ?? null;
-            const guide = rj?.data?.guide ?? null;
-            if (!rr.ok || !rj?.success || (!mood && !guide)) return;
-            // 回填本地（IndexedDB 粒度更新，随下次手动同步推送）
-            setArchived((prev) =>
-              prev.map((a) => (a.id === entry.id ? { ...a, mood, guide } : a))
-            );
-            updateEntryReflection(entry.id, mood, guide);
-            // 该条目可能已被推送过（游标之后无新条目），直接补推一次分析结果
-            fetch('/api/wenxin/entries', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json', ...anonHeaders() },
-              body: JSON.stringify({
-                entries: [{ ...entry, mood, guide }],
-              }),
-            }).catch(() => {});
-          } catch {
-            // 分析失败不影响归档
-          }
-        })();
-      }
-    };
-
-    const reduceMotion = window.matchMedia(
-      '(prefers-reduced-motion: reduce)'
-    ).matches;
-    const from = taRef.current?.getBoundingClientRect();
-
-    if (reduceMotion || !from) {
-      commit();
-      return;
+    setArchived((prev) => [...prev, entry]);
+    putEntry(entry);
+    setLastAdded(entry.id);
+    // 清空纸面并立即持久化（不走防抖，避免归档后立刻关页面导致文字复活）
+    const blank: Segment[] = [{ id: genId(), t: Date.now(), text: '' }];
+    setSegments(blank);
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(blank));
+    } catch {
+      // 静默失败
     }
+    taRef.current?.focus();
+    // 滚到历史流最底部，露出刚淡入的一条
+    requestAnimationFrame(() => {
+      const el = flowRef.current;
+      if (el) el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
+    });
 
-    setArchiving(true);
-
-    // 掉落：从书写区揉成球，加速落进历史流末尾
-    const to = flowEndRef.current?.getBoundingClientRect();
-    const startX = from.left + from.width / 2;
-    const startY = Math.min(from.top + 60, window.innerHeight - 200);
-    const endX = to ? to.left + to.width / 2 : window.innerWidth / 2;
-    const endY = to ? to.top : window.innerHeight * 0.4;
-    const targetScale = ballSize(entry.text, entry.t) / 60;
-
-    const el = document.createElement('div');
-    el.className = `crumple-fly ${dark ? 'crumple-dark' : ''}`;
-    el.style.left = `${startX - 30}px`;
-    el.style.top = `${startY - 30}px`;
-    document.body.appendChild(el);
-
-    const anim = el.animate(
-      [
-        {
-          transform: 'translate(0, 0) scale(1) rotate(0deg)',
-          borderRadius: '6px',
-          offset: 0,
-        },
-        {
-          transform: `translate(${endX - startX}px, ${(endY - startY) * 0.72}px) scale(${(1 + targetScale) / 2}) rotate(170deg)`,
-          borderRadius: '40%',
-          offset: 0.72,
-        },
-        {
-          transform: `translate(${endX - startX}px, ${endY - startY}px) scale(${targetScale}) rotate(300deg)`,
-          borderRadius: '50%',
-          offset: 1,
-        },
-      ],
-      { duration: 650, easing: 'cubic-bezier(0.5, 0, 0.8, 0.4)', fill: 'forwards' }
-    );
-    anim.onfinish = () => {
-      el.remove();
-      commit();
-    };
+    // 心境分析：暂时停用（REFLECT_ENABLED）；接口保留以备后续启用
+    if (REFLECT_ENABLED && syncKey) {
+      (async () => {
+        try {
+          const rr = await fetch('/api/wenxin/reflect', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', ...anonHeaders() },
+            body: JSON.stringify({ text }),
+          });
+          const rj = await rr.json();
+          const mood = rj?.data?.mood ?? null;
+          const guide = rj?.data?.guide ?? null;
+          if (!rr.ok || !rj?.success || (!mood && !guide)) return;
+          // 回填本地（IndexedDB 粒度更新，随下次手动同步推送）
+          setArchived((prev) =>
+            prev.map((a) => (a.id === entry.id ? { ...a, mood, guide } : a))
+          );
+          updateEntryReflection(entry.id, mood, guide);
+          // 该条目可能已被推送过（游标之后无新条目），直接补推一次分析结果
+          fetch('/api/wenxin/entries', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', ...anonHeaders() },
+            body: JSON.stringify({
+              entries: [{ ...entry, mood, guide }],
+            }),
+          }).catch(() => {});
+        } catch {
+          // 分析失败不影响归档
+        }
+      })();
+    }
   };
 
   // 快捷键：Cmd/Ctrl + . 照镜子，Esc 合上
@@ -580,25 +524,26 @@ export default function WenxinClient() {
         )}
       </div>
 
-      {/* 主流区：上方历史流，输入框居于页面中央 */}
-      <main
-        className={`flex-1 flex flex-col justify-center min-h-0 transition-opacity duration-500 ${archiving ? 'opacity-0' : 'opacity-100'}`}
-      >
-        {/* 历史流：按时间先后排列，最新贴着输入框；顶部透明渐隐 */}
+      {/* 主流区：上方历史流，下方输入框，自顶向下排列 */}
+      <main className="flex-1 flex flex-col min-h-0 pt-16 md:pt-20">
+        {/* 历史流：按时间先后排列，最新贴着输入框；顶部透明渐隐。
+            高度设上限（半屏），输入区始终占据主区域 */}
         {archived.length > 0 && (
           <div
             ref={flowRef}
-            className="min-h-0 overflow-y-auto"
+            className="min-h-0 max-h-[40vh] overflow-y-auto shrink"
             style={{
-              maskImage: 'linear-gradient(to bottom, transparent 0, black 120px)',
+              maskImage: 'linear-gradient(to bottom, transparent 0, black 64px)',
               WebkitMaskImage:
-                'linear-gradient(to bottom, transparent 0, black 120px)',
+                'linear-gradient(to bottom, transparent 0, black 64px)',
             }}
           >
-            <div className="max-w-2xl mx-auto px-6 pt-28 pb-4">
+            <div className="max-w-2xl mx-auto px-6 pt-16 pb-4">
               {archived.map((a) => (
-                <div key={a.id} className="relative flex gap-5 md:gap-7">
-                  {/* 纵向时间轴：竖线贯穿列表，每条记录对应一个圆点 */}
+                <div
+                  key={a.id}
+                  className={`relative flex gap-5 md:gap-7 ${a.id === lastAdded ? 'wx-fade-in' : ''}`}
+                >                  {/* 纵向时间轴：竖线贯穿列表，每条记录对应一个圆点 */}
                   <div className="relative w-3 shrink-0">
                     <span
                       className={`absolute left-1/2 top-0 bottom-0 w-px -translate-x-1/2 opacity-70 ${theme.dividerLine}`}
@@ -621,7 +566,6 @@ export default function WenxinClient() {
                   </div>
                 </div>
               ))}
-              <div ref={flowEndRef} />
             </div>
           </div>
         )}
@@ -661,7 +605,6 @@ export default function WenxinClient() {
             <div className="mt-10 flex justify-end">
               <button
                 onClick={handleArchive}
-                disabled={archiving}
                 className={`flex items-center gap-2 px-5 py-2 rounded-full border text-xs tracking-[0.3em] transition-all duration-300 ${
                   dark
                     ? 'border-gray-800 text-gray-500 hover:text-gray-200 hover:border-gray-600'
