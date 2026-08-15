@@ -2,7 +2,14 @@
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import { Moon, Sun, Archive, X, Eye } from 'lucide-react';
+import { Moon, Sun, Archive, X, Eye, Lightbulb } from 'lucide-react';
+import {
+  Tooltip,
+  TooltipTrigger,
+  TooltipContent,
+  TooltipProvider,
+} from '@/components/ui/tooltip';
+import { Skeleton } from '@/components/ui/skeleton';
 import { useGlobalContext } from '@/app/globalContext';
 import {
   SERIF,
@@ -205,6 +212,19 @@ export default function WenxinClient() {
   const [typingId, setTypingId] = useState<string | null>(null);
   const [echo, setEcho] = useState<string | null>(null);
   const [echoOut, setEchoOut] = useState(false);
+  const [nudge, setNudge] = useState<string[] | null>(null);
+  const [nudgeOut, setNudgeOut] = useState(false);
+  const [nudgeLoading, setNudgeLoading] = useState(false);
+  const [nudgeError, setNudgeError] = useState<string | null>(null);
+  // 移动端没有悬停：引路泡泡常驻显示
+  const [isMobile, setIsMobile] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 767px)');
+    const update = () => setIsMobile(mq.matches);
+    update();
+    mq.addEventListener('change', update);
+    return () => mq.removeEventListener('change', update);
+  }, []);
   const [syncStatus, setSyncStatus] = useState<
     'local' | 'syncing' | 'synced' | 'error'
   >('local');
@@ -438,6 +458,11 @@ export default function WenxinClient() {
       setEchoOut(true);
       setTimeout(() => setEcho(null), 700);
     }
+    // 开始落笔，引路也消散（台阶已递到，接下来是用户自己的文字）
+    if (nudge && !nudgeOut) {
+      setNudgeOut(true);
+      setTimeout(() => setNudge(null), 700);
+    }
     const val = e.target.value;
     setSegments((prev) => {
       if (!prev.length) return [{ id: genId(), t: Date.now(), text: val }];
@@ -463,6 +488,31 @@ export default function WenxinClient() {
   }, [segments]);
 
   const hasContent = segments.some((s) => s.text.trim());
+
+  // 引路：卡住时点一下，AI 看着纸上内容递台阶（问题 / 句式 / 方向猜测）
+  const handleNudge = async () => {
+    if (nudgeLoading) return;
+    setNudgeLoading(true);
+    setNudgeError(null);
+    try {
+      const r = await fetch('/api/wenxin/nudge', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...anonHeaders() },
+        body: JSON.stringify({ text: activeText }),
+      });
+      const j = await r.json().catch(() => null);
+      if (!r.ok || !j?.success || !j.data?.hints?.length) {
+        setNudgeError(typeof j?.error === 'string' ? j.error : '稍后再试');
+        return;
+      }
+      setNudgeOut(false);
+      setNudge(j.data.hints);
+    } catch {
+      setNudgeError('网络开小差了，稍后再试');
+    } finally {
+      setNudgeLoading(false);
+    }
+  };
 
   // 归档：输入框清空，文字在历史流末尾淡入
   const handleArchive = () => {
@@ -679,22 +729,97 @@ export default function WenxinClient() {
             style={{ fontFamily: SERIF }}
           />
 
-          {/* 归档按钮 */}
-          {hasContent && (
-            <div className="mt-10 flex justify-end">
-              <button
-                onClick={handleArchive}
-                className={`flex items-center gap-2 px-5 py-2 rounded-full border text-xs tracking-[0.3em] transition-all duration-300 ${
-                  dark
-                    ? 'border-gray-800 text-gray-500 hover:text-gray-200 hover:border-gray-600'
-                    : 'border-[#ddd3bf] text-[#a2947a] hover:text-[#6b5f47] hover:border-[#c4b9a4]'
-                }`}
-              >
-                <Archive size={13} />
-                归档
-              </button>
+          {/* 引路区：左侧引路文字，右侧按钮，同一行 */}
+          <div className="mt-5 flex items-start gap-6">
+            {/* 左：加载骨架 / 引路提示 / 错误，打字机浮现，落笔即散 */}
+            <div className="flex-1 min-w-0">
+              {nudgeLoading && !nudge && (
+                <div className="space-y-3 pt-1">
+                  <Skeleton
+                    className={`h-3.5 w-2/3 rounded-full ${dark ? 'bg-gray-800' : 'bg-[#e8dfcc]'}`}
+                  />
+                  <Skeleton
+                    className={`h-3.5 w-1/2 rounded-full ${dark ? 'bg-gray-800' : 'bg-[#e8dfcc]'}`}
+                  />
+                </div>
+              )}
+
+              {nudge && (
+                <div
+                  className={`transition-opacity duration-700 ${nudgeOut ? 'opacity-0' : 'opacity-100'}`}
+                >
+                  <p
+                    className={`text-sm md:text-base leading-loose italic whitespace-pre-wrap ${theme.faint}`}
+                  >
+                    <Typewriter key={nudge.join('')} text={nudge.join('\n')} />
+                  </p>
+                </div>
+              )}
+
+              {nudgeError && !nudge && !nudgeLoading && (
+                <p
+                  className={`text-[10px] tracking-[0.3em] ${theme.faint} opacity-70 pt-2`}
+                >
+                  {nudgeError}
+                </p>
+              )}
             </div>
-          )}
+
+            {/* 右：引路（灯泡）在前，归档在后，固定在右侧不被文字挤动 */}
+            <div className="flex items-center gap-3 shrink-0">
+              {/* 引路：卡住时点一下，AI 看着纸上内容递个台阶。
+                  泡泡居中；移动端常驻，桌面端悬停浮现 */}
+              <TooltipProvider delayDuration={0}>
+                <Tooltip open={isMobile ? true : undefined}>
+                  <TooltipTrigger asChild>
+                    <button
+                      onClick={handleNudge}
+                      disabled={nudgeLoading}
+                      aria-label="引路"
+                      className={`w-9 h-9 rounded-full flex items-center justify-center border transition-all duration-300 hover:scale-110 ${
+                        nudgeLoading ? 'opacity-40' : ''
+                      } ${
+                        dark
+                          ? 'border-gray-700 text-gray-400 hover:text-gray-100 hover:border-gray-500'
+                          : 'border-[#ddd3bf] text-[#a2947a] hover:text-[#6b5f47] hover:border-[#c4b9a4]'
+                      }`}
+                    >
+                      <Lightbulb
+                        size={15}
+                        className={nudgeLoading ? 'animate-pulse' : ''}
+                      />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent
+                    side="top"
+                    align="center"
+                    sideOffset={6}
+                    className={`rounded-full px-3 py-1.5 text-[10px] tracking-[0.2em] ${
+                      dark
+                        ? 'bg-gray-800 text-gray-300 border-gray-700'
+                        : 'bg-white text-[#8a7f6a] border-[#e5dcc8]'
+                    }`}
+                  >
+                    引路
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+
+              {hasContent && (
+                <button
+                  onClick={handleArchive}
+                  className={`flex items-center gap-2 px-5 py-2 rounded-full border text-xs tracking-[0.3em] transition-all duration-300 ${
+                    dark
+                      ? 'border-gray-800 text-gray-500 hover:text-gray-200 hover:border-gray-600'
+                      : 'border-[#ddd3bf] text-[#a2947a] hover:text-[#6b5f47] hover:border-[#c4b9a4]'
+                  }`}
+                >
+                  <Archive size={13} />
+                  归档
+                </button>
+              )}
+            </div>
+          </div>
         </div>
       </main>
 
