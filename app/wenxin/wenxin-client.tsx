@@ -260,11 +260,12 @@ export default function WenxinClient() {
       setDark(localStorage.getItem(THEME_KEY) === 'dark');
       setLastSync(loadLastSync());
 
-      // 未登录：自动创建并注册匿名身份（首次进入即完成，无感）
+      // 未登录：仅生成本地匿名身份（不写服务端）。
+      // 注册推迟到用户主动操作（点同步 / 点引路）时进行，
+      // 避免埋点截图工具打开页面就在服务端产生空的匿名记录
       if (!userId) {
         const t = ensureAnonToken();
         setAnonId(t.id);
-        if (!isAnonRegistered()) registerAnon();
       }
 
       // 读取归档（过滤已删除的 tombstone）
@@ -332,6 +333,14 @@ export default function WenxinClient() {
     syncingRef.current = true;
     setSyncStatus('syncing');
     try {
+      // 首次手动同步：用户主动点击，此时才把匿名身份注册到服务端
+      if (!userId && !isAnonRegistered()) {
+        const registered = await registerAnon();
+        if (!registered) {
+          setSyncStatus('error');
+          return;
+        }
+      }
       // 最多两轮：匿名身份在服务端不存在（如服务端数据被重置）时，
       // 第一轮会 401 —— 强制重新注册后重试一次（自愈）
       for (let attempt = 0; attempt < 2; attempt++) {
@@ -495,6 +504,14 @@ export default function WenxinClient() {
     setNudgeLoading(true);
     setNudgeError(null);
     try {
+      // 首次点引路：用户主动操作，此时才注册匿名身份（接口需要已注册身份）
+      if (!userId && !isAnonRegistered()) {
+        const registered = await registerAnon();
+        if (!registered) {
+          setNudgeError('网络开小差了，稍后再试');
+          return;
+        }
+      }
       const r = await fetch('/api/wenxin/nudge', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...anonHeaders() },
