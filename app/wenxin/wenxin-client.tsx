@@ -34,10 +34,6 @@ import {
   anonHeaders,
   isAnonRegistered,
   registerAnon,
-  markAnonRegistered,
-  parseRecoveryCode,
-  saveAnonToken,
-  loadAnonToken,
   archiveStyles,
 } from './shared';
 
@@ -54,15 +50,18 @@ const ZEN_ASK_ENTRY = false;
 
 // 首访欢迎：历史为空时写入一封初始日记，并以打字机效果呈现（仅一次）
 const WELCOME_KEY = 'wenxin_welcome_v1';
+
+// 首访知情同意：告知本地存储 + 匿名身份，点确认后才进入（仅匿名用户，仅一次）
+const CONSENT_KEY = 'wenxin_consent_v1';
 const WELCOME_TEXT = `你终于来了，我是你的心镜。
 
-我不是内容生产工具，也不是知识管理工具，我只是一个无目的地自我观察的空间。打开，写，关掉。
+心镜是一个无目的地自我观察的空间。打开，写，关掉。
 
-吾日三省吾身，我想做你内心的一面镜子，助你照见自己。这里无账号，无分析，无总结，无追踪，所有数据存储在本地。
+吾日三省吾身，心镜就像内心的一面镜子，助你照见自己——而照见本身就是全部。
 
-你只管放心写，心镜会适时帮助你，帮你更清楚地看到自己——而看到本身就是全部。
+这里无账号，无分析，无总结，无追踪，所有数据存储在本地。
 
-向外求索，终究徒劳；向内觉知，方得圆满。`;
+点确认后，会为你自动生成一个匿名身份，本地数据可自行导出备份。`;
 
 /** 打字机：逐字显现，标点与换行处稍作停顿 */
 function Typewriter({
@@ -230,7 +229,8 @@ export default function WenxinClient() {
   >('local');
   const [lastSync, setLastSync] = useState<number | null>(null);
   const [anonId, setAnonId] = useState<string | null>(null);
-  const [showRecovery, setShowRecovery] = useState(false);
+  // 首访知情同意：默认已同意避免老用户闪现弹层，挂载后再按本地标记判定
+  const [consented, setConsented] = useState(true);
   const syncingRef = useRef(false);
   const taRef = useRef<HTMLTextAreaElement>(null);
   const flowRef = useRef<HTMLDivElement>(null);
@@ -260,19 +260,30 @@ export default function WenxinClient() {
       setDark(localStorage.getItem(THEME_KEY) === 'dark');
       setLastSync(loadLastSync());
 
-      // 未登录：仅生成本地匿名身份（不写服务端）。
-      // 注册推迟到用户主动操作（点同步 / 点引路）时进行，
+      // 未登录：读知情同意标记。未同意时不生成匿名身份、输入框禁用，
+      // 欢迎信末尾的「我明白，开始写」按钮是唯一入口（见渲染处）。
+      // 服务端注册进一步推迟到用户主动操作（点同步 / 点引路）时进行，
       // 避免埋点截图工具打开页面就在服务端产生空的匿名记录
       if (!userId) {
-        const t = ensureAnonToken();
-        setAnonId(t.id);
+        let ok = false;
+        try {
+          ok = localStorage.getItem(CONSENT_KEY) === '1';
+        } catch {
+          ok = false;
+        }
+        setConsented(ok);
+        if (ok) {
+          const t = ensureAnonToken();
+          setAnonId(t.id);
+        }
       }
 
       // 读取归档（过滤已删除的 tombstone）
       const deleted = new Set(loadDeletedIds());
       const archiveList = (await loadArchive()).filter((a) => !deleted.has(a.id));
 
-      // 首访欢迎：历史为空且从未展示过时，写入一封初始日记（打字机呈现）
+      // 首访欢迎：历史为空且从未展示过时，写入一封初始日记（打字机呈现）。
+      // 信末即知情同意说明，未同意的匿名用户读完点按钮进入
       if (archiveList.length === 0) {
         try {
           if (!localStorage.getItem(WELCOME_KEY)) {
@@ -326,10 +337,26 @@ export default function WenxinClient() {
     localStorage.setItem(THEME_KEY, dark ? 'dark' : 'light');
   }, [dark, hydrated]);
 
+  // 知情同意：点欢迎信末尾的按钮 —— 生成本地匿名身份并注册到服务端，
+  // 输入框解禁。注册是用户主动点击触发的（不阻塞进入；失败时同步/引路会再兜底注册）
+  const handleConsent = () => {
+    try {
+      localStorage.setItem(CONSENT_KEY, '1');
+    } catch {
+      // 隐私模式下静默失败：本次会话内视为已同意
+    }
+    const t = ensureAnonToken();
+    setAnonId(t.id);
+    setConsented(true);
+    registerAnon();
+    taRef.current?.focus();
+  };
+
   // 手动同步：点击"同步云端"触发 —— 先拉取合并（含 tombstone），再推送本地新条目与删除
   const syncKey = userId ?? anonId;
   const handleSync = async () => {
     if (syncingRef.current) return;
+    if (!userId && !consented) return; // 未过知情同意
     syncingRef.current = true;
     setSyncStatus('syncing');
     try {
@@ -458,7 +485,9 @@ export default function WenxinClient() {
   }, [activeText, hydrated]);
 
   useEffect(() => {
-    if (hydrated) taRef.current?.focus();
+    // 未过知情同意的匿名用户不抢焦点（输入框是禁用的）
+    if (hydrated && (userId || consented)) taRef.current?.focus();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hydrated]);
 
   const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -501,6 +530,7 @@ export default function WenxinClient() {
   // 引路：卡住时点一下，AI 看着纸上内容递台阶（问题 / 句式 / 方向猜测）
   const handleNudge = async () => {
     if (nudgeLoading) return;
+    if (!userId && !consented) return; // 未过知情同意
     setNudgeLoading(true);
     setNudgeError(null);
     try {
@@ -634,16 +664,8 @@ export default function WenxinClient() {
         )}
       </div>
 
-      {/* 同步云端：手动触发（胶囊样式沿用原登录按钮）；恢复码在左侧 */}
+      {/* 同步云端：手动触发（胶囊样式沿用原登录按钮） */}
       <div className="fixed top-2 right-0 z-40 flex items-center gap-4">
-        {!userId && (
-          <button
-            onClick={() => setShowRecovery(true)}
-            className={`text-[10px] tracking-[0.3em] opacity-50 transition-opacity hover:opacity-100 ${theme.faint}`}
-          >
-            恢复码
-          </button>
-        )}
         <button
           onClick={handleSync}
           disabled={syncStatus === 'syncing'}
@@ -716,6 +738,22 @@ export default function WenxinClient() {
           </div>
         )}
 
+        {/* 知情同意：欢迎信打完字后，信末浮出确认按钮；确认前输入框禁用 */}
+        {!userId && !consented && !typingId && (
+          <div className="max-w-2xl w-full mx-auto px-6 pb-2 shrink-0 flex justify-center">
+            <button
+              onClick={handleConsent}
+              className={`text-xs tracking-[0.3em] px-8 py-3 rounded-full border transition-all duration-300 hover:scale-105 wx-fade-in ${
+                dark
+                  ? 'border-gray-700 text-gray-300 hover:text-white hover:border-gray-500'
+                  : 'border-[#ddd3bf] text-[#6b5f47] hover:border-[#c4b9a4]'
+              }`}
+            >
+              我明白，开始写
+            </button>
+          </div>
+        )}
+
         {/* 纸：一条持续流动的文字，居于页面中央 */}
         <div className="max-w-2xl w-full mx-auto px-6 py-8 md:py-10 shrink-0">
           {/* 回声：旧碎片无端浮现，落笔即散（ECHO_ENABLED 关闭时不出现） */}
@@ -742,11 +780,13 @@ export default function WenxinClient() {
             onChange={handleChange}
             placeholder="此刻心里有什么，就写什么"
             rows={3}
-            className={`w-full bg-transparent border-none outline-none resize-none overflow-hidden text-base md:text-lg leading-loose ${theme.caret} ${theme.placeholder}`}
+            disabled={!userId && !consented}
+            className={`w-full bg-transparent border-none outline-none resize-none overflow-hidden text-base md:text-lg leading-loose ${theme.caret} ${theme.placeholder} ${!userId && !consented ? 'opacity-30' : ''}`}
             style={{ fontFamily: SERIF }}
           />
 
-          {/* 引路区：左侧引路文字，右侧按钮，同一行 */}
+          {/* 引路区：左侧引路文字，右侧按钮，同一行（确认前隐藏） */}
+          {(userId || consented) && (
           <div className="mt-5 flex items-start gap-6">
             {/* 左：加载骨架 / 引路提示 / 错误，打字机浮现，落笔即散 */}
             <div className="flex-1 min-w-0">
@@ -837,6 +877,7 @@ export default function WenxinClient() {
               )}
             </div>
           </div>
+          )}
         </div>
       </main>
 
@@ -872,15 +913,6 @@ export default function WenxinClient() {
           <Eye size={17} />
         </button>
       </div>
-
-      {/* 恢复码：匿名身份的全部凭证 */}
-      {showRecovery && (
-        <RecoveryModal
-          dark={dark}
-          theme={theme}
-          onClose={() => setShowRecovery(false)}
-        />
-      )}
 
       {/* 见（镜）：两个不同时刻的自己 */}
       {mirror && (
@@ -921,150 +953,6 @@ export default function WenxinClient() {
   );
 }
 
-/** 恢复码弹窗：展示本机身份码（抄下来收好），或输入旧码恢复身份 */
-function RecoveryModal({
-  dark,
-  theme,
-  onClose,
-}: {
-  dark: boolean;
-  theme: { faint: string };
-  onClose: () => void;
-}) {
-  const [copied, setCopied] = useState(false);
-  const [restoreInput, setRestoreInput] = useState('');
-  const [restoreError, setRestoreError] = useState<string | null>(null);
-  const [restoring, setRestoring] = useState(false);
-  const token = loadAnonToken();
-  const code = token ? `${token.id}.${token.secret}` : '';
-
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
-
-  const handleCopy = async () => {
-    try {
-      await navigator.clipboard.writeText(code);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch {
-      // 剪贴板不可用时用户可自行全选复制
-    }
-  };
-
-  // 恢复：校验格式 → 本地保存 → 服务端校验（幂等注册）→ 重载拉取数据
-  const handleRestore = async () => {
-    const parsed = parseRecoveryCode(restoreInput);
-    if (!parsed) {
-      setRestoreError('恢复码格式不对');
-      return;
-    }
-    setRestoring(true);
-    setRestoreError(null);
-    try {
-      saveAnonToken(parsed);
-      const res = await fetch('/api/wenxin/anon/register', {
-        method: 'POST',
-        headers: { 'x-wenxin-token': `${parsed.id}.${parsed.secret}` },
-      });
-      const json = await res.json().catch(() => null);
-      if (!res.ok || !json?.success) {
-        setRestoreError(
-          res.status === 409 ? '恢复码不对，身份对不上' : '恢复失败，请稍后再试'
-        );
-        setRestoring(false);
-        return;
-      }
-      markAnonRegistered();
-      window.location.reload();
-    } catch {
-      setRestoreError('恢复失败，请检查网络');
-      setRestoring(false);
-    }
-  };
-
-  return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-black/30 backdrop-blur-sm"
-      onClick={onClose}
-    >
-      <div
-        className={`w-full max-w-md p-8 md:p-10 rounded-sm shadow-2xl ${
-          dark ? 'bg-[#17171a] text-gray-300' : 'bg-[#fbf7ec] text-[#33302a]'
-        }`}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <p className={`text-[10px] tracking-[0.4em] ${theme.faint} mb-6`}>
-          恢复码
-        </p>
-        <p className="text-sm leading-loose opacity-80 mb-6">
-          这串代码是你在问心的全部身份 —— 没有账号，没有密码。抄下来收好；换设备时在下方输入它，字就跟过来。
-        </p>
-
-        {code && (
-          <>
-            <p
-              className={`text-xs leading-relaxed break-all select-all p-4 rounded-sm mb-4 ${
-                dark ? 'bg-black/40 text-gray-400' : 'bg-[#f1ead9] text-[#6b5f47]'
-              }`}
-            >
-              {code}
-            </p>
-            <div className="flex justify-end mb-8">
-              <button
-                onClick={handleCopy}
-                className={`text-[10px] tracking-[0.3em] transition-opacity opacity-60 hover:opacity-100 ${theme.faint}`}
-              >
-                {copied ? '已复制' : '复制'}
-              </button>
-            </div>
-          </>
-        )}
-
-        <p className={`text-[10px] tracking-[0.4em] ${theme.faint} mb-4`}>
-          用旧码恢复
-        </p>
-        <textarea
-          value={restoreInput}
-          onChange={(e) => setRestoreInput(e.target.value)}
-          placeholder="粘贴之前收好的恢复码"
-          rows={2}
-          className={`w-full text-xs leading-relaxed p-3 rounded-sm bg-transparent border outline-none resize-none mb-3 ${
-            dark
-              ? 'border-gray-800 placeholder-gray-700'
-              : 'border-[#e0d6c0] placeholder-[#cfc4ae]'
-          }`}
-        />
-        {restoreError && (
-          <p
-            className={`text-[10px] tracking-[0.2em] mb-3 ${
-              dark ? 'text-red-400' : 'text-red-700'
-            }`}
-          >
-            {restoreError}
-          </p>
-        )}
-        <div className="flex justify-end">
-          <button
-            onClick={handleRestore}
-            disabled={restoring || !restoreInput.trim()}
-            className={`text-[10px] tracking-[0.3em] transition-opacity ${
-              restoring || !restoreInput.trim()
-                ? 'opacity-30'
-                : 'opacity-60 hover:opacity-100'
-            } ${theme.faint}`}
-          >
-            {restoring ? '恢复中' : '恢复'}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 function MirrorSide({
   label,
