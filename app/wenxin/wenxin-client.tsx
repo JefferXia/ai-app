@@ -527,6 +527,34 @@ export default function WenxinClient() {
 
   const hasContent = segments.some((s) => s.text.trim());
 
+  // 导出笔记：全部归档 + 纸上未归档的文字，存为 Markdown 下载（纯本地，不过服务端）
+  const handleExport = () => {
+    const pad = (n: number) => String(n).padStart(2, '0');
+    const stamp = (t: number) => {
+      const d = new Date(t);
+      return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    };
+    const parts: string[] = [];
+    for (const a of [...archived].sort((x, y) => x.t - y.t)) {
+      parts.push(`## ${stamp(a.t)}\n\n${a.text}`);
+    }
+    const draft = activeText.trim();
+    if (draft) parts.push(`## 纸上（未归档）\n\n${draft}`);
+    if (parts.length === 0) return;
+
+    const now = new Date();
+    const name = `心镜-${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}.md`;
+    const blob = new Blob([parts.join('\n\n---\n\n')], {
+      type: 'text/markdown;charset=utf-8',
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = name;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   // 引路：卡住时点一下，AI 看着纸上内容递台阶（问题 / 句式 / 方向猜测）
   const handleNudge = async () => {
     if (nudgeLoading) return;
@@ -664,8 +692,8 @@ export default function WenxinClient() {
         )}
       </div>
 
-      {/* 同步云端：手动触发（胶囊样式沿用原登录按钮） */}
-      <div className="fixed top-2 right-0 z-40 flex items-center gap-4">
+      {/* 右上：同步云端 + 导出笔记（纵排胶囊） */}
+      <div className="fixed top-2 right-0 z-40 flex flex-col items-end gap-2">
         <button
           onClick={handleSync}
           disabled={syncStatus === 'syncing'}
@@ -677,8 +705,16 @@ export default function WenxinClient() {
               ? `已同步${lastSync ? ` · ${fmtTime(lastSync)}` : ''}`
               : syncStatus === 'error'
                 ? '同步失败 · 重试'
-                : '跨端同步'}
+                : '同步云端'}
         </button>
+        {(archived.length > 0 || hasContent) && (
+          <button
+            onClick={handleExport}
+            className="h-9 inline-flex items-center px-4 bg-black/15 backdrop-blur-sm rounded-l-full text-white/70 hover:text-white hover:bg-black/30 transition-colors text-xs tracking-[0.2em]"
+          >
+            导出笔记
+          </button>
+        )}
       </div>
 
       {/* 主流区：上方历史流，下方输入框，自顶向下排列 */}
