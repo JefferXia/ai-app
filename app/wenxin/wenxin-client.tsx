@@ -3,12 +3,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { Moon, Sun, Archive, X, Eye, Lightbulb } from 'lucide-react';
-import {
-  Tooltip,
-  TooltipTrigger,
-  TooltipContent,
-  TooltipProvider,
-} from '@/components/ui/tooltip';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useGlobalContext } from '@/app/globalContext';
 import {
@@ -215,15 +209,6 @@ export default function WenxinClient() {
   const [nudgeOut, setNudgeOut] = useState(false);
   const [nudgeLoading, setNudgeLoading] = useState(false);
   const [nudgeError, setNudgeError] = useState<string | null>(null);
-  // 移动端没有悬停：引路泡泡常驻显示
-  const [isMobile, setIsMobile] = useState(false);
-  useEffect(() => {
-    const mq = window.matchMedia('(max-width: 767px)');
-    const update = () => setIsMobile(mq.matches);
-    update();
-    mq.addEventListener('change', update);
-    return () => mq.removeEventListener('change', update);
-  }, []);
   const [syncStatus, setSyncStatus] = useState<
     'local' | 'syncing' | 'synced' | 'error'
   >('local');
@@ -821,11 +806,63 @@ export default function WenxinClient() {
             style={{ fontFamily: SERIF }}
           />
 
-          {/* 引路区：左侧引路文字，右侧按钮，同一行（确认前隐藏） */}
+          {/* 操作区：按钮一行（左：引路、照见；右：归档），引路文案另起一行（确认前隐藏） */}
           {(userId || consented) && (
-          <div className="mt-5 flex items-start gap-6">
-            {/* 左：加载骨架 / 引路提示 / 错误，打字机浮现，落笔即散 */}
-            <div className="flex-1 min-w-0">
+          <div className="mt-5">
+            {/* 按钮行 */}
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-4">
+                {/* 引路：卡住时点一下，AI 看着纸上内容递个台阶。
+                    次级动作：幽灵样式（无边框、小号），与主动作「归档」拉开层级 */}
+                <button
+                  onClick={handleNudge}
+                  disabled={nudgeLoading}
+                  className={`flex items-center gap-1.5 px-1 py-1 text-[12px] tracking-[0.25em] transition-colors duration-300 ${
+                    nudgeLoading ? 'opacity-40' : ''
+                  } ${
+                    dark
+                      ? 'text-gray-600 hover:text-gray-300'
+                      : 'text-[#bfb299] hover:text-[#6b5f47]'
+                  }`}
+                >
+                  <Lightbulb
+                    size={13}
+                    className={nudgeLoading ? 'animate-pulse' : ''}
+                  />
+                  引路
+                </button>
+
+                {/* 照见：随机抽两段不同时刻的文字，左右对照（⌘.） */}
+                <button
+                  onClick={toggleMirror}
+                  className={`flex items-center gap-1.5 px-1 py-1 text-[12px] tracking-[0.25em] transition-colors duration-300 ${
+                    dark
+                      ? 'text-gray-600 hover:text-gray-300'
+                      : 'text-[#bfb299] hover:text-[#6b5f47]'
+                  }`}
+                >
+                  <Eye size={13} />
+                  照见
+                </button>
+              </div>
+
+              {hasContent && (
+                <button
+                  onClick={handleArchive}
+                  className={`flex items-center gap-2 px-5 py-2 rounded-full border text-xs tracking-[0.3em] transition-all duration-300 ${
+                    dark
+                      ? 'border-gray-800 text-gray-500 hover:text-gray-200 hover:border-gray-600'
+                      : 'border-[#ddd3bf] text-[#a2947a] hover:text-[#6b5f47] hover:border-[#c4b9a4]'
+                  }`}
+                >
+                  <Archive size={13} />
+                  归档
+                </button>
+              )}
+            </div>
+
+            {/* 引路文案：另起一行，加载骨架 / 引路提示 / 错误，打字机浮现，落笔即散 */}
+            <div className="mt-4 min-w-0">
               {nudgeLoading && !nudge && (
                 <div className="space-y-3 pt-1">
                   <Skeleton
@@ -857,61 +894,6 @@ export default function WenxinClient() {
                 </p>
               )}
             </div>
-
-            {/* 右：引路（灯泡）在前，归档在后，固定在右侧不被文字挤动 */}
-            <div className="flex items-center gap-3 shrink-0">
-              {/* 引路：卡住时点一下，AI 看着纸上内容递个台阶。
-                  泡泡居中；移动端常驻，桌面端悬停浮现 */}
-              <TooltipProvider delayDuration={0}>
-                <Tooltip open={isMobile ? true : undefined}>
-                  <TooltipTrigger asChild>
-                    <button
-                      onClick={handleNudge}
-                      disabled={nudgeLoading}
-                      aria-label="引路"
-                      className={`w-9 h-9 rounded-full flex items-center justify-center border transition-all duration-300 hover:scale-110 ${
-                        nudgeLoading ? 'opacity-40' : ''
-                      } ${
-                        dark
-                          ? 'border-gray-700 text-gray-400 hover:text-gray-100 hover:border-gray-500'
-                          : 'border-[#ddd3bf] text-[#a2947a] hover:text-[#6b5f47] hover:border-[#c4b9a4]'
-                      }`}
-                    >
-                      <Lightbulb
-                        size={15}
-                        className={nudgeLoading ? 'animate-pulse' : ''}
-                      />
-                    </button>
-                  </TooltipTrigger>
-                  <TooltipContent
-                    side="top"
-                    align="center"
-                    sideOffset={6}
-                    className={`rounded-full px-3 py-1.5 text-[10px] tracking-[0.2em] ${
-                      dark
-                        ? 'bg-gray-800 text-gray-300 border-gray-700'
-                        : 'bg-white text-[#8a7f6a] border-[#e5dcc8]'
-                    }`}
-                  >
-                    引路
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-
-              {hasContent && (
-                <button
-                  onClick={handleArchive}
-                  className={`flex items-center gap-2 px-5 py-2 rounded-full border text-xs tracking-[0.3em] transition-all duration-300 ${
-                    dark
-                      ? 'border-gray-800 text-gray-500 hover:text-gray-200 hover:border-gray-600'
-                      : 'border-[#ddd3bf] text-[#a2947a] hover:text-[#6b5f47] hover:border-[#c4b9a4]'
-                  }`}
-                >
-                  <Archive size={13} />
-                  归档
-                </button>
-              )}
-            </div>
           </div>
           )}
         </div>
@@ -925,30 +907,6 @@ export default function WenxinClient() {
       >
         {dark ? <Sun size={16} /> : <Moon size={16} />}
       </button>
-
-      {/* 镜子：右下角悬浮按钮（带提示气泡） */}
-      <div className="fixed bottom-6 right-6 z-40 group flex items-center">
-        <span
-          className={`pointer-events-none absolute right-14 whitespace-nowrap rounded-full px-3 py-1.5 text-[10px] tracking-[0.2em] opacity-0 translate-x-1 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-300 shadow-md ${
-            dark
-              ? 'bg-gray-800 text-gray-300 border border-gray-700'
-              : 'bg-white text-[#8a7f6a] border border-[#e5dcc8]'
-          }`}
-        >
-          照见自己 · ⌘.
-        </span>
-        <button
-          onClick={toggleMirror}
-          aria-label="镜子"
-          className={`w-11 h-11 rounded-full flex items-center justify-center border shadow-lg backdrop-blur transition-all duration-300 hover:scale-110 ${
-            dark
-              ? 'bg-gray-900/80 border-gray-700 text-gray-300 hover:text-white hover:border-gray-500'
-              : 'bg-white/85 border-[#e0d6c0] text-[#8a7f6a] hover:text-[#6b5f47] hover:border-[#c4b9a4]'
-          }`}
-        >
-          <Eye size={17} />
-        </button>
-      </div>
 
       {/* 见（镜）：两个不同时刻的自己 */}
       {mirror && (
