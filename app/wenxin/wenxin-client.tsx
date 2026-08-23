@@ -2,7 +2,17 @@
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import { Moon, Sun, Archive, X, Eye, Lightbulb } from 'lucide-react';
+import {
+  Moon,
+  Sun,
+  Archive,
+  X,
+  Eye,
+  Lightbulb,
+  PanelRight,
+  CloudUpload,
+  Download,
+} from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useGlobalContext } from '@/app/globalContext';
 import {
@@ -199,6 +209,7 @@ export default function WenxinClient() {
   const [segments, setSegments] = useState<Segment[]>([]);
   const [dark, setDark] = useState(false);
   const [mirror, setMirror] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
   const [pair, setPair] = useState<[Passage, Passage] | null>(null);
   const [archived, setArchived] = useState<ArchiveEntry[]>([]);
   const [lastAdded, setLastAdded] = useState<string | null>(null);
@@ -594,6 +605,12 @@ export default function WenxinClient() {
     } catch {
       // 静默失败
     }
+    // 归档即翻篇：引路文字/错误一并淡出
+    if (nudge && !nudgeOut) {
+      setNudgeOut(true);
+      setTimeout(() => setNudge(null), 700);
+    }
+    setNudgeError(null);
     taRef.current?.focus();
     // 滚到历史流最底部，露出刚淡入的一条
     requestAnimationFrame(() => {
@@ -642,6 +659,7 @@ export default function WenxinClient() {
         toggleMirror();
       } else if (e.key === 'Escape') {
         setMirror(false);
+        setMenuOpen(false);
       }
     };
     window.addEventListener('keydown', onKey);
@@ -655,6 +673,7 @@ export default function WenxinClient() {
   }
 
   return (
+    <>
     <div
       className={`h-screen h-dvh flex flex-col overflow-hidden transition-colors duration-500 ${theme.page}`}
       style={{ fontFamily: SERIF }}
@@ -674,31 +693,6 @@ export default function WenxinClient() {
           >
             禅问
           </Link>
-        )}
-      </div>
-
-      {/* 右上：同步云端 + 导出笔记（纵排胶囊） */}
-      <div className="fixed top-2 right-0 z-40 flex flex-col items-end gap-2">
-        <button
-          onClick={handleSync}
-          disabled={syncStatus === 'syncing'}
-          className="h-9 inline-flex items-center px-4 bg-black/30 backdrop-blur-sm rounded-l-full text-white/80 hover:text-white hover:bg-black/40 transition-colors text-xs tracking-[0.2em]"
-        >
-          {syncStatus === 'syncing'
-            ? '同步中'
-            : syncStatus === 'synced'
-              ? `已同步${lastSync ? ` · ${fmtTime(lastSync)}` : ''}`
-              : syncStatus === 'error'
-                ? '同步失败 · 重试'
-                : '同步云端'}
-        </button>
-        {(archived.length > 0 || hasContent) && (
-          <button
-            onClick={handleExport}
-            className="h-9 inline-flex items-center px-4 bg-black/15 backdrop-blur-sm rounded-l-full text-white/70 hover:text-white hover:bg-black/30 transition-colors text-xs tracking-[0.2em]"
-          >
-            导出笔记
-          </button>
         )}
       </div>
 
@@ -899,15 +893,6 @@ export default function WenxinClient() {
         </div>
       </main>
 
-      {/* 暗色开关：左下角 */}
-      <button
-        onClick={() => setDark((d) => !d)}
-        aria-label="切换暗色"
-        className={`fixed bottom-6 left-6 z-40 transition-opacity opacity-60 hover:opacity-100 ${dark ? 'text-gray-400' : 'text-[#8a7f6a]'}`}
-      >
-        {dark ? <Sun size={16} /> : <Moon size={16} />}
-      </button>
-
       {/* 见（镜）：两个不同时刻的自己 */}
       {mirror && (
         <div
@@ -944,6 +929,104 @@ export default function WenxinClient() {
         </div>
       )}
     </div>
+
+    {/* 悬浮菜单开关：右上角 */}
+    <button
+      onClick={() => setMenuOpen((o) => !o)}
+      aria-label="打开菜单"
+      className={`fixed top-5 right-5 z-40 transition-opacity opacity-60 hover:opacity-100 ${dark ? 'text-gray-400' : 'text-[#8a7f6a]'}`}
+    >
+      <PanelRight size={16} />
+    </button>
+
+    {/* 移动端遮罩：点空白处合上 */}
+    {menuOpen && (
+      <div
+        className="fixed inset-0 z-40 bg-black/20 md:hidden"
+        onClick={() => setMenuOpen(false)}
+      />
+    )}
+
+    {/* 悬浮菜单：覆盖在页面上（fixed），不改变布局；白底 + 左边框阴影 */}
+    <aside
+      className={`fixed inset-y-0 right-0 z-50 w-60 flex flex-col border-l transition-transform duration-300 ease-in-out ${
+        menuOpen ? 'translate-x-0' : 'translate-x-full'
+      } ${
+        dark
+          ? 'bg-[#111112] border-gray-800 text-gray-300 shadow-[-16px_0_40px_rgba(0,0,0,0.5)]'
+          : 'bg-white border-[#eee5d3] text-[#6b5f47] shadow-[-16px_0_40px_rgba(107,95,71,0.12)]'
+      }`}
+      style={{ fontFamily: SERIF }}
+    >
+      <div className="flex items-center justify-between px-5 pt-6 pb-3">
+        <span className="text-[11px] tracking-[0.4em] opacity-60">心镜</span>
+        <button
+          onClick={() => setMenuOpen(false)}
+          aria-label="合上菜单"
+          className="opacity-50 hover:opacity-100 transition-opacity"
+        >
+          <X size={15} />
+        </button>
+      </div>
+
+      <nav className="flex-1 px-3 flex flex-col gap-1">
+        {[
+          {
+            icon: (
+              <CloudUpload
+                size={15}
+                className={`shrink-0 opacity-70 ${syncStatus === 'syncing' ? 'animate-pulse' : ''}`}
+              />
+            ),
+            label:
+              syncStatus === 'syncing'
+                ? '同步中…'
+                : syncStatus === 'synced'
+                  ? `已同步${lastSync ? ` · ${fmtTime(lastSync)}` : ''}`
+                  : syncStatus === 'error'
+                    ? '同步失败 · 重试'
+                    : '同步云端',
+            onClick: handleSync,
+            disabled: syncStatus === 'syncing',
+          },
+          {
+            icon: <Download size={15} className="shrink-0 opacity-70" />,
+            label: '导出笔记',
+            onClick: handleExport,
+            disabled: archived.length === 0 && !hasContent,
+          },
+        ].map((item) => (
+          <button
+            key={item.label}
+            onClick={item.onClick}
+            disabled={item.disabled}
+            className={`flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-[13px] tracking-[0.15em] transition-colors disabled:opacity-40 ${
+              dark ? 'hover:bg-white/5' : 'hover:bg-[#f6f1e7]'
+            }`}
+          >
+            {item.icon}
+            <span>{item.label}</span>
+          </button>
+        ))}
+      </nav>
+
+      <div className="px-3 pb-6">
+        <button
+          onClick={() => setDark((d) => !d)}
+          className={`flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-[13px] tracking-[0.15em] transition-colors ${
+            dark ? 'hover:bg-white/5' : 'hover:bg-[#f6f1e7]'
+          }`}
+        >
+          {dark ? (
+            <Sun size={15} className="shrink-0 opacity-70" />
+          ) : (
+            <Moon size={15} className="shrink-0 opacity-70" />
+          )}
+          <span>{dark ? '亮色模式' : '暗色模式'}</span>
+        </button>
+      </div>
+    </aside>
+    </>
   );
 }
 
