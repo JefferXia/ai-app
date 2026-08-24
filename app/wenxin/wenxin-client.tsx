@@ -697,7 +697,7 @@ export default function WenxinClient() {
       </div>
 
       {/* 主流区：上方历史流，下方输入框，自顶向下排列 */}
-      <main className="flex-1 flex flex-col min-h-0 pt-16 md:pt-20">
+      <main className="flex-1 flex flex-col min-h-0 pt-8">
         {/* 历史流：按时间先后排列，最新贴着输入框；顶部透明渐隐。
             高度设上限（半屏），输入区始终占据主区域 */}
         {archived.length > 0 && (
