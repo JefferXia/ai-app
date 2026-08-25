@@ -170,36 +170,62 @@ function saveLastSync(t: number) {
   }
 }
 
-/** 从不同时间的文字中随机抽两段，不分析、不总结 */
-function pickPair(segments: Segment[]): [Passage, Passage] | null {
-  const nonEmpty = segments.filter((s) => s.text.trim());
+/** 中文字二元组：去空白标点后取相邻两字，衡量两段文字的主题重叠度 */
+function bigrams(s: string): Set<string> {
+  const clean = s.replace(/[\s\p{P}\p{S}]/gu, '');
+  const set = new Set<string>();
+  for (let i = 0; i < clean.length - 1; i++) set.add(clean.slice(i, i + 2));
+  return set;
+}
 
-  if (nonEmpty.length >= 2) {
-    const i = Math.floor(Math.random() * nonEmpty.length);
-    let j = Math.floor(Math.random() * (nonEmpty.length - 1));
-    if (j >= i) j++;
-    const pick = (s: Segment): Passage => {
-      const paras = splitParagraphs(s.text);
-      const p = paras[Math.floor(Math.random() * paras.length)] ?? s.text;
-      return { text: cut(p), t: s.t };
-    };
-    return [pick(nonEmpty[i]), pick(nonEmpty[j])];
-  }
+/** 照见：拿纸上此刻的话，去归档里找主题最贴近的一段过去（不分析、不总结）。
+ *  相似度 = 此刻文字的 bigram 在过去的覆盖率；同一话题（恐惧、爱情、目标…）
+ *  不同时刻说着不同甚至矛盾的话，矛盾本身就是洞察 */
+function matchPair(
+  current: string,
+  archived: ArchiveEntry[]
+): [Passage, Passage] | null {
+  const cur = current.trim();
+  const curGrams = bigrams(cur);
+  if (curGrams.size < 4) return null;
 
-  if (nonEmpty.length === 1) {
-    const paras = splitParagraphs(nonEmpty[0].text);
-    if (paras.length >= 2) {
-      const i = Math.floor(Math.random() * paras.length);
-      let j = Math.floor(Math.random() * (paras.length - 1));
-      if (j >= i) j++;
-      return [
-        { text: cut(paras[i]), t: nonEmpty[0].t },
-        { text: cut(paras[j]), t: nonEmpty[0].t },
-      ];
+  // 归档里找整体覆盖率最高的一条（排除欢迎信）
+  let best: ArchiveEntry | null = null;
+  let bestScore = 0;
+  for (const a of archived) {
+    if (a.text === WELCOME_TEXT) continue;
+    const g = bigrams(a.text);
+    if (!g.size) continue;
+    let hit = 0;
+    for (const x of curGrams) if (g.has(x)) hit++;
+    const score = hit / curGrams.size;
+    if (score > bestScore) {
+      bestScore = score;
+      best = a;
     }
   }
+  // 阈值：低于 8% 基本是「的/我/是」这类背景噪音，不硬凑
+  if (!best || bestScore < 0.08) return null;
 
-  return null;
+  // 在这条归档里挑重叠最多的自然段
+  let bestPara = '';
+  let bestParaScore = -1;
+  for (const p of splitParagraphs(best.text)) {
+    const g = bigrams(p);
+    let hit = 0;
+    for (const x of curGrams) if (g.has(x)) hit++;
+    const s = hit / curGrams.size;
+    if (s > bestParaScore) {
+      bestParaScore = s;
+      bestPara = p;
+    }
+  }
+  if (!bestPara) return null;
+
+  return [
+    { text: cut(splitParagraphs(cur)[0] ?? cur), t: 0 }, // t=0 → 展示「此刻」
+    { text: cut(bestPara), t: best.t },
+  ];
 }
 
 export default function WenxinClient() {
@@ -516,10 +542,10 @@ export default function WenxinClient() {
   const toggleMirror = useCallback(() => {
     setMirror((prev) => {
       const next = !prev;
-      if (next) setPair(pickPair(segments));
+      if (next) setPair(matchPair(activeText, archived));
       return next;
     });
-  }, [segments]);
+  }, [activeText, archived]);
 
   const hasContent = segments.some((s) => s.text.trim());
 
@@ -917,7 +943,7 @@ export default function WenxinClient() {
               <p
                 className={`md:col-span-2 text-center text-sm tracking-[0.3em] ${theme.faint} pt-24`}
               >
-                镜中无物 —— 再多写一些
+                镜中无物 —— 写点什么，与过去的自己相认
               </p>
             )}
           </div>
@@ -1046,7 +1072,7 @@ function MirrorSide({
         {label}
       </p>
       <p className={`text-[10px] tracking-[0.2em] ${theme.dividerText} mb-6`}>
-        {fmtTime(passage.t)}
+        {passage.t ? fmtTime(passage.t) : '此刻'}
       </p>
       <p
         className="text-lg md:text-xl leading-loose whitespace-pre-wrap"
