@@ -16,12 +16,23 @@ export interface Segment {
   text: string;
 }
 
+// 禅问书单一本（字段全部可选，对应 lib/zen-ask.ts 的 BookCard）
+export interface ZenBook {
+  title?: string;
+  author?: string;
+  chapter?: string;
+  original_quote?: string;
+  recommendation_reason?: string;
+}
+
 export interface ArchiveEntry {
   id: string; // 稳定 id（跨端合并与去重键）
   t: number; // 归档时间
   text: string;
   mood?: string | null; // AI 匹配的十种心境之一
   guide?: string | null; // 觉知者的从旁引导（一句话）
+  sting?: string | null; // 归档时翻书（禅问）得到的金句
+  books?: ZenBook[] | null; // 对症书单
   deleted?: boolean; // 服务端软删除标记（tombstone），仅同步拉取时出现
 }
 

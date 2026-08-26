@@ -12,8 +12,15 @@ import {
   PanelRight,
   CloudUpload,
   Download,
+  BookOpen,
 } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
+import {
+  Drawer,
+  DrawerContent,
+  DrawerHeader,
+  DrawerTitle,
+} from '@/components/ui/drawer';
 import { useGlobalContext } from '@/app/globalContext';
 import {
   SERIF,
@@ -21,6 +28,7 @@ import {
   THEME_KEY,
   Segment,
   ArchiveEntry,
+  ZenBook,
   Passage,
   getTheme,
   fmtTime,
@@ -110,11 +118,17 @@ function mergeArchive(
     fingerprint.add(fp);
     const key = a.id ?? `t${a.t}`;
     const existing = map.get(key);
-    // 同 id 合并：mood/guide 可能被另一端补全，优先保留非空值
+    // 同 id 合并：mood/guide/sting/books 可能被另一端补全，优先保留非空值
     map.set(
       key,
       existing
-        ? { ...a, mood: a.mood ?? existing.mood, guide: a.guide ?? existing.guide }
+        ? {
+            ...a,
+            mood: a.mood ?? existing.mood,
+            guide: a.guide ?? existing.guide,
+            sting: a.sting ?? existing.sting,
+            books: a.books ?? existing.books,
+          }
         : a
     );
   });
@@ -246,6 +260,12 @@ export default function WenxinClient() {
   const [nudgeOut, setNudgeOut] = useState(false);
   const [nudgeLoading, setNudgeLoading] = useState(false);
   const [nudgeError, setNudgeError] = useState<string | null>(null);
+  // 翻书：禅问接口按纸上内容配的书单（展示在上拉层）
+  const [books, setBooks] = useState<ZenBook[] | null>(null);
+  const [booksLoading, setBooksLoading] = useState(false);
+  const [booksError, setBooksError] = useState<string | null>(null);
+  const [sting, setSting] = useState<string | null>(null);
+  const [bookOpen, setBookOpen] = useState(false);
   const [syncStatus, setSyncStatus] = useState<
     'local' | 'syncing' | 'synced' | 'error'
   >('local');
@@ -611,6 +631,53 @@ export default function WenxinClient() {
     }
   };
 
+  // 翻书：把纸上此刻的话交给禅问接口，换回一份对症书单（匿名可用，无需注册）。
+  // 纸上文字没变时再次点击只是重新拉开上拉层，不重复请求
+  const booksTextRef = useRef<string>('');
+  const handleBooks = async () => {
+    if (booksLoading) return;
+    const text = activeText.trim();
+    if (!text) return; // 按钮在无内容时本就禁用，双保险
+    if (books && booksTextRef.current === text) {
+      setBookOpen(true);
+      return;
+    }
+    setBooksLoading(true);
+    setBooksError(null);
+    setBookOpen(true);
+    try {
+      const r = await fetch('/api/ask', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: text.slice(0, 1000) }),
+      });
+      const j = await r.json().catch(() => null);
+      const cards = j?.data?.answer?.content?.book_cards;
+      if (!r.ok || !j?.success || !Array.isArray(cards) || !cards.length) {
+        setBooksError(typeof j?.error === 'string' ? j.error : '书架空空的，稍后再试');
+        return;
+      }
+      setBooks(cards.slice(0, 6));
+      booksTextRef.current = text;
+      const s = j?.data?.answer?.content?.sting_text;
+      setSting(typeof s === 'string' && s.trim() ? s.trim() : null);
+    } catch {
+      setBooksError('网络开小差了，稍后再试');
+    } finally {
+      setBooksLoading(false);
+    }
+  };
+
+  // 打开归档条目里封存的书单（历史流上的「对症书单 · N 本」入口）
+  const openEntryBooks = (a: ArchiveEntry) => {
+    setBooks(a.books ?? null);
+    setSting(a.sting ?? null);
+    setBooksError(null);
+    // 书单来源换成历史条目：下次点翻书应对纸上文字重新请求
+    booksTextRef.current = '';
+    setBookOpen(true);
+  };
+
   // 归档：输入框清空，文字在历史流末尾淡入
   const handleArchive = () => {
     const text = segments
@@ -619,7 +686,14 @@ export default function WenxinClient() {
       .join('\n\n');
     if (!text) return;
 
-    const entry: ArchiveEntry = { id: genId(), t: Date.now(), text };
+    const entry: ArchiveEntry = {
+      id: genId(),
+      t: Date.now(),
+      text,
+      // 翻书结果随归档一起封存（本地 IndexedDB + 下次同步推云端）
+      ...(sting ? { sting } : {}),
+      ...(books?.length ? { books } : {}),
+    };
     setArchived((prev) => [...prev, entry]);
     putEntry(entry);
     setLastAdded(entry.id);
@@ -637,6 +711,11 @@ export default function WenxinClient() {
       setTimeout(() => setNudge(null), 700);
     }
     setNudgeError(null);
+    // 书单也随翻篇合上
+    setBooks(null);
+    setSting(null);
+    setBooksError(null);
+    setBookOpen(false);
     taRef.current?.focus();
     // 滚到历史流最底部，露出刚淡入的一条
     requestAnimationFrame(() => {
@@ -772,6 +851,20 @@ export default function WenxinClient() {
                         a.text
                       )}
                     </p>
+                    {/* 翻书封存的书单：点开上拉层回看 */}
+                    {a.books && a.books.length > 0 && (
+                      <button
+                        onClick={() => openEntryBooks(a)}
+                        className={`mt-3 inline-flex items-center gap-1.5 text-[11px] tracking-[0.2em] transition-colors ${
+                          dark
+                            ? 'text-gray-600 hover:text-gray-400'
+                            : 'text-[#bfb299] hover:text-[#6b5f47]'
+                        }`}
+                      >
+                        <BookOpen size={12} />
+                        对症书单 · {a.books.length} 本
+                      </button>
+                    )}
                   </div>
                 </div>
               ))}
@@ -863,6 +956,25 @@ export default function WenxinClient() {
                 >
                   <Eye size={13} />
                   照见
+                </button>
+
+                {/* 翻书：纸上此刻的话，禅问配一份对症书单（上拉层展示） */}
+                <button
+                  onClick={handleBooks}
+                  disabled={booksLoading || !hasContent}
+                  className={`flex items-center gap-1.5 px-1 py-1 text-[12px] tracking-[0.25em] transition-colors duration-300 ${
+                    booksLoading || !hasContent ? 'opacity-40' : ''
+                  } ${
+                    dark
+                      ? 'text-gray-600 hover:text-gray-300'
+                      : 'text-[#bfb299] hover:text-[#6b5f47]'
+                  }`}
+                >
+                  <BookOpen
+                    size={13}
+                    className={booksLoading ? 'animate-pulse' : ''}
+                  />
+                  翻书
                 </button>
               </div>
 
@@ -1052,6 +1164,111 @@ export default function WenxinClient() {
         </button>
       </div>
     </aside>
+
+    {/* 翻书：对症书单上拉层（金句 + 书目卡片） */}
+    <Drawer open={bookOpen} onOpenChange={setBookOpen}>
+      <DrawerContent
+        className={
+          dark
+            ? 'bg-[#111112] text-gray-300 border-gray-800'
+            : 'bg-[#fbf7ee] text-[#4a4232] border-[#e8dfcc]'
+        }
+      >
+        <DrawerHeader className="px-6 pt-1 pb-2 max-w-2xl w-full mx-auto">
+          <DrawerTitle
+            className={`text-[11px] tracking-[0.4em] font-normal ${theme.faint}`}
+          >
+            对症书单
+          </DrawerTitle>
+        </DrawerHeader>
+
+        <div
+          className="overflow-y-auto px-6 pb-10 max-w-2xl w-full mx-auto"
+          style={{ fontFamily: SERIF }}
+        >
+          {booksLoading && (
+            <div className="space-y-4 pt-2">
+              <Skeleton
+                className={`h-4 w-3/4 rounded-full ${dark ? 'bg-gray-800' : 'bg-[#e8dfcc]'}`}
+              />
+              <Skeleton
+                className={`h-4 w-2/3 rounded-full ${dark ? 'bg-gray-800' : 'bg-[#e8dfcc]'}`}
+              />
+              <Skeleton
+                className={`h-4 w-1/2 rounded-full ${dark ? 'bg-gray-800' : 'bg-[#e8dfcc]'}`}
+              />
+            </div>
+          )}
+
+          {booksError && !booksLoading && (
+            <p className={`text-sm tracking-[0.2em] pt-2 ${theme.faint}`}>
+              {booksError}
+            </p>
+          )}
+
+          {books && !booksLoading && (
+            <div className="wx-fade-in">
+              {sting && (
+                <p
+                  className={`text-base leading-loose italic mb-6 ${dark ? 'text-gray-400' : 'text-[#6b5f47]'}`}
+                >
+                  {sting}
+                </p>
+              )}
+              <div className="space-y-4">
+                {books.map((b, i) => (
+                  <div
+                    key={i}
+                    className={`rounded-xl border px-5 py-4 md:px-6 md:py-5 transition-colors ${
+                      dark
+                        ? 'border-gray-800 bg-white/[0.03]'
+                        : 'border-[#e5dcc8] bg-white/70'
+                    }`}
+                  >
+                    {/* 顶行：书名 + 作者（左），章节小字（右） */}
+                    <div className="flex items-baseline justify-between gap-4">
+                      <p className="text-base md:text-lg leading-snug">
+                        《{b.title}》
+                        {b.author && (
+                          <span
+                            className={`text-xs md:text-sm ml-2 ${theme.faint}`}
+                          >
+                            {b.author}
+                          </span>
+                        )}
+                      </p>
+                      {b.chapter && (
+                        <span
+                          className={`shrink-0 max-w-[40%] text-right text-[11px] leading-snug ${theme.faint}`}
+                        >
+                          {b.chapter}
+                        </span>
+                      )}
+                    </div>
+                    {/* 原文 */}
+                    {b.original_quote && (
+                      <p
+                        className={`mt-3 text-[15px] leading-loose ${dark ? 'text-gray-300' : 'text-[#5d5340]'}`}
+                      >
+                        「{b.original_quote}」
+                      </p>
+                    )}
+                    {/* 释义：为什么这本对症 */}
+                    {b.recommendation_reason && (
+                      <p
+                        className={`mt-3 text-sm leading-relaxed ${theme.faint}`}
+                      >
+                        {b.recommendation_reason}
+                      </p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      </DrawerContent>
+    </Drawer>
     </>
   );
 }

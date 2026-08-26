@@ -129,6 +129,53 @@ function coerceBookCards(content: any): BookCard[] | undefined {
 }
 
 /**
+ * 截断打捞：模型输出被 max_tokens 截断导致 JSON.parse 失败时，
+ * 用正则尽力提取完整的 sting_text 字段和完整的书目对象（残缺对象丢弃）。
+ */
+function salvageAnswer(text: string): ZenAnswer | null {
+  // 提取字符串字段（处理转义字符）
+  const grabString = (key: string): string | undefined => {
+    const m = text.match(
+      new RegExp(`"${key}"\\s*:\\s*"((?:[^"\\\\]|\\\\.)*)"`)
+    );
+    if (!m) return undefined;
+    try {
+      return JSON.parse(`"${m[1]}"`);
+    } catch {
+      return m[1];
+    }
+  };
+
+  const sting = grabString('sting_text');
+
+  // book_cards 区域内的完整 {...} 对象（书目对象无嵌套花括号）
+  const cards: BookCard[] = [];
+  const arrIdx = text.indexOf('"book_cards"');
+  if (arrIdx >= 0) {
+    const region = text.slice(arrIdx);
+    const objRe = /\{[^{}]*\}/g;
+    let m: RegExpExecArray | null;
+    while ((m = objRe.exec(region)) !== null && cards.length < 10) {
+      try {
+        const o = JSON.parse(m[0]);
+        if (o && typeof o === 'object' && o.title) cards.push(o);
+      } catch {
+        // 截断的残缺对象，跳过
+      }
+    }
+  }
+
+  if (!sting && cards.length === 0) return null;
+  return {
+    ui_action: cards.length ? 'show_book_card' : null,
+    content: {
+      sting_text: sting ?? '',
+      book_cards: cards.length ? cards : undefined,
+    },
+  };
+}
+
+/**
  * 三级降级解析模型输出：直接 JSON.parse -> 提取 ```json 围栏 -> 作为纯文本金句返回。
  * 保证返回值始终是结构化的 ZenAnswer，前端无需处理字符串分支。
  */
@@ -162,6 +209,10 @@ function normalizeAnswer(rawText: string): ZenAnswer {
     const fenced = tryParse(fencedMatch[1].trim());
     if (fenced) return fenced;
   }
+
+  // 输出被截断（max_tokens / 模型中断）：打捞完整的金句和书目对象
+  const salvaged = salvageAnswer(text);
+  if (salvaged) return salvaged;
 
   // 解析失败：把原始文本作为金句返回，不展示书籍卡片
   return { ui_action: null, content: { sting_text: text } };
@@ -197,10 +248,14 @@ export async function askZen(userQuery: string): Promise<ZenAnswer> {
       { role: 'user', content: userQuery },
     ],
     temperature: 0.7,
-    max_tokens: 4000,
+    max_tokens: 8000,
   });
 
-  const raw = response.choices[0]?.message?.content?.trim();
+  const choice = response.choices[0];
+  if (choice?.finish_reason === 'length') {
+    console.warn('[zen-ask] 输出被 max_tokens 截断，走打捞解析');
+  }
+  const raw = choice?.message?.content?.trim();
   if (!raw) {
     return {
       ui_action: null,

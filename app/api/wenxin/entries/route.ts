@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { randomUUID } from 'crypto';
+import { Prisma } from '@prisma/client';
 import prisma from '@/lib/prisma';
 import { getWenxinUser } from '@/lib/wenxin-auth';
 
@@ -9,12 +10,42 @@ const PAGE_SIZE = 200;
 const MAX_BATCH = 200;
 const MAX_TEXT_LEN = 50_000;
 
+interface BookInput {
+  title?: string;
+  author?: string;
+  chapter?: string;
+  original_quote?: string;
+  recommendation_reason?: string;
+}
+
 interface EntryInput {
   id: string;
   t: number;
   text: string;
   mood?: string | null;
   guide?: string | null;
+  sting?: string | null;
+  books?: BookInput[] | null;
+}
+
+function sanitizeBooks(input: unknown): BookInput[] | undefined {
+  if (!Array.isArray(input)) return undefined;
+  const books = input
+    .filter((b): b is Record<string, unknown> => !!b && typeof b === 'object')
+    .slice(0, 10)
+    .map((b) => {
+      const str = (k: string, max: number) =>
+        typeof b[k] === 'string' ? (b[k] as string).slice(0, max) : undefined;
+      return {
+        title: str('title', 100),
+        author: str('author', 100),
+        chapter: str('chapter', 200),
+        original_quote: str('original_quote', 2000),
+        recommendation_reason: str('recommendation_reason', 500),
+      };
+    })
+    .filter((b) => b.title);
+  return books.length > 0 ? books : undefined;
 }
 
 function sanitizeEntries(input: unknown): EntryInput[] {
@@ -29,15 +60,22 @@ function sanitizeEntries(input: unknown): EntryInput[] {
         typeof (e as any).text === 'string'
     )
     .slice(0, MAX_BATCH)
-    .map((e) => ({
-      id: e.id.slice(0, 40),
-      t: e.t,
-      text: e.text.slice(0, MAX_TEXT_LEN),
-      ...(typeof e.mood === 'string' ? { mood: e.mood.slice(0, 20) } : {}),
-      ...(typeof e.guide === 'string'
-        ? { guide: e.guide.slice(0, 500) }
-        : {}),
-    }));
+    .map((e) => {
+      const books = sanitizeBooks(e.books);
+      return {
+        id: e.id.slice(0, 40),
+        t: e.t,
+        text: e.text.slice(0, MAX_TEXT_LEN),
+        ...(typeof e.mood === 'string' ? { mood: e.mood.slice(0, 20) } : {}),
+        ...(typeof e.guide === 'string'
+          ? { guide: e.guide.slice(0, 500) }
+          : {}),
+        ...(typeof e.sting === 'string'
+          ? { sting: e.sting.slice(0, 500) }
+          : {}),
+        ...(books ? { books } : {}),
+      };
+    });
 }
 
 function sanitizeDeletedIds(input: unknown): string[] {
@@ -100,7 +138,12 @@ async function applyDeletions(userId: string, ids: string[]) {
   const now = new Date();
   await prisma.wenxinEntry.updateMany({
     where: { id: { in: ids }, userId, deletedAt: null },
-    data: { deletedAt: now, text: '' },
+    data: {
+      deletedAt: now,
+      text: '',
+      sting: null,
+      books: Prisma.JsonNull,
+    },
   });
   await prisma.wenxinEntry.createMany({
     data: ids.map((id) => ({
@@ -145,7 +188,13 @@ export async function GET(req: Request) {
       // tombstone 不下发内容（删除即揉碎）
       ...(r.deletedAt
         ? { text: '', deleted: true as const }
-        : { text: r.text, mood: r.mood, guide: r.guide }),
+        : {
+            text: r.text,
+            mood: r.mood,
+            guide: r.guide,
+            sting: r.sting,
+            books: r.books,
+          }),
     }));
 
     return NextResponse.json({ success: true, data: { entries, hasMore } });
@@ -184,17 +233,30 @@ export async function POST(req: Request) {
           text: e.text,
           mood: e.mood ?? null,
           guide: e.guide ?? null,
+          sting: e.sting ?? null,
+          books: e.books
+            ? (e.books as unknown as Prisma.InputJsonValue)
+            : Prisma.JsonNull,
         })),
         skipDuplicates: true,
       });
       inserted = result.count;
 
-      // 心境分析结果通常在条目首次推送后补回：对带 mood/guide 的已存在条目做更新
-      const withReflection = entries.filter((e) => e.mood || e.guide);
-      for (const e of withReflection) {
+      // 心境/书单结果可能在条目首次推送后补回：对带附加字段的已存在条目做更新
+      const withExtras = entries.filter(
+        (e) => e.mood || e.guide || e.sting || e.books
+      );
+      for (const e of withExtras) {
         await prisma.wenxinEntry.updateMany({
           where: { id: e.id, userId, deletedAt: null },
-          data: { mood: e.mood ?? null, guide: e.guide ?? null },
+          data: {
+            mood: e.mood ?? null,
+            guide: e.guide ?? null,
+            sting: e.sting ?? null,
+            books: e.books
+              ? (e.books as unknown as Prisma.InputJsonValue)
+              : Prisma.JsonNull,
+          },
         });
       }
     }

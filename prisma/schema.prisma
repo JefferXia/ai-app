@@ -437,6 +437,8 @@ model WenxinEntry {
   text      String    @db.Text
   mood      String? // 归档时 AI 匹配的十种心境之一，匹配不上为 null
   guide     String?   @db.Text // 觉知者的从旁引导（一句话）
+  sting     String?   @db.Text // 归档时翻书（禅问）得到的金句
+  books     Json? // 对症书单：BookCard 数组（title/author/chapter/original_quote/recommendation_reason）
   deletedAt DateTime? // 软删除（tombstone）：删除即置时间并清空 text，跨端传播
 
   createdAt DateTime  @default(now())
