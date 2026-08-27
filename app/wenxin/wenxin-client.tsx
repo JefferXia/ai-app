@@ -686,13 +686,16 @@ export default function WenxinClient() {
       .join('\n\n');
     if (!text) return;
 
+    // 翻书结果随归档一起封存：仅当书单是为纸上此刻的文字翻出来的
+    // （从历史条目点开的旧书单 booksTextRef 已置空，不会被带进新归档）
+    const attachBooks =
+      !!books?.length && booksTextRef.current === activeText.trim();
     const entry: ArchiveEntry = {
       id: genId(),
       t: Date.now(),
       text,
-      // 翻书结果随归档一起封存（本地 IndexedDB + 下次同步推云端）
-      ...(sting ? { sting } : {}),
-      ...(books?.length ? { books } : {}),
+      ...(attachBooks && sting ? { sting } : {}),
+      ...(attachBooks ? { books } : {}),
     };
     setArchived((prev) => [...prev, entry]);
     putEntry(entry);

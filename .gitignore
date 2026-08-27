@@ -40,3 +40,5 @@ yarn-error.log*
 
 # doc
 wenxin-prd.md
+# TypeScript incremental build cache
+tsconfig.tsbuildinfo
