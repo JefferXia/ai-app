@@ -192,54 +192,145 @@ function bigrams(s: string): Set<string> {
   return set;
 }
 
-/** 照见：拿纸上此刻的话，去归档里找主题最贴近的一段过去（不分析、不总结）。
- *  相似度 = 此刻文字的 bigram 在过去的覆盖率；同一话题（恐惧、爱情、目标…）
- *  不同时刻说着不同甚至矛盾的话，矛盾本身就是洞察 */
-function matchPair(
-  current: string,
-  archived: ArchiveEntry[]
-): [Passage, Passage] | null {
+interface ScoredEntry {
+  entry: ArchiveEntry;
+  score: number;
+  para: string; // 该归档里与此刻重叠最多的自然段
+}
+
+/** 照见·匹配层：拿纸上此刻的话，去归档里找所有主题贴近的过去（不分析、不总结）。
+ *  相似度 = 此刻文字的 bigram 在过去的覆盖率；低于 8% 基本是「的/我/是」背景噪音 */
+function matchAll(current: string, archived: ArchiveEntry[]): ScoredEntry[] {
   const cur = current.trim();
   const curGrams = bigrams(cur);
-  if (curGrams.size < 4) return null;
+  if (curGrams.size < 4) return [];
 
-  // 归档里找整体覆盖率最高的一条（排除欢迎信）
-  let best: ArchiveEntry | null = null;
-  let bestScore = 0;
+  const scored: ScoredEntry[] = [];
   for (const a of archived) {
-    if (a.text === WELCOME_TEXT) continue;
+    if (a.text === WELCOME_TEXT || a.deleted) continue;
     const g = bigrams(a.text);
     if (!g.size) continue;
     let hit = 0;
     for (const x of curGrams) if (g.has(x)) hit++;
     const score = hit / curGrams.size;
-    if (score > bestScore) {
-      bestScore = score;
-      best = a;
+    if (score < 0.08) continue;
+
+    let para = '';
+    let paraScore = -1;
+    for (const p of splitParagraphs(a.text)) {
+      const pg = bigrams(p);
+      let h = 0;
+      for (const x of curGrams) if (pg.has(x)) h++;
+      const s = h / curGrams.size;
+      if (s > paraScore) {
+        paraScore = s;
+        para = p;
+      }
+    }
+    if (para) scored.push({ entry: a, score, para });
+  }
+  return scored.sort((x, y) => y.score - x.score);
+}
+
+/** 两段文字的主题重叠度（双向 containment，取保守方向） */
+function paraSimilarity(a: string, b: string): number {
+  const ga = bigrams(a);
+  const gb = bigrams(b);
+  if (!ga.size || !gb.size) return 0;
+  let hit = 0;
+  for (const x of ga) if (gb.has(x)) hit++;
+  return hit / Math.min(ga.size, gb.size);
+}
+
+const NEGATION = new Set(['不', '没', '无', '未', '莫', '别', '勿', '非']);
+
+/** 矛盾信号：同一主题片段，一边带否定词一边不带（「害怕辞职」↔「不再害怕辞职」）。
+ *  启发式，宁可漏判不可误判：只报最有把握的不对称 */
+function hasNegationAsymmetry(a: string, b: string): boolean {
+  const clean = (s: string) => s.replace(/[\s\p{P}\p{S}]/gu, '');
+  const ca = clean(a);
+  const cb = clean(b);
+  const shared = new Set<string>();
+  for (let len = 4; len >= 2 && shared.size < 8; len--) {
+    for (let i = 0; i + len <= ca.length; i++) {
+      const w = ca.slice(i, i + len);
+      if (!NEGATION.has(w[0]) && cb.includes(w)) shared.add(w);
     }
   }
-  // 阈值：低于 8% 基本是「的/我/是」这类背景噪音，不硬凑
-  if (!best || bestScore < 0.08) return null;
+  for (const w of shared) {
+    const negA = NEGATION.has(ca[ca.indexOf(w) - 1] ?? '');
+    const negB = NEGATION.has(cb[cb.indexOf(w) - 1] ?? '');
+    if (negA !== negB) return true;
+  }
+  return false;
+}
 
-  // 在这条归档里挑重叠最多的自然段
-  let bestPara = '';
-  let bestParaScore = -1;
-  for (const p of splitParagraphs(best.text)) {
-    const g = bigrams(p);
-    let hit = 0;
-    for (const x of curGrams) if (g.has(x)) hit++;
-    const s = hit / curGrams.size;
-    if (s > bestParaScore) {
-      bestParaScore = s;
-      bestPara = p;
+/** 照见·关系：重复（复现）、演变、矛盾（相左）、单条（重逢）。
+ *  镜子只负责并置呈现，关系的意义留给看的人 */
+type MirrorRelation = 'echo' | 'recur' | 'evolve' | 'contradict';
+
+interface MirrorResult {
+  relation: MirrorRelation;
+  now: Passage;
+  then: Passage[]; // 矛盾/重逢/复现 1 段；演变 2 段（起初 → 后来）
+  count: number; // 同一主题在归档中出现的次数
+}
+
+function buildMirror(
+  current: string,
+  archived: ArchiveEntry[]
+): MirrorResult | null {
+  const cur = current.trim();
+  const matches = matchAll(cur, archived);
+  if (!matches.length) return null;
+  const now: Passage = { text: cut(splitParagraphs(cur)[0] ?? cur), t: 0 }; // t=0 → 展示「此刻」
+
+  // 矛盾优先：在相关度最高的几条里找否定不对称
+  for (const m of matches.slice(0, 5)) {
+    if (hasNegationAsymmetry(cur, m.para)) {
+      return {
+        relation: 'contradict',
+        now,
+        then: [{ text: cut(m.para), t: m.entry.t }],
+        count: matches.length,
+      };
     }
   }
-  if (!bestPara) return null;
 
-  return [
-    { text: cut(splitParagraphs(cur)[0] ?? cur), t: 0 }, // t=0 → 展示「此刻」
-    { text: cut(bestPara), t: best.t },
-  ];
+  if (matches.length >= 2) {
+    const byTime = [...matches].sort((x, y) => x.entry.t - y.entry.t);
+    const first = byTime[0];
+    const last = byTime[byTime.length - 1];
+    // 同一主题，两端说得不一样了 → 演变；两端几乎同义 → 复现
+    if (
+      first.entry.id !== last.entry.id &&
+      first.para !== last.para &&
+      paraSimilarity(first.para, last.para) < 0.35
+    ) {
+      return {
+        relation: 'evolve',
+        now,
+        then: [
+          { text: cut(first.para), t: first.entry.t },
+          { text: cut(last.para), t: last.entry.t },
+        ],
+        count: matches.length,
+      };
+    }
+    return {
+      relation: 'recur',
+      now,
+      then: [{ text: cut(matches[0].para), t: matches[0].entry.t }],
+      count: matches.length,
+    };
+  }
+
+  return {
+    relation: 'echo',
+    now,
+    then: [{ text: cut(matches[0].para), t: matches[0].entry.t }],
+    count: 1,
+  };
 }
 
 export default function WenxinClient() {
@@ -250,7 +341,7 @@ export default function WenxinClient() {
   const [dark, setDark] = useState(false);
   const [mirror, setMirror] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
-  const [pair, setPair] = useState<[Passage, Passage] | null>(null);
+  const [mirrorResult, setMirrorResult] = useState<MirrorResult | null>(null);
   const [archived, setArchived] = useState<ArchiveEntry[]>([]);
   const [lastAdded, setLastAdded] = useState<string | null>(null);
   const [typingId, setTypingId] = useState<string | null>(null);
@@ -562,7 +653,7 @@ export default function WenxinClient() {
   const toggleMirror = useCallback(() => {
     setMirror((prev) => {
       const next = !prev;
-      if (next) setPair(matchPair(activeText, archived));
+      if (next) setMirrorResult(buildMirror(activeText, archived));
       return next;
     });
   }, [activeText, archived]);
@@ -1049,10 +1140,33 @@ export default function WenxinClient() {
             <X size={18} />
           </button>
           <div className="min-h-full max-w-5xl mx-auto px-6 md:px-10 py-16 md:py-24 grid md:grid-cols-2 gap-12 md:gap-16 items-start">
-            {pair ? (
+            {mirrorResult ? (
               <>
-                <MirrorSide label="于此" passage={pair[0]} theme={theme} />
-                <MirrorSide label="于彼" passage={pair[1]} theme={theme} />
+                {/* 关系标签：重复 / 演变 / 矛盾 —— 只命名，不解释 */}
+                <p
+                  className={`md:col-span-2 text-center text-[11px] tracking-[0.4em] ${theme.faint}`}
+                >
+                  {RELATION_TEXT[mirrorResult.relation]}
+                  {mirrorResult.count > 1 &&
+                    ` · 同一心绪，落笔 ${mirrorResult.count} 次`}
+                </p>
+                <MirrorSide label="于此" passage={mirrorResult.now} theme={theme} />
+                <div className="flex flex-col gap-12">
+                  {mirrorResult.then.map((p, i) => (
+                    <MirrorSide
+                      key={i}
+                      label={
+                        mirrorResult.relation === 'evolve'
+                          ? i === 0
+                            ? '起初'
+                            : '后来'
+                          : '于彼'
+                      }
+                      passage={p}
+                      theme={theme}
+                    />
+                  ))}
+                </div>
               </>
             ) : (
               <p
@@ -1276,6 +1390,14 @@ export default function WenxinClient() {
   );
 }
 
+
+/** 照见关系文案：只命名，不解释——意义留给看的人 */
+const RELATION_TEXT: Record<MirrorRelation, string> = {
+  echo: '重逢',
+  recur: '复现',
+  evolve: '演变',
+  contradict: '相左',
+};
 
 function MirrorSide({
   label,
