@@ -13,6 +13,8 @@ import {
   CloudUpload,
   Download,
   BookOpen,
+  SendHorizontal,
+  PenLine,
 } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
@@ -347,10 +349,17 @@ export default function WenxinClient() {
   const [typingId, setTypingId] = useState<string | null>(null);
   const [echo, setEcho] = useState<string | null>(null);
   const [echoOut, setEchoOut] = useState(false);
-  const [nudge, setNudge] = useState<string[] | null>(null);
-  const [nudgeOut, setNudgeOut] = useState(false);
-  const [nudgeLoading, setNudgeLoading] = useState(false);
-  const [nudgeError, setNudgeError] = useState<string | null>(null);
+  // 引路（访谈式）：采访者一轮一轮追问，聊完可捋成一段落回纸上
+  const [guideOpen, setGuideOpen] = useState(false);
+  const [guideMsgs, setGuideMsgs] = useState<
+    { role: 'user' | 'assistant'; content: string }[]
+  >([]);
+  const [guideInput, setGuideInput] = useState('');
+  const [guideBusy, setGuideBusy] = useState(false);
+  const [guideDraft, setGuideDraft] = useState<string | null>(null);
+  const [guideError, setGuideError] = useState<string | null>(null);
+  const guidePaperRef = useRef(''); // 开场时纸上的内容（访谈锚点）
+  const guideScrollRef = useRef<HTMLDivElement | null>(null);
   // 翻书：禅问接口按纸上内容配的书单（展示在上拉层）
   const [books, setBooks] = useState<ZenBook[] | null>(null);
   const [booksLoading, setBooksLoading] = useState(false);
@@ -629,11 +638,6 @@ export default function WenxinClient() {
       setEchoOut(true);
       setTimeout(() => setEcho(null), 700);
     }
-    // 开始落笔，引路也消散（台阶已递到，接下来是用户自己的文字）
-    if (nudge && !nudgeOut) {
-      setNudgeOut(true);
-      setTimeout(() => setNudge(null), 700);
-    }
     const val = e.target.value;
     setSegments((prev) => {
       if (!prev.length) return [{ id: genId(), t: Date.now(), text: val }];
@@ -688,39 +692,120 @@ export default function WenxinClient() {
     URL.revokeObjectURL(url);
   };
 
-  // 引路：卡住时点一下，AI 看着纸上内容递台阶（问题 / 句式 / 方向猜测）
-  const handleNudge = async () => {
-    if (nudgeLoading) return;
-    if (!userId && !consented) return; // 未过知情同意
-    setNudgeLoading(true);
-    setNudgeError(null);
+  // 引路（访谈式）：卡住时拉开上拉层，采访者看着纸上内容一轮一轮追问；
+  // 访谈的话是脚手架——「替我捋成一段」时全部拆掉，只留下用户自己的原话
+  type GuideMsg = { role: 'user' | 'assistant'; content: string };
+
+  const sendGuideTurn = async (history: GuideMsg[]) => {
+    setGuideBusy(true);
+    setGuideError(null);
     try {
-      // 首次点引路：用户主动操作，此时才注册匿名身份（接口需要已注册身份）
-      if (!userId && !isAnonRegistered()) {
-        const registered = await registerAnon();
-        if (!registered) {
-          setNudgeError('网络开小差了，稍后再试');
-          return;
-        }
-      }
-      const r = await fetch('/api/wenxin/nudge', {
+      const r = await fetch('/api/wenxin/guide', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...anonHeaders() },
-        body: JSON.stringify({ text: activeText }),
+        body: JSON.stringify({ paper: guidePaperRef.current, history }),
       });
       const j = await r.json().catch(() => null);
-      if (!r.ok || !j?.success || !j.data?.hints?.length) {
-        setNudgeError(typeof j?.error === 'string' ? j.error : '稍后再试');
+      if (!r.ok || !j?.success || typeof j.data?.reply !== 'string') {
+        setGuideError(typeof j?.error === 'string' ? j.error : '稍后再试');
         return;
       }
-      setNudgeOut(false);
-      setNudge(j.data.hints);
+      setGuideMsgs([...history, { role: 'assistant', content: j.data.reply }]);
     } catch {
-      setNudgeError('网络开小差了，稍后再试');
+      setGuideError('网络开小差了，稍后再试');
     } finally {
-      setNudgeLoading(false);
+      setGuideBusy(false);
     }
   };
+
+  const openGuide = async () => {
+    if (guideBusy) return;
+    if (!userId && !consented) return; // 未过知情同意
+    setGuideOpen(true);
+    if (guideMsgs.length > 0) return; // 已有会话，重开只是拉开
+    // 首次点引路：用户主动操作，此时才注册匿名身份（接口需要已注册身份）
+    if (!userId && !isAnonRegistered()) {
+      const registered = await registerAnon();
+      if (!registered) {
+        setGuideError('网络开小差了，稍后再试');
+        return;
+      }
+    }
+    guidePaperRef.current = activeText;
+    await sendGuideTurn([]);
+  };
+
+  const handleGuideSend = async () => {
+    const text = guideInput.trim();
+    if (!text || guideBusy) return;
+    const next: GuideMsg[] = [...guideMsgs, { role: 'user', content: text }];
+    setGuideMsgs(next);
+    setGuideInput('');
+    setGuideDraft(null); // 继续聊，旧成稿作废
+    await sendGuideTurn(next);
+  };
+
+  const handleGuideCompose = async () => {
+    if (guideBusy || !guideMsgs.some((m) => m.role === 'user')) return;
+    setGuideBusy(true);
+    setGuideError(null);
+    try {
+      const r = await fetch('/api/wenxin/guide', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...anonHeaders() },
+        body: JSON.stringify({
+          paper: guidePaperRef.current,
+          history: guideMsgs,
+          mode: 'compose',
+        }),
+      });
+      const j = await r.json().catch(() => null);
+      if (!r.ok || !j?.success || typeof j.data?.reply !== 'string') {
+        setGuideError(typeof j?.error === 'string' ? j.error : '稍后再试');
+        return;
+      }
+      setGuideDraft(j.data.reply);
+    } catch {
+      setGuideError('网络开小差了，稍后再试');
+    } finally {
+      setGuideBusy(false);
+    }
+  };
+
+  // 成稿落回纸上：追加到当前段落（访谈的话一字不留），合上抽屉，会话消散
+  const handleGuideLand = () => {
+    const draft = guideDraft?.trim();
+    if (!draft) return;
+    setSegments((prev) => {
+      const base = prev.length
+        ? [...prev]
+        : [{ id: genId(), t: Date.now(), text: '' }];
+      const last = base[base.length - 1];
+      const merged = last.text.trim()
+        ? `${last.text.trim()}\n\n${draft}`
+        : draft;
+      base[base.length - 1] = {
+        ...last,
+        id: last.id ?? genId(),
+        t: Date.now(),
+        text: merged,
+      };
+      return base;
+    });
+    setGuideOpen(false);
+    setGuideMsgs([]);
+    setGuideDraft(null);
+    setGuideInput('');
+    setGuideError(null);
+    guidePaperRef.current = '';
+    taRef.current?.focus();
+  };
+
+  // 新消息/成稿出现，滚到访谈层底部
+  useEffect(() => {
+    const el = guideScrollRef.current;
+    if (el) el.scrollTo({ top: el.scrollHeight });
+  }, [guideMsgs, guideDraft, guideBusy]);
 
   // 翻书：把纸上此刻的话交给禅问接口，换回一份对症书单（匿名可用，无需注册）。
   // 纸上文字没变时再次点击只是重新拉开上拉层，不重复请求
@@ -799,12 +884,13 @@ export default function WenxinClient() {
     } catch {
       // 静默失败
     }
-    // 归档即翻篇：引路文字/错误一并淡出
-    if (nudge && !nudgeOut) {
-      setNudgeOut(true);
-      setTimeout(() => setNudge(null), 700);
-    }
-    setNudgeError(null);
+    // 归档即翻篇：访谈会话一并合上、消散
+    setGuideOpen(false);
+    setGuideMsgs([]);
+    setGuideDraft(null);
+    setGuideInput('');
+    setGuideError(null);
+    guidePaperRef.current = '';
     // 书单也随翻篇合上
     setBooks(null);
     setSting(null);
@@ -1019,13 +1105,13 @@ export default function WenxinClient() {
             {/* 按钮行 */}
             <div className="flex items-center justify-between gap-3">
               <div className="flex items-center gap-4">
-                {/* 引路：卡住时点一下，AI 看着纸上内容递个台阶。
+                {/* 引路：卡住时点一下，采访者在上拉层里一轮轮追问，聊完捋成一段落回纸上。
                     次级动作：幽灵样式（无边框、小号），与主动作「归档」拉开层级 */}
                 <button
-                  onClick={handleNudge}
-                  disabled={nudgeLoading}
+                  onClick={openGuide}
+                  disabled={guideBusy && !guideOpen}
                   className={`flex items-center gap-1.5 px-1 py-1 text-[12px] tracking-[0.25em] transition-colors duration-300 ${
-                    nudgeLoading ? 'opacity-40' : ''
+                    guideBusy && !guideOpen ? 'opacity-40' : ''
                   } ${
                     dark
                       ? 'text-gray-600 hover:text-gray-300'
@@ -1034,7 +1120,7 @@ export default function WenxinClient() {
                 >
                   <Lightbulb
                     size={13}
-                    className={nudgeLoading ? 'animate-pulse' : ''}
+                    className={guideBusy ? 'animate-pulse' : ''}
                   />
                   引路
                 </button>
@@ -1084,40 +1170,6 @@ export default function WenxinClient() {
                   <Archive size={13} />
                   归档
                 </button>
-              )}
-            </div>
-
-            {/* 引路文案：另起一行，加载骨架 / 引路提示 / 错误，打字机浮现，落笔即散 */}
-            <div className="mt-4 min-w-0">
-              {nudgeLoading && !nudge && (
-                <div className="space-y-3 pt-1">
-                  <Skeleton
-                    className={`h-3.5 w-2/3 rounded-full ${dark ? 'bg-gray-800' : 'bg-[#e8dfcc]'}`}
-                  />
-                  <Skeleton
-                    className={`h-3.5 w-1/2 rounded-full ${dark ? 'bg-gray-800' : 'bg-[#e8dfcc]'}`}
-                  />
-                </div>
-              )}
-
-              {nudge && (
-                <div
-                  className={`transition-opacity duration-700 ${nudgeOut ? 'opacity-0' : 'opacity-100'}`}
-                >
-                  <p
-                    className={`text-sm md:text-base leading-loose italic whitespace-pre-wrap ${theme.faint}`}
-                  >
-                    <Typewriter key={nudge.join('')} text={nudge.join('\n')} />
-                  </p>
-                </div>
-              )}
-
-              {nudgeError && !nudge && !nudgeLoading && (
-                <p
-                  className={`text-[10px] tracking-[0.3em] ${theme.faint} opacity-70 pt-2`}
-                >
-                  {nudgeError}
-                </p>
               )}
             </div>
           </div>
@@ -1383,6 +1435,163 @@ export default function WenxinClient() {
               </div>
             </div>
           )}
+        </div>
+      </DrawerContent>
+    </Drawer>
+
+    {/* 引路：访谈式写作陪伴（采访者追问 → 替我捋成一段 → 落回纸上）。
+        访谈的话是脚手架，成稿只留用户自己的原话 */}
+    <Drawer open={guideOpen} onOpenChange={setGuideOpen}>
+      <DrawerContent
+        className={
+          dark
+            ? 'bg-[#111112] text-gray-300 border-gray-800'
+            : 'bg-[#fbf7ee] text-[#4a4232] border-[#e8dfcc]'
+        }
+      >
+        <DrawerHeader className="px-5 md:px-6 pt-1 pb-2 max-w-2xl w-full mx-auto">
+          <div className="flex items-center justify-between">
+            <DrawerTitle
+              className={`text-[11px] tracking-[0.4em] font-normal ${theme.faint}`}
+            >
+              引路
+            </DrawerTitle>
+            {/* 整理成笔记：聊出素材后随时可收束（说过话才可点） */}
+            {guideMsgs.some((m) => m.role === 'user') && !guideDraft && (
+              <button
+                onClick={handleGuideCompose}
+                disabled={guideBusy}
+                className={`flex items-center gap-1.5 px-4 py-1.5 rounded-full border text-[11px] tracking-[0.25em] transition-all duration-300 disabled:opacity-40 ${
+                  dark
+                    ? 'border-gray-700 text-gray-400 hover:text-gray-200 hover:border-gray-500'
+                    : 'border-[#c4b9a4] text-[#a2947a] hover:text-[#6b5f47] hover:border-[#6b5f47]'
+                }`}
+              >
+                <PenLine size={12} />
+                整理成笔记
+              </button>
+            )}
+          </div>
+        </DrawerHeader>
+
+        {/* 访谈对话流：采访者居左（纸面卡片），用户居右（暖底气泡） */}
+        <div
+          ref={guideScrollRef}
+          className="flex-1 min-h-0 overflow-y-auto px-5 md:px-6 pb-4 max-w-2xl w-full mx-auto space-y-4"
+          style={{ fontFamily: SERIF }}
+        >
+          {guideMsgs.map((m, i) => (
+            <div
+              key={i}
+              className={`flex wx-fade-in ${
+                m.role === 'user' ? 'justify-end' : 'justify-start'
+              }`}
+            >
+              <p
+                className={`max-w-[85%] md:max-w-[75%] px-4 py-3 text-sm md:text-base leading-loose whitespace-pre-wrap ${
+                  m.role === 'user'
+                    ? `rounded-2xl rounded-br-md ${
+                        dark
+                          ? 'bg-gray-800 text-gray-200'
+                          : 'bg-[#ece4d2] text-[#4a4232]'
+                      }`
+                    : `rounded-2xl rounded-bl-md border ${
+                        dark
+                          ? 'border-gray-800 bg-white/[0.03]'
+                          : 'border-[#e5dcc8] bg-white/70'
+                      }`
+                }`}
+              >
+                {m.content}
+              </p>
+            </div>
+          ))}
+
+          {guideBusy && (
+            <div className="space-y-3 pt-1">
+              <Skeleton
+                className={`h-3.5 w-2/3 rounded-full ${dark ? 'bg-gray-800' : 'bg-[#e8dfcc]'}`}
+              />
+              <Skeleton
+                className={`h-3.5 w-1/2 rounded-full ${dark ? 'bg-gray-800' : 'bg-[#e8dfcc]'}`}
+              />
+            </div>
+          )}
+
+          {guideError && !guideBusy && (
+            <p className={`text-[11px] tracking-[0.2em] ${theme.faint}`}>
+              {guideError}
+            </p>
+          )}
+
+          {/* 成稿：捋顺的一段，确认后落回纸上 */}
+          {guideDraft && (
+            <div
+              className={`rounded-xl border px-5 py-4 md:px-6 wx-fade-in ${
+                dark
+                  ? 'border-gray-800 bg-white/[0.03]'
+                  : 'border-[#e5dcc8] bg-white/70'
+              }`}
+            >
+              <p
+                className={`text-[10px] tracking-[0.4em] mb-3 ${theme.faint}`}
+              >
+                捋顺的一段
+              </p>
+              <p className="text-sm md:text-base leading-loose whitespace-pre-wrap">
+                {guideDraft}
+              </p>
+              <button
+                onClick={handleGuideLand}
+                className={`mt-4 flex items-center gap-2 px-4 py-1.5 rounded-full border text-[11px] tracking-[0.3em] transition-all duration-300 ${
+                  dark
+                    ? 'border-gray-800 text-gray-500 hover:text-gray-200 hover:border-gray-600'
+                    : 'border-[#ddd3bf] text-[#a2947a] hover:text-[#6b5f47] hover:border-[#c4b9a4]'
+                }`}
+              >
+                <PenLine size={12} />
+                落到纸上
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* 底部：作答输入（带边框胶囊） + 捋成一段（说过话之后才可捋） */}
+        <div className="px-5 md:px-6 pb-6 pt-2 max-w-2xl w-full mx-auto">
+          <div
+            className={`flex items-center gap-2 rounded-full border pl-5 pr-2 py-1.5 transition-colors ${
+              dark
+                ? 'border-gray-700 bg-white/[0.03] focus-within:border-gray-500'
+                : 'border-[#ddd3bf] bg-white/70 focus-within:border-[#c4b9a4]'
+            }`}
+          >
+            <input
+              value={guideInput}
+              onChange={(e) => setGuideInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.nativeEvent.isComposing) {
+                  e.preventDefault();
+                  handleGuideSend();
+                }
+              }}
+              placeholder="想到什么，就说什么"
+              disabled={guideBusy}
+              className={`flex-1 bg-transparent border-none outline-none text-sm md:text-base ${theme.placeholder} disabled:opacity-40`}
+              style={{ fontFamily: SERIF }}
+            />
+            <button
+              onClick={handleGuideSend}
+              disabled={!guideInput.trim() || guideBusy}
+              aria-label="发送"
+              className={`shrink-0 w-8 h-8 flex items-center justify-center rounded-full transition-all disabled:opacity-30 ${
+                dark
+                  ? 'text-gray-400 hover:text-gray-200 hover:bg-white/5'
+                  : 'text-[#a2947a] hover:text-[#6b5f47] hover:bg-[#f6f1e7]'
+              }`}
+            >
+              <SendHorizontal size={15} />
+            </button>
+          </div>
         </div>
       </DrawerContent>
     </Drawer>
