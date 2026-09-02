@@ -15,6 +15,8 @@ import {
   BookOpen,
   SendHorizontal,
   PenLine,
+  KeyRound,
+  LogIn,
 } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
@@ -37,6 +39,7 @@ import {
   genId,
   splitParagraphs,
   cut,
+  requestPersistentStorage,
   loadArchive,
   putEntry,
   updateEntryReflection,
@@ -44,10 +47,6 @@ import {
   deleteEntryRows,
   loadDeletedIds,
   saveDeletedIds,
-  ensureAnonToken,
-  anonHeaders,
-  isAnonRegistered,
-  registerAnon,
   archiveStyles,
 } from './shared';
 
@@ -73,7 +72,7 @@ const WELCOME_TEXT = `你终于来了，我是你的心镜。
 
 吾日三省吾身，心镜就像内心的一面镜子，助你照见自己——而照见本身就是全部。
 
-这里无账号，无分析，无总结，无追踪，所有数据存储在本地。
+这里无分析，无总结，无追踪，所有数据存储在本地。
 
 点确认后，会为你自动生成一个匿名身份，本地数据可自行导出备份。`;
 
@@ -370,7 +369,12 @@ export default function WenxinClient() {
     'local' | 'syncing' | 'synced' | 'error'
   >('local');
   const [lastSync, setLastSync] = useState<number | null>(null);
-  const [anonId, setAnonId] = useState<string | null>(null);
+  // 问心账号：点「我明白，开始写」即注册（cookie 会话），昵称唯一（行者+数字）
+  const [me, setMe] = useState<{
+    userId: string;
+    name: string;
+    hasPassword: boolean;
+  } | null>(null);
   // 首访知情同意：默认已同意避免老用户闪现弹层，挂载后再按本地标记判定
   const [consented, setConsented] = useState(true);
   const syncingRef = useRef(false);
@@ -402,21 +406,23 @@ export default function WenxinClient() {
       setDark(localStorage.getItem(THEME_KEY) === 'dark');
       setLastSync(loadLastSync());
 
-      // 未登录：读知情同意标记。未同意时不生成匿名身份、输入框禁用，
-      // 欢迎信末尾的「我明白，开始写」按钮是唯一入口（见渲染处）。
-      // 服务端注册进一步推迟到用户主动操作（点同步 / 点引路）时进行，
-      // 避免埋点截图工具打开页面就在服务端产生空的匿名记录
-      if (!userId) {
-        let ok = false;
+      // 身份探测：NextAuth 主站登录优先；否则问 /api/wenxin/me（cookie 会话）。
+      // 都没有 → 未注册：输入框按知情同意标记走，「我明白，开始写」即注册入口；
+      // 曾经同意过但 cookie 失效的（如换浏览器）：可先本地写，同步/引路时自动补注册。
+      if (userId) {
+        setConsented(true);
+      } else {
         try {
-          ok = localStorage.getItem(CONSENT_KEY) === '1';
+          const r = await fetch('/api/wenxin/me');
+          const j = await r.json().catch(() => null);
+          if (r.ok && j?.success) {
+            setMe(j.data);
+            setConsented(true);
+          } else {
+            setConsented(localStorage.getItem(CONSENT_KEY) === '1');
+          }
         } catch {
-          ok = false;
-        }
-        setConsented(ok);
-        if (ok) {
-          const t = ensureAnonToken();
-          setAnonId(t.id);
+          setConsented(localStorage.getItem(CONSENT_KEY) === '1');
         }
       }
 
@@ -479,39 +485,54 @@ export default function WenxinClient() {
     localStorage.setItem(THEME_KEY, dark ? 'dark' : 'light');
   }, [dark, hydrated]);
 
-  // 知情同意：点欢迎信末尾的按钮 —— 生成本地匿名身份并注册到服务端，
-  // 输入框解禁。注册是用户主动点击触发的（不阻塞进入；失败时同步/引路会再兜底注册）
+  // 确保已注册问心账号（cookie 会话）。注册是幂等的：已有会话直接返回当前账号
+  const ensureRegistered = async (): Promise<boolean> => {
+    if (userId || me) return true;
+    try {
+      const r = await fetch('/api/wenxin/register', { method: 'POST' });
+      const j = await r.json().catch(() => null);
+      if (r.ok && j?.success) {
+        setMe(j.data);
+        return true;
+      }
+    } catch {
+      // 网络失败
+    }
+    return false;
+  };
+
+  // 知情同意：点欢迎信末尾的按钮 —— 注册问心账号（昵称 行者+数字，cookie 即登录态），
+  // 输入框解禁。注册失败也先放行本地书写，同步/引路时会自动补注册
   const handleConsent = () => {
     try {
       localStorage.setItem(CONSENT_KEY, '1');
     } catch {
       // 隐私模式下静默失败：本次会话内视为已同意
     }
-    const t = ensureAnonToken();
-    setAnonId(t.id);
     setConsented(true);
-    registerAnon();
+    ensureRegistered();
     taRef.current?.focus();
   };
 
-  // 手动同步：点击"同步云端"触发 —— 先拉取合并（含 tombstone），再推送本地新条目与删除
-  const syncKey = userId ?? anonId;
+  // 手动同步：点击"同步云端"触发 —— 先拉取合并（含 tombstone），再推送本地新条目与删除。
+  // 未设密码的账号先跳设密码页：密码是跨设备找回的钥匙，同步之前先把钥匙配上
+  const syncKey = userId ?? me?.userId ?? null;
   const handleSync = async () => {
     if (syncingRef.current) return;
     if (!userId && !consented) return; // 未过知情同意
+    if (!userId && me && !me.hasPassword) {
+      window.location.href = '/wenxin/password';
+      return;
+    }
     syncingRef.current = true;
     setSyncStatus('syncing');
     try {
-      // 首次手动同步：用户主动点击，此时才把匿名身份注册到服务端
-      if (!userId && !isAnonRegistered()) {
-        const registered = await registerAnon();
-        if (!registered) {
-          setSyncStatus('error');
-          return;
-        }
+      if (!(await ensureRegistered())) {
+        setSyncStatus('error');
+        return;
       }
-      // 最多两轮：匿名身份在服务端不存在（如服务端数据被重置）时，
-      // 第一轮会 401 —— 强制重新注册后重试一次（自愈）
+      // 最多两轮：cookie 会话在服务端失效（如账号被删）时，
+      // 第一轮会 401 —— 重新注册后重试一次（自愈）
       for (let attempt = 0; attempt < 2; attempt++) {
         const result = await syncOnce();
         if (result === 'ok') {
@@ -522,12 +543,11 @@ export default function WenxinClient() {
           return;
         }
         if (result === 'unauthorized' && !userId && attempt === 0) {
-          const registered = await registerAnon();
+          const registered = await ensureRegistered();
           if (registered) {
-            // 重新注册意味着服务端是全新身份（旧数据已随旧身份丢失），
+            // 重新注册意味着服务端是全新账号（旧数据已随旧账号丢失），
             // 重置同步游标，让本地全部数据重新推送
-            const key = syncKey ?? ensureAnonToken().id;
-            saveSyncMeta(key, { pushedT: 0, pulledT: 0 });
+            if (syncKey) saveSyncMeta(syncKey, { pushedT: 0, pulledT: 0 });
             continue;
           }
         }
@@ -544,8 +564,8 @@ export default function WenxinClient() {
   // 单轮同步：返回 ok / unauthorized（401）/ error
   const syncOnce = async (): Promise<'ok' | 'unauthorized' | 'error'> => {
     try {
-      const key = syncKey ?? ensureAnonToken().id;
-      const meta = loadSyncMeta(key);
+      if (!syncKey) return 'unauthorized';
+      const meta = loadSyncMeta(syncKey);
 
       // 1) 拉取：合并云端条目，应用 tombstone（他端删除的本地也删）
       let current = (await loadArchive()).filter(
@@ -555,9 +575,7 @@ export default function WenxinClient() {
       const allFresh: ArchiveEntry[] = [];
       let after = meta.pulledT;
       for (let page = 0; page < 20; page++) {
-        const er = await fetch(`/api/wenxin/entries?after=${after}`, {
-          headers: { ...anonHeaders() },
-        });
+        const er = await fetch(`/api/wenxin/entries?after=${after}`);
         if (er.status === 401) return 'unauthorized';
         const ej = await er.json().catch(() => null);
         if (!er.ok || !ej?.success) return 'error';
@@ -591,7 +609,7 @@ export default function WenxinClient() {
       const newEntries = current.filter((a) => a.t > meta.pushedT);
       const pr = await fetch('/api/wenxin/entries', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...anonHeaders() },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           entries: newEntries,
           deletedIds: loadDeletedIds(),
@@ -602,7 +620,7 @@ export default function WenxinClient() {
       if (newEntries.length > 0) {
         meta.pushedT = Math.max(...newEntries.map((a) => a.t));
       }
-      saveSyncMeta(key, meta);
+      saveSyncMeta(syncKey, meta);
       return 'ok';
     } catch {
       return 'error';
@@ -619,13 +637,6 @@ export default function WenxinClient() {
   }, [hydrated]);
 
   //  textarea 自动增高 + 聚焦
-  useEffect(() => {
-    const ta = taRef.current;
-    if (!ta) return;
-    ta.style.height = 'auto';
-    ta.style.height = ta.scrollHeight + 'px';
-  }, [activeText, hydrated]);
-
   useEffect(() => {
     // 未过知情同意的匿名用户不抢焦点（输入框是禁用的）
     if (hydrated && (userId || consented)) taRef.current?.focus();
@@ -702,7 +713,7 @@ export default function WenxinClient() {
     try {
       const r = await fetch('/api/wenxin/guide', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...anonHeaders() },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ paper: guidePaperRef.current, history }),
       });
       const j = await r.json().catch(() => null);
@@ -723,9 +734,9 @@ export default function WenxinClient() {
     if (!userId && !consented) return; // 未过知情同意
     setGuideOpen(true);
     if (guideMsgs.length > 0) return; // 已有会话，重开只是拉开
-    // 首次点引路：用户主动操作，此时才注册匿名身份（接口需要已注册身份）
-    if (!userId && !isAnonRegistered()) {
-      const registered = await registerAnon();
+    // 首次点引路：用户主动操作，此时才补注册（接口需要已注册身份）
+    if (!userId && !me) {
+      const registered = await ensureRegistered();
       if (!registered) {
         setGuideError('网络开小差了，稍后再试');
         return;
@@ -752,7 +763,7 @@ export default function WenxinClient() {
     try {
       const r = await fetch('/api/wenxin/guide', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...anonHeaders() },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           paper: guidePaperRef.current,
           history: guideMsgs,
@@ -862,6 +873,8 @@ export default function WenxinClient() {
       .join('\n\n');
     if (!text) return;
 
+    // 有了第一条真正的笔记，向浏览器申请持久化存储（防磁盘压力驱逐）
+    requestPersistentStorage();
     // 翻书结果随归档一起封存：仅当书单是为纸上此刻的文字翻出来的
     // （从历史条目点开的旧书单 booksTextRef 已置空，不会被带进新归档）
     const attachBooks =
@@ -909,7 +922,7 @@ export default function WenxinClient() {
         try {
           const rr = await fetch('/api/wenxin/reflect', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', ...anonHeaders() },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ text }),
           });
           const rj = await rr.json();
@@ -924,7 +937,7 @@ export default function WenxinClient() {
           // 该条目可能已被推送过（游标之后无新条目），直接补推一次分析结果
           fetch('/api/wenxin/entries', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', ...anonHeaders() },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               entries: [{ ...entry, mood, guide }],
             }),
@@ -1052,9 +1065,9 @@ export default function WenxinClient() {
           </div>
         )}
 
-        {/* 知情同意：欢迎信打完字后，信末浮出确认按钮；确认前输入框禁用 */}
+        {/* 知情同意：欢迎信打完字后，信末浮出确认按钮（点击即注册问心账号）；确认前输入框禁用 */}
         {!userId && !consented && !typingId && (
-          <div className="max-w-2xl w-full mx-auto px-6 pb-2 shrink-0 flex justify-center">
+          <div className="max-w-2xl w-full mx-auto px-6 pb-2 shrink-0 flex flex-col items-center gap-4">
             <button
               onClick={handleConsent}
               className={`text-xs tracking-[0.3em] px-8 py-3 rounded-full border transition-all duration-300 hover:scale-105 wx-fade-in ${
@@ -1065,15 +1078,22 @@ export default function WenxinClient() {
             >
               我明白，开始写
             </button>
+            <Link
+              href="/wenxin/login"
+              className={`text-[10px] tracking-[0.3em] ${theme.faint} opacity-70 hover:opacity-100 transition-opacity`}
+            >
+              已有账号？昵称登录
+            </Link>
           </div>
         )}
 
-        {/* 纸：一条持续流动的文字，居于页面中央 */}
-        <div className="max-w-2xl w-full mx-auto px-6 py-8 md:py-10 shrink-0">
+        {/* 纸：一条持续流动的文字，占满历史流之下的剩余空间；文字过长时纸内滚动，
+            操作行固定在底部不被挤出去 */}
+        <div className="max-w-2xl w-full mx-auto px-6 py-8 md:py-10 flex-1 min-h-0 flex flex-col">
           {/* 回声：旧碎片无端浮现，落笔即散（ECHO_ENABLED 关闭时不出现） */}
           {echo && (
             <div
-              className={`mb-10 transition-opacity duration-700 ${echoOut ? 'opacity-0' : 'opacity-100'}`}
+              className={`mb-10 shrink-0 transition-opacity duration-700 ${echoOut ? 'opacity-0' : 'opacity-100'}`}
             >
               <p
                 className={`text-[10px] tracking-[0.4em] ${theme.faint} mb-4 opacity-70`}
@@ -1088,20 +1108,21 @@ export default function WenxinClient() {
             </div>
           )}
 
-          <textarea
-            ref={taRef}
-            value={activeText}
-            onChange={handleChange}
-            placeholder="此刻心里有什么，就写什么"
-            rows={3}
-            disabled={!userId && !consented}
-            className={`w-full bg-transparent border-none outline-none resize-none overflow-hidden text-base md:text-lg leading-loose ${theme.caret} ${theme.placeholder} ${!userId && !consented ? 'opacity-30' : ''}`}
-            style={{ fontFamily: SERIF }}
-          />
+          <div className="flex-1 min-h-0 overflow-y-auto">
+            <textarea
+              ref={taRef}
+              value={activeText}
+              onChange={handleChange}
+              placeholder="此刻心里有什么，就写什么"
+              disabled={!userId && !consented}
+              className={`w-full h-full bg-transparent border-none outline-none resize-none text-base md:text-lg leading-loose ${theme.caret} ${theme.placeholder} ${!userId && !consented ? 'opacity-30' : ''}`}
+              style={{ fontFamily: SERIF }}
+            />
+          </div>
 
-          {/* 操作区：按钮一行（左：引路、照见；右：归档），引路文案另起一行（确认前隐藏） */}
+          {/* 操作区：按钮一行（左：引路、照见、翻书；右：归档），固定在纸的底部 */}
           {(userId || consented) && (
-          <div className="mt-5">
+          <div className="mt-5 shrink-0">
             {/* 按钮行 */}
             <div className="flex items-center justify-between gap-3">
               <div className="flex items-center gap-4">
@@ -1266,7 +1287,10 @@ export default function WenxinClient() {
       style={{ fontFamily: SERIF }}
     >
       <div className="flex items-center justify-between px-5 pt-6 pb-3">
-        <span className="text-[11px] tracking-[0.4em] opacity-60">心镜</span>
+        {/* 昵称即账号：已注册显示昵称（未设密码提示补钥匙），未注册显示心镜 */}
+        <span className="text-[11px] tracking-[0.4em] opacity-60">
+          {userId ? '心镜' : (me?.name ?? '心镜')}
+        </span>
         <button
           onClick={() => setMenuOpen(false)}
           aria-label="合上菜单"
@@ -1318,6 +1342,24 @@ export default function WenxinClient() {
       </nav>
 
       <div className="px-3 pb-6">
+        {/* 账号入口：未设密码 → 设密码（同步的钥匙）；已设 → 账号设置；未注册 → 昵称登录 */}
+        {!userId && (
+          <Link
+            href={me ? '/wenxin/password' : '/wenxin/login'}
+            className={`flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-[13px] tracking-[0.15em] transition-colors ${
+              dark ? 'hover:bg-white/5' : 'hover:bg-[#f6f1e7]'
+            }`}
+          >
+            {me ? (
+              <KeyRound size={15} className="shrink-0 opacity-70" />
+            ) : (
+              <LogIn size={15} className="shrink-0 opacity-70" />
+            )}
+            <span>
+              {me ? (me.hasPassword ? '账号设置' : '设置密码') : '昵称登录'}
+            </span>
+          </Link>
+        )}
         <button
           onClick={() => setDark((d) => !d)}
           className={`flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-[13px] tracking-[0.15em] transition-colors ${
@@ -1443,11 +1485,11 @@ export default function WenxinClient() {
         访谈的话是脚手架，成稿只留用户自己的原话 */}
     <Drawer open={guideOpen} onOpenChange={setGuideOpen}>
       <DrawerContent
-        className={
+        className={`min-h-[50dvh] ${
           dark
             ? 'bg-[#111112] text-gray-300 border-gray-800'
             : 'bg-[#fbf7ee] text-[#4a4232] border-[#e8dfcc]'
-        }
+        }`}
       >
         <DrawerHeader className="px-5 md:px-6 pt-1 pb-2 max-w-2xl w-full mx-auto">
           <div className="flex items-center justify-between">

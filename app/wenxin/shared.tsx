@@ -151,6 +151,26 @@ export function cut(s: string): string {
 
 /* ===== 本地存储：内容数据（归档条目）走 IndexedDB；配置/凭证/游标走 localStorage ===== */
 
+// 申请持久化存储：把站点数据从 best-effort 升级为 persistent，
+// 磁盘压力大时浏览器不再自动驱逐 IndexedDB。
+// Chrome/Edge/Firefox 支持；Safari 未实现 persist()，静默跳过。
+// 幂等，每次会话最多请求一次；获批与否都不打扰用户。
+let persistRequested = false;
+export function requestPersistentStorage() {
+  if (persistRequested || typeof navigator === 'undefined') return;
+  persistRequested = true;
+  try {
+    navigator.storage
+      ?.persist?.()
+      .then((granted) => {
+        if (!granted) console.info('[wenxin] 持久化存储未获批准（浏览器策略）');
+      })
+      .catch(() => {});
+  } catch {
+    // 不支持即静默
+  }
+}
+
 // Dexie 懒初始化：SSR 时没有 indexedDB，首次实际操作才打开
 type WenxinDB = Dexie & { entries: EntityTable<ArchiveEntry, 'id'> };
 let _db: WenxinDB | null = null;
@@ -268,116 +288,6 @@ export function saveDeletedIds(ids: string[]) {
 export async function deleteArchiveEntry(id: string) {
   await deleteEntryRows([id]);
   saveDeletedIds([...new Set([...loadDeletedIds(), id])]);
-}
-
-/* ===== 匿名身份：anonId + secret 即账号，恢复码 = "anonId.secret" ===== */
-
-export const ANON_KEY = 'wenxin:anon';
-export const ANON_REGISTERED_KEY = 'wenxin:anonRegistered';
-
-export interface AnonToken {
-  id: string; // UUID
-  secret: string; // 64 位十六进制
-}
-
-function genHex(bytes: number): string {
-  const arr = new Uint8Array(bytes);
-  crypto.getRandomValues(arr);
-  return [...arr].map((b) => b.toString(16).padStart(2, '0')).join('');
-}
-
-/** crypto.randomUUID 仅在安全上下文可用（局域网 IP 访问时没有），提供降级 */
-function genUUID(): string {
-  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
-    return crypto.randomUUID();
-  }
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
-    const r = (Math.random() * 16) | 0;
-    return (c === 'x' ? r : (r & 0x3) | 0x8).toString(16);
-  });
-}
-
-export function loadAnonToken(): AnonToken | null {
-  try {
-    const raw = localStorage.getItem(ANON_KEY);
-    if (raw) {
-      const t = JSON.parse(raw);
-      if (t && typeof t.id === 'string' && typeof t.secret === 'string') {
-        return { id: t.id, secret: t.secret };
-      }
-    }
-  } catch {
-    // 忽略
-  }
-  return null;
-}
-
-export function saveAnonToken(t: AnonToken) {
-  try {
-    localStorage.setItem(ANON_KEY, JSON.stringify(t));
-  } catch {
-    // 静默失败
-  }
-}
-
-/** 读取本地匿名身份，没有则生成一个（仅生成，注册在首次同步时进行） */
-export function ensureAnonToken(): AnonToken {
-  const existing = loadAnonToken();
-  if (existing) return existing;
-  const t: AnonToken = { id: genUUID(), secret: genHex(32) };
-  saveAnonToken(t);
-  return t;
-}
-
-export function parseRecoveryCode(code: string): AnonToken | null {
-  const trimmed = code.trim();
-  const dot = trimmed.indexOf('.');
-  if (dot <= 0) return null;
-  const id = trimmed.slice(0, dot).toLowerCase();
-  const secret = trimmed.slice(dot + 1).toLowerCase();
-  if (!/^[0-9a-f-]{36}$/.test(id)) return null;
-  if (!/^[0-9a-f]{64}$/.test(secret)) return null;
-  return { id, secret };
-}
-
-/** 匿名请求头：登录用户带上也无妨，服务端 session 优先 */
-export function anonHeaders(): Record<string, string> {
-  const t = loadAnonToken();
-  return t ? { 'x-wenxin-token': `${t.id}.${t.secret}` } : {};
-}
-
-export function markAnonRegistered() {
-  try {
-    localStorage.setItem(ANON_REGISTERED_KEY, '1');
-  } catch {
-    // 静默失败
-  }
-}
-
-export function isAnonRegistered(): boolean {
-  try {
-    return localStorage.getItem(ANON_REGISTERED_KEY) === '1';
-  } catch {
-    return false;
-  }
-}
-
-/** 注册/校验匿名身份（幂等：同 id+secret 重复调用返回成功）。返回是否成功 */
-export async function registerAnon(): Promise<boolean> {
-  try {
-    const rr = await fetch('/api/wenxin/anon/register', {
-      method: 'POST',
-      headers: { ...anonHeaders() },
-    });
-    const rj = await rr.json().catch(() => null);
-    if (rr.ok && rj?.success) {
-      markAnonRegistered();
-      return true;
-    }
-  } catch {
-    // 网络失败
-  }
-  return false;
 }
 
 /* ===== 组件 ===== */

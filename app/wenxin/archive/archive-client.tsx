@@ -16,8 +16,6 @@ import {
   loadArchive,
   loadDeletedIds,
   deleteArchiveEntry,
-  loadAnonToken,
-  anonHeaders,
   EntryModal,
   archiveStyles,
 } from '../shared';
@@ -77,10 +75,10 @@ export default function ArchiveClient() {
     setArchived((cur) => cur.filter((a) => a.id !== entry.id));
     setOpenEntry(null);
 
-    if (!userId && !loadAnonToken()) return;
+    // tombstone 立即推送（幂等；cookie 会话自动带上，未认证 401 静默忽略），下次同步时他端拉取生效
     fetch('/api/wenxin/entries', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', ...anonHeaders() },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ entries: [], deletedIds: loadDeletedIds() }),
     }).catch(() => {});
   };

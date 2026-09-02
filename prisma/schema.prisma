@@ -29,7 +29,7 @@ model User {
   email      String?     @unique @db.VarChar(64) // 唯一的电子邮件字段，改为可选
   password   String?     @db.VarChar(64)         // 可选的密码字段
   phone      String?     @unique @db.VarChar(20) // 可选的手机号字段
-  name       String      @db.VarChar(50)
+  name       String      @unique @db.VarChar(50) // 昵称，唯一（问心：行者+数字；登录凭证之一）
   created_at DateTime    @default(now())
   updated_at DateTime    @updatedAt
   balance    Int         @default(0)             // 余额
@@ -56,7 +56,6 @@ model User {
   conversationSummaries ConversationSummary[]           // 对话摘要
   userMemories    UserMemory[]                        // 用户记忆
   wenxinEntries  WenxinEntry[]                        // 问心归档条目
-  wenxinAnon     WenxinAnon?                          // 问心匿名身份凭证
 
   @@index([invite_code])
   @@index([invited_by])
@@ -446,15 +445,4 @@ model WenxinEntry {
   user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, t])
-}
-
-// 问心匿名身份 - 免登录的可认证用户：anonId + secret 哈希即账号（恢复码）
-model WenxinAnon {
-  id         String   @id // 客户端生成的 anonId（UUID）
-  secretHash String // sha256(secret) 十六进制，服务端不存明文
-  userId     String   @unique
-
-  createdAt  DateTime @default(now())
-
-  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
