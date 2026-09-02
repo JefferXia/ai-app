@@ -74,7 +74,7 @@ const WELCOME_TEXT = `你终于来了，我是你的心镜。
 
 这里无分析，无总结，无追踪，所有数据存储在本地。
 
-点确认后，会为你自动生成一个匿名身份，本地数据可自行导出备份。`;
+点开始后，会为你自动生成一个匿名身份，本地数据可自行导出备份。`;
 
 /** 打字机：逐字显现，标点与换行处稍作停顿 */
 function Typewriter({
@@ -1089,7 +1089,7 @@ export default function WenxinClient() {
 
         {/* 纸：一条持续流动的文字，占满历史流之下的剩余空间；文字过长时纸内滚动，
             操作行固定在底部不被挤出去 */}
-        <div className="max-w-2xl w-full mx-auto px-6 py-8 md:py-10 flex-1 min-h-0 flex flex-col">
+        <div className="max-w-2xl w-full mx-auto px-6 pt-2 pb-8 flex-1 min-h-0 flex flex-col">
           {/* 回声：旧碎片无端浮现，落笔即散（ECHO_ENABLED 关闭时不出现） */}
           {echo && (
             <div
@@ -1131,17 +1131,13 @@ export default function WenxinClient() {
                 <button
                   onClick={openGuide}
                   disabled={guideBusy && !guideOpen}
-                  className={`flex items-center gap-1.5 px-1 py-1 text-[12px] tracking-[0.25em] transition-colors duration-300 ${
+                  className={`group flex items-center gap-1.5 px-1 py-1 text-[12px] tracking-[0.25em] transition-colors duration-300 ${
                     guideBusy && !guideOpen ? 'opacity-40' : ''
-                  } ${
-                    dark
-                      ? 'text-gray-600 hover:text-gray-300'
-                      : 'text-[#bfb299] hover:text-[#6b5f47]'
-                  }`}
+                  } ${dark ? 'text-gray-300' : 'text-[#6b5f47]'}`}
                 >
                   <Lightbulb
                     size={13}
-                    className={guideBusy ? 'animate-pulse' : ''}
+                    className={`fill-transparent transition-[fill] duration-300 group-hover:fill-current ${guideBusy ? 'animate-pulse' : ''}`}
                   />
                   引路
                 </button>
@@ -1149,13 +1145,12 @@ export default function WenxinClient() {
                 {/* 照见：随机抽两段不同时刻的文字，左右对照（⌘.） */}
                 <button
                   onClick={toggleMirror}
-                  className={`flex items-center gap-1.5 px-1 py-1 text-[12px] tracking-[0.25em] transition-colors duration-300 ${
-                    dark
-                      ? 'text-gray-600 hover:text-gray-300'
-                      : 'text-[#bfb299] hover:text-[#6b5f47]'
-                  }`}
+                  className={`group flex items-center gap-1.5 px-1 py-1 text-[12px] tracking-[0.25em] transition-colors duration-300 ${dark ? 'text-gray-300' : 'text-[#6b5f47]'}`}
                 >
-                  <Eye size={13} />
+                  <Eye
+                    size={13}
+                    className="fill-transparent transition-[fill] duration-300 group-hover:fill-current"
+                  />
                   照见
                 </button>
 
@@ -1163,17 +1158,13 @@ export default function WenxinClient() {
                 <button
                   onClick={handleBooks}
                   disabled={booksLoading || !hasContent}
-                  className={`flex items-center gap-1.5 px-1 py-1 text-[12px] tracking-[0.25em] transition-colors duration-300 ${
+                  className={`group flex items-center gap-1.5 px-1 py-1 text-[12px] tracking-[0.25em] transition-colors duration-300 ${
                     booksLoading || !hasContent ? 'opacity-40' : ''
-                  } ${
-                    dark
-                      ? 'text-gray-600 hover:text-gray-300'
-                      : 'text-[#bfb299] hover:text-[#6b5f47]'
-                  }`}
+                  } ${dark ? 'text-gray-300' : 'text-[#6b5f47]'}`}
                 >
                   <BookOpen
                     size={13}
-                    className={booksLoading ? 'animate-pulse' : ''}
+                    className={`fill-transparent transition-[fill] duration-300 group-hover:fill-current ${booksLoading ? 'animate-pulse' : ''}`}
                   />
                   翻书
                 </button>
@@ -1286,18 +1277,34 @@ export default function WenxinClient() {
       }`}
       style={{ fontFamily: SERIF }}
     >
-      <div className="flex items-center justify-between px-5 pt-6 pb-3">
-        {/* 昵称即账号：已注册显示昵称（未设密码提示补钥匙），未注册显示心镜 */}
-        <span className="text-[11px] tracking-[0.4em] opacity-60">
-          {userId ? '心镜' : (me?.name ?? '心镜')}
-        </span>
+      <div className="relative px-5 pt-8 pb-5">
         <button
           onClick={() => setMenuOpen(false)}
           aria-label="合上菜单"
-          className="opacity-50 hover:opacity-100 transition-opacity"
+          className="absolute top-5 right-5 opacity-50 hover:opacity-100 transition-opacity"
         >
           <X size={15} />
         </button>
+        {/* 头像 + 昵称：居中；头像取昵称首字，底色随昵称固定 */}
+        <div className="flex flex-col items-center gap-2.5">
+          <span
+            className={`w-12 h-12 rounded-full flex items-center justify-center text-lg select-none ${
+              dark
+                ? 'bg-gray-800 text-gray-300'
+                : 'bg-[#ece4d2] text-[#6b5f47]'
+            }`}
+          >
+            {(me?.name ?? '心')[0]}
+          </span>
+          <span className="text-[12px] tracking-[0.3em] opacity-80">
+            {userId ? (userInfo?.name ?? '心镜') : (me?.name ?? '心镜')}
+          </span>
+          {!userId && me && !me.hasPassword && (
+            <span className={`text-[10px] tracking-[0.2em] ${dark ? 'text-gray-600' : 'text-[#bfb299]'}`}>
+              未设密码
+            </span>
+          )}
+        </div>
       </div>
 
       <nav className="flex-1 px-3 flex flex-col gap-1">
@@ -1317,6 +1324,7 @@ export default function WenxinClient() {
                   : syncStatus === 'error'
                     ? '同步失败 · 重试'
                     : '同步云端',
+            badge: '仅自己可见',
             onClick: handleSync,
             disabled: syncStatus === 'syncing',
           },
@@ -1337,6 +1345,17 @@ export default function WenxinClient() {
           >
             {item.icon}
             <span>{item.label}</span>
+            {'badge' in item && item.badge && (
+              <span
+                className={`ml-auto text-[9px] tracking-[0.15em] px-2 py-0.5 rounded-full ${
+                  dark
+                    ? 'bg-amber-950/60 text-amber-200/90'
+                    : 'bg-amber-100 text-amber-800'
+                }`}
+              >
+                {item.badge}
+              </span>
+            )}
           </button>
         ))}
       </nav>
@@ -1503,10 +1522,10 @@ export default function WenxinClient() {
               <button
                 onClick={handleGuideCompose}
                 disabled={guideBusy}
-                className={`flex items-center gap-1.5 px-4 py-1.5 rounded-full border text-[11px] tracking-[0.25em] transition-all duration-300 disabled:opacity-40 ${
+                className={`flex items-center gap-1.5 px-4 py-1.5 rounded-full text-[11px] tracking-[0.25em] transition-all duration-300 disabled:opacity-40 ${
                   dark
-                    ? 'border-gray-700 text-gray-400 hover:text-gray-200 hover:border-gray-500'
-                    : 'border-[#c4b9a4] text-[#a2947a] hover:text-[#6b5f47] hover:border-[#6b5f47]'
+                    ? 'bg-gray-200 text-gray-900 hover:bg-white'
+                    : 'bg-[#4a4232] text-[#f6f1e7] hover:bg-[#5d5340]'
                 }`}
               >
                 <PenLine size={12} />
