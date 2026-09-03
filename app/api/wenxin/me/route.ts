@@ -14,6 +14,12 @@ export async function GET(req: Request) {
   }
   return NextResponse.json({
     success: true,
-    data: { userId: profile.userId, name: profile.name, hasPassword: profile.hasPassword },
+    data: {
+      userId: profile.userId,
+      name: profile.name,
+      hasPassword: profile.hasPassword,
+      isMember: profile.isMember,
+      memberExpireAt: profile.memberExpireAt,
+    },
   });
 }

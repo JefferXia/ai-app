@@ -88,13 +88,29 @@ export async function getWenxinUser(req: Request): Promise<WenxinIdentity | null
 /** 当前问心用户的展示信息（/api/wenxin/me 用） */
 export async function getWenxinProfile(
   req: Request
-): Promise<{ userId: string; name: string; hasPassword: boolean } | null> {
+): Promise<{
+  userId: string;
+  name: string;
+  hasPassword: boolean;
+  isMember: boolean;
+  memberExpireAt: Date | null;
+} | null> {
   const identity = await getWenxinUser(req);
   if (!identity) return null;
   const user = await prisma.user.findUnique({
     where: { id: identity.userId },
-    select: { id: true, name: true, password: true },
+    select: { id: true, name: true, password: true, memberType: true, memberExpireAt: true },
   });
   if (!user) return null;
-  return { userId: user.id, name: user.name, hasPassword: !!user.password };
+  const isMember =
+    !!user.memberType &&
+    (user.memberType === 'PERMANENT' ||
+      (!!user.memberExpireAt && user.memberExpireAt.getTime() > Date.now()));
+  return {
+    userId: user.id,
+    name: user.name,
+    hasPassword: !!user.password,
+    isMember,
+    memberExpireAt: user.memberExpireAt,
+  };
 }

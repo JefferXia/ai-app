@@ -17,6 +17,7 @@ import {
   PenLine,
   KeyRound,
   LogIn,
+  Crown,
 } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
@@ -64,8 +65,6 @@ const ZEN_ASK_ENTRY = false;
 // 首访欢迎：历史为空时写入一封初始日记，并以打字机效果呈现（仅一次）
 const WELCOME_KEY = 'wenxin_welcome_v1';
 
-// 首访知情同意：告知本地存储 + 匿名身份，点确认后才进入（仅匿名用户，仅一次）
-const CONSENT_KEY = 'wenxin_consent_v1';
 const WELCOME_TEXT = `你终于来了，我是你的心镜。
 
 心镜是一个无目的地自我观察的空间。打开，写，关掉。
@@ -374,7 +373,11 @@ export default function WenxinClient() {
     userId: string;
     name: string;
     hasPassword: boolean;
+    isMember: boolean;
+    memberExpireAt: string | null;
   } | null>(null);
+  // 会员引导：点「整理成笔记」时非会员弹出的提示层
+  const [memberPromptOpen, setMemberPromptOpen] = useState(false);
   // 首访知情同意：默认已同意避免老用户闪现弹层，挂载后再按本地标记判定
   const [consented, setConsented] = useState(true);
   const syncingRef = useRef(false);
@@ -406,24 +409,21 @@ export default function WenxinClient() {
       setDark(localStorage.getItem(THEME_KEY) === 'dark');
       setLastSync(loadLastSync());
 
-      // 身份探测：NextAuth 主站登录优先；否则问 /api/wenxin/me（cookie 会话）。
-      // 都没有 → 未注册：输入框按知情同意标记走，「我明白，开始写」即注册入口；
-      // 曾经同意过但 cookie 失效的（如换浏览器）：可先本地写，同步/引路时自动补注册。
-      if (userId) {
-        setConsented(true);
-      } else {
-        try {
-          const r = await fetch('/api/wenxin/me');
-          const j = await r.json().catch(() => null);
-          if (r.ok && j?.success) {
-            setMe(j.data);
-            setConsented(true);
-          } else {
-            setConsented(localStorage.getItem(CONSENT_KEY) === '1');
-          }
-        } catch {
-          setConsented(localStorage.getItem(CONSENT_KEY) === '1');
+      // 身份探测：统一问 /api/wenxin/me（NextAuth 主站登录与问心 cookie 会话都认）。
+      // /me 返回 401 → 未注册：展示「我明白，开始写」，点击即注册入口。
+      // 默认 consented=true 避免已登录用户闪出按钮，/me 明确 401 后才置 false
+      try {
+        const r = await fetch('/api/wenxin/me');
+        const j = await r.json().catch(() => null);
+        if (r.ok && j?.success) {
+          setMe(j.data);
+          setConsented(true);
+        } else if (!userId) {
+          setConsented(false);
         }
+      } catch {
+        // 网络失败：主站已登录不受影响，否则按未注册处理（按钮可点，点下即触发幂等注册）
+        if (!userId) setConsented(false);
       }
 
       // 读取归档（过滤已删除的 tombstone）
@@ -504,11 +504,6 @@ export default function WenxinClient() {
   // 知情同意：点欢迎信末尾的按钮 —— 注册问心账号（昵称 行者+数字，cookie 即登录态），
   // 输入框解禁。注册失败也先放行本地书写，同步/引路时会自动补注册
   const handleConsent = () => {
-    try {
-      localStorage.setItem(CONSENT_KEY, '1');
-    } catch {
-      // 隐私模式下静默失败：本次会话内视为已同意
-    }
     setConsented(true);
     ensureRegistered();
     taRef.current?.focus();
@@ -771,6 +766,11 @@ export default function WenxinClient() {
         }),
       });
       const j = await r.json().catch(() => null);
+      if (r.status === 403) {
+        // 会员到期等边界：服务端硬门拦下的，弹充值提示
+        setMemberPromptOpen(true);
+        return;
+      }
       if (!r.ok || !j?.success || typeof j.data?.reply !== 'string') {
         setGuideError(typeof j?.error === 'string' ? j.error : '稍后再试');
         return;
@@ -781,6 +781,22 @@ export default function WenxinClient() {
     } finally {
       setGuideBusy(false);
     }
+  };
+
+  // 「整理成笔记」入口：会员直接整理；非会员弹充值提示。
+  // 点下时顺手刷新一次 /me（刚支付完回来的状态能立即生效）
+  const handleComposeClick = async () => {
+    let isMember = !!me?.isMember;
+    try {
+      const r = await fetch('/api/wenxin/me');
+      const j = await r.json().catch(() => null);
+      if (r.ok && j?.success) {
+        setMe(j.data);
+        isMember = !!j.data.isMember;
+      }
+    } catch {}
+    if (isMember) handleGuideCompose();
+    else setMemberPromptOpen(true);
   };
 
   // 成稿落回纸上：追加到当前段落（访谈的话一字不留），合上抽屉，会话消散
@@ -1329,6 +1345,14 @@ export default function WenxinClient() {
             disabled: syncStatus === 'syncing',
           },
           {
+            icon: <Crown size={15} className="shrink-0 opacity-70" />,
+            label: '会员',
+            badge: me?.isMember ? '已开通' : '¥19.9/月',
+            onClick: () => {
+              window.location.href = '/wenxin/member';
+            },
+          },
+          {
             icon: <Download size={15} className="shrink-0 opacity-70" />,
             label: '导出笔记',
             onClick: handleExport,
@@ -1437,14 +1461,19 @@ export default function WenxinClient() {
           )}
 
           {books && !booksLoading && (
-            <div className="wx-fade-in">
-              {sting && (
-                <p
-                  className={`text-base leading-loose italic mb-6 ${dark ? 'text-gray-400' : 'text-[#6b5f47]'}`}
-                >
-                  {sting}
-                </p>
-              )}
+            <div className="wx-fade-in relative">
+              {/* 非会员：书单内容打码（模糊），解锁遮罩引去会员页。接口照常返回，数据在本地只是不展示 */}
+              <div
+                className={me?.isMember ? '' : 'blur-md select-none pointer-events-none'}
+                aria-hidden={!me?.isMember}
+              >
+                {sting && (
+                  <p
+                    className={`text-base leading-loose italic mb-6 ${dark ? 'text-gray-400' : 'text-[#6b5f47]'}`}
+                  >
+                    {sting}
+                  </p>
+                )}
               <div className="space-y-4">
                 {books.map((b, i) => (
                   <div
@@ -1494,6 +1523,27 @@ export default function WenxinClient() {
                   </div>
                 ))}
               </div>
+              </div>
+              {/* 解锁遮罩：压在打码书单上 */}
+              {!me?.isMember && (
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <div className="text-center">
+                    <p className={`text-sm tracking-[0.3em] mb-4 ${dark ? 'text-gray-300' : 'text-[#4a4232]'}`}>
+                      书单在此，会员可读
+                    </p>
+                    <a
+                      href="/wenxin/member"
+                      className={`inline-block px-6 py-2.5 rounded-full text-xs tracking-[0.3em] transition-all duration-300 ${
+                        dark
+                          ? 'bg-gray-200 text-gray-900 hover:bg-white'
+                          : 'bg-[#4a4232] text-[#f6f1e7] hover:bg-[#5d5340]'
+                      }`}
+                    >
+                      ¥19.9 开通月卡
+                    </a>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -1504,6 +1554,18 @@ export default function WenxinClient() {
         访谈的话是脚手架，成稿只留用户自己的原话 */}
     <Drawer open={guideOpen} onOpenChange={setGuideOpen}>
       <DrawerContent
+        onPointerDownOutside={(e) => {
+          // 会员提示层浮在本抽屉之上：点在提示层上时拦住抽屉的「点外面关闭」，
+          // 否则「再聊会儿」会把访谈抽屉一并关掉
+          if (memberPromptOpen) e.preventDefault();
+        }}
+        onEscapeKeyDown={(e) => {
+          // Esc 只关提示层，不连访谈抽屉一起收走
+          if (memberPromptOpen) {
+            e.preventDefault();
+            setMemberPromptOpen(false);
+          }
+        }}
         className={`min-h-[50dvh] ${
           dark
             ? 'bg-[#111112] text-gray-300 border-gray-800'
@@ -1520,7 +1582,7 @@ export default function WenxinClient() {
             {/* 整理成笔记：聊出素材后随时可收束（说过话才可点） */}
             {guideMsgs.some((m) => m.role === 'user') && !guideDraft && (
               <button
-                onClick={handleGuideCompose}
+                onClick={handleComposeClick}
                 disabled={guideBusy}
                 className={`flex items-center gap-1.5 px-4 py-1.5 rounded-full text-[11px] tracking-[0.25em] transition-all duration-300 disabled:opacity-40 ${
                   dark
@@ -1656,6 +1718,49 @@ export default function WenxinClient() {
         </div>
       </DrawerContent>
     </Drawer>
+
+    {/* 会员引导：非会员点「整理成笔记」时浮出（轻量提示层，跳转 /wenxin/member）。
+        引路抽屉打开时 vaul 会把 body 置为 pointer-events:none（只放行抽屉门户），
+        本层渲染在抽屉之外，必须自行恢复 auto，否则按钮全部点不中 */}
+    {memberPromptOpen && (
+      <div
+        className="fixed inset-0 z-[60] flex items-center justify-center px-6"
+        style={{ pointerEvents: 'auto' }}
+        onClick={() => setMemberPromptOpen(false)}
+      >
+        <div className="absolute inset-0 bg-black/30 backdrop-blur-[2px]" />
+        <div
+          className={`relative w-full max-w-xs rounded-2xl border px-7 py-9 text-center shadow-xl ${
+            dark
+              ? 'bg-[#17171a] border-gray-800 text-gray-300'
+              : 'bg-[#fbf7ee] border-[#e8dfcc] text-[#4a4232]'
+          }`}
+          style={{ fontFamily: SERIF }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <p className="text-lg tracking-[0.2em] mb-3">聊到这里，可以落笔了</p>
+          <p className={`text-sm leading-loose mb-8 ${theme.faint}`}>
+            「整理成笔记」会把你刚才说的原话捋成一段，收进纸里。这是会员的陪伴。
+          </p>
+          <a
+            href="/wenxin/member"
+            className={`block w-full px-5 py-3 rounded-full text-sm tracking-[0.3em] transition-all duration-300 ${
+              dark
+                ? 'bg-gray-200 text-gray-900 hover:bg-white'
+                : 'bg-[#4a4232] text-[#f6f1e7] hover:bg-[#5d5340]'
+            }`}
+          >
+            ¥19.9 开通月卡
+          </a>
+          <button
+            onClick={() => setMemberPromptOpen(false)}
+            className={`mt-5 text-xs tracking-[0.2em] ${theme.faint} hover:opacity-70`}
+          >
+            再聊会儿
+          </button>
+        </div>
+      </div>
+    )}
     </>
   );
 }

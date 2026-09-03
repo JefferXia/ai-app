@@ -34,6 +34,9 @@ model User {
   updated_at DateTime    @updatedAt
   balance    Int         @default(0)             // 余额
   grade      UserGrade   @default(V0)            // 用户等级，根据支付记录自动更新
+  // 问心会员：月卡到期时间；memberType 预留（MONTHLY），永久档未来用 expireAt=null + memberType=PERMANENT
+  memberType     String?   @db.VarChar(20)       // 会员类型：MONTHLY
+  memberExpireAt DateTime?                       // 会员到期时间（null = 非会员或永久）
   point      Point[]                             // 用户与积分账户的关系
   weiRecord  WeiRecord[]
   payments   PaymentRecord[]                     // 用户支付记录 

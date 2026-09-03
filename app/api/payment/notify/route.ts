@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createPaymentUtils } from '@/lib/payment'
 import { RechargeService } from '@/lib/recharge-service'
+import { processMembershipSuccess } from '@/lib/wenxin-membership'
+import prisma from '@/lib/prisma'
 import type { PaymentNotifyParams } from '@/types/payment'
 
 /**
@@ -11,7 +13,7 @@ import type { PaymentNotifyParams } from '@/types/payment'
 export async function GET(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams
-    
+
     // 获取回调参数
     const notifyParams: PaymentNotifyParams = {
       pid: searchParams.get('pid') || '',
@@ -33,7 +35,7 @@ export async function GET(request: NextRequest) {
     }
 
     const paymentUtils = createPaymentUtils()
-    
+
     // 验证签名
     if (!paymentUtils.verifySign(notifyParams, notifyParams.sign)) {
       console.error('支付回调签名验证失败:', notifyParams)
@@ -53,21 +55,32 @@ export async function GET(request: NextRequest) {
       })
 
       try {
-        // 处理充值成功
-        await RechargeService.processRechargeSuccess(
+        // 按订单类型分发：积分充值 vs 问心会员（processMembershipSuccess 内有幂等闸）
+        // const record = await prisma.paymentRecord.findUnique({
+        //   where: { outTradeNo: notifyParams.out_trade_no },
+        //   select: { rechargeType: true },
+        // })
+        // if (record?.rechargeType?.startsWith('MEMBER_')) {
+        await processMembershipSuccess(
           notifyParams.out_trade_no,
-          notifyParams.trade_no,
-          undefined // ZPAY回调中没有buyer字段
+          notifyParams.trade_no
         )
+        // } else {
+        //   await RechargeService.processRechargeSuccess(
+        //     notifyParams.out_trade_no,
+        //     notifyParams.trade_no,
+        //     undefined // ZPAY回调中没有buyer字段
+        //   )
+        // }
       } catch (processError) {
         console.error('处理支付成功业务逻辑失败:', processError)
         // 即使业务逻辑处理失败，也要返回success，避免ZPAY重复通知
       }
-      
+
     } else {
       // 支付失败或其他状态
       console.log('支付状态:', notifyParams.trade_status, '订单号:', notifyParams.out_trade_no)
-      
+
       // TODO: 更新订单状态
       // await updateOrderStatus(notifyParams.out_trade_no, 'FAILED')
     }

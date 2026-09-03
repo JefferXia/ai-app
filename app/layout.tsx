@@ -19,7 +19,7 @@ const instrumentSerif = Instrument_Serif({
 
 export const metadata: Metadata = {
   metadataBase: new URL('https://www.wenxinbiji.com'),
-  title: '心镜',
+  title: '心镜 - 用心照见，向内觉知',
   description:
     '一个无目的地自我观察的空间。打开，写，关掉。帮你更清楚地看到自己——而看到本身就是全部。向外求索，终究徒劳；向内觉知，方得圆满。',
   keywords:

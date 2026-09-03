@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { guideReply, guideCompose, GuideMessage } from '@/lib/wenxin-guide';
 import { getWenxinUser } from '@/lib/wenxin-auth';
+import { getMemberState } from '@/lib/wenxin-membership';
 
 export const runtime = 'nodejs';
 
@@ -62,6 +63,17 @@ export async function POST(req: Request) {
       typeof body?.paper === 'string' ? body.paper.slice(0, MAX_TEXT_LEN) : '';
     const history = sanitizeHistory(body?.history);
     const compose = body?.mode === 'compose';
+
+    // 「整理成笔记」是会员功能：服务端硬门（防绕过前端直接调接口）
+    if (compose) {
+      const member = await getMemberState(identity.userId);
+      if (!member?.isMember) {
+        return NextResponse.json(
+          { success: false, error: '整理成笔记是会员功能' },
+          { status: 403 }
+        );
+      }
+    }
 
     const reply = compose
       ? await guideCompose(paper, history)
