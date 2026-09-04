@@ -56,7 +56,6 @@ export default function LoginClient() {
       style={{ fontFamily: SERIF }}
     >
       <div className="w-full max-w-sm">
-        <p className={`text-[11px] tracking-[0.4em] mb-2 ${theme.faint}`}>心镜</p>
         <h1 className="text-xl md:text-2xl leading-loose mb-2">回来</h1>
         <p className={`text-sm leading-loose mb-10 ${theme.faint}`}>
           昵称加密码，笔记就跟过来了。

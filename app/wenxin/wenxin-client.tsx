@@ -3,21 +3,13 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import {
-  Moon,
-  Sun,
   Archive,
   X,
   Eye,
   Lightbulb,
-  PanelRight,
-  CloudUpload,
-  Download,
   BookOpen,
   SendHorizontal,
   PenLine,
-  KeyRound,
-  LogIn,
-  Crown,
 } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
@@ -26,6 +18,7 @@ import {
   DrawerHeader,
   DrawerTitle,
 } from '@/components/ui/drawer';
+import { WenxinNavbar } from '@/components/custom/navbar';
 import { useGlobalContext } from '@/app/globalContext';
 import {
   SERIF,
@@ -65,15 +58,15 @@ const ZEN_ASK_ENTRY = false;
 // 首访欢迎：历史为空时写入一封初始日记，并以打字机效果呈现（仅一次）
 const WELCOME_KEY = 'wenxin_welcome_v1';
 
-const WELCOME_TEXT = `你终于来了，我是你的心镜。
+const WELCOME_TEXT = `你终于来了，这里是你的心镜。
 
-心镜是一个无目的地自我观察的空间。打开，写，关掉。
+一个无目的地自我观察的空间。打开，写，关掉。
 
 吾日三省吾身，心镜就像内心的一面镜子，助你照见自己——而照见本身就是全部。
 
 这里无分析，无总结，无追踪，所有数据存储在本地。
 
-点开始后，会为你自动生成一个匿名身份，本地数据可自行导出备份。`;
+点开始后，会为你自动注册一个随机身份，本地数据可自行导出备份。`;
 
 /** 打字机：逐字显现，标点与换行处稍作停顿 */
 function Typewriter({
@@ -993,25 +986,26 @@ export default function WenxinClient() {
       style={{ fontFamily: SERIF }}
     >
       <style dangerouslySetInnerHTML={{ __html: archiveStyles }} />
-      {/* logo：心镜（禅问入口暂时隐藏，恢复时去掉 ZEN_ASK_ENTRY 条件即可） */}
-      <div className="fixed top-6 left-6 z-40 flex items-baseline gap-5">
-        <span
-          className={`text-sm tracking-[0.4em] ${dark ? 'text-gray-300' : 'text-[#6a5f4a]'}`}
-        >
-          心镜
-        </span>
-        {ZEN_ASK_ENTRY && (
-          <Link
-            href="/zen-ask"
-            className={`text-xs tracking-[0.4em] transition-opacity opacity-60 hover:opacity-100 ${dark ? 'text-gray-400' : 'text-[#8a7f6a]'}`}
-          >
-            禅问
-          </Link>
-        )}
-      </div>
+      {/* 顶栏：心镜 logo 胶囊 + 悬浮菜单（组件见 components/custom/navbar）。
+          禅问入口仍由 ZEN_ASK_ENTRY 开关控制 */}
+      <WenxinNavbar
+        dark={dark}
+        onToggleDark={() => setDark((d) => !d)}
+        menuOpen={menuOpen}
+        onMenuOpenChange={setMenuOpen}
+        userId={userId}
+        accountName={userInfo?.name ?? null}
+        me={me}
+        syncStatus={syncStatus}
+        lastSync={lastSync}
+        onSync={handleSync}
+        onExport={handleExport}
+        exportDisabled={archived.length === 0 && !hasContent}
+        showZenAsk={ZEN_ASK_ENTRY}
+      />
 
       {/* 主流区：上方历史流，下方输入框，自顶向下排列 */}
-      <main className="flex-1 flex flex-col min-h-0 pt-8">
+      <main className="flex-1 flex flex-col min-h-0">
         {/* 历史流：按时间先后排列，最新贴着输入框；顶部透明渐隐。
             高度设上限（半屏），输入区始终占据主区域 */}
         {archived.length > 0 && (
@@ -1264,160 +1258,6 @@ export default function WenxinClient() {
         </div>
       )}
     </div>
-
-    {/* 悬浮菜单开关：右上角 */}
-    <button
-      onClick={() => setMenuOpen((o) => !o)}
-      aria-label="打开菜单"
-      className={`fixed top-5 right-5 z-40 transition-opacity opacity-60 hover:opacity-100 ${dark ? 'text-gray-400' : 'text-[#8a7f6a]'}`}
-    >
-      <PanelRight size={16} />
-    </button>
-
-    {/* 移动端遮罩：点空白处合上 */}
-    {menuOpen && (
-      <div
-        className="fixed inset-0 z-40 bg-black/20 md:hidden"
-        onClick={() => setMenuOpen(false)}
-      />
-    )}
-
-    {/* 悬浮菜单：覆盖在页面上（fixed），不改变布局；白底 + 左边框阴影 */}
-    <aside
-      className={`fixed inset-y-0 right-0 z-50 w-60 flex flex-col border-l transition-transform duration-300 ease-in-out ${
-        menuOpen ? 'translate-x-0' : 'translate-x-full'
-      } ${
-        dark
-          ? 'bg-[#111112] border-gray-800 text-gray-300 shadow-[-16px_0_40px_rgba(0,0,0,0.5)]'
-          : 'bg-white border-[#eee5d3] text-[#6b5f47] shadow-[-16px_0_40px_rgba(107,95,71,0.12)]'
-      }`}
-      style={{ fontFamily: SERIF }}
-    >
-      <div className="relative px-5 pt-8 pb-5">
-        <button
-          onClick={() => setMenuOpen(false)}
-          aria-label="合上菜单"
-          className="absolute top-5 right-5 opacity-50 hover:opacity-100 transition-opacity"
-        >
-          <X size={15} />
-        </button>
-        {/* 头像 + 昵称：居中；头像取昵称首字，底色随昵称固定 */}
-        <div className="flex flex-col items-center gap-2.5">
-          <span
-            className={`w-12 h-12 rounded-full flex items-center justify-center text-lg select-none ${
-              dark
-                ? 'bg-gray-800 text-gray-300'
-                : 'bg-[#ece4d2] text-[#6b5f47]'
-            }`}
-          >
-            {(me?.name ?? '心')[0]}
-          </span>
-          <span className="text-[12px] tracking-[0.3em] opacity-80">
-            {userId ? (userInfo?.name ?? '心镜') : (me?.name ?? '心镜')}
-          </span>
-          {!userId && me && !me.hasPassword && (
-            <span className={`text-[10px] tracking-[0.2em] ${dark ? 'text-gray-600' : 'text-[#bfb299]'}`}>
-              未设密码
-            </span>
-          )}
-        </div>
-      </div>
-
-      <nav className="flex-1 px-3 flex flex-col gap-1">
-        {[
-          {
-            icon: (
-              <CloudUpload
-                size={15}
-                className={`shrink-0 opacity-70 ${syncStatus === 'syncing' ? 'animate-pulse' : ''}`}
-              />
-            ),
-            label:
-              syncStatus === 'syncing'
-                ? '同步中…'
-                : syncStatus === 'synced'
-                  ? `已同步${lastSync ? ` · ${fmtTime(lastSync)}` : ''}`
-                  : syncStatus === 'error'
-                    ? '同步失败 · 重试'
-                    : '同步云端',
-            badge: '仅自己可见',
-            onClick: handleSync,
-            disabled: syncStatus === 'syncing',
-          },
-          {
-            icon: <Crown size={15} className="shrink-0 opacity-70" />,
-            label: '会员',
-            badge: me?.isMember ? '已开通' : '¥19.9/月',
-            onClick: () => {
-              window.location.href = '/wenxin/member';
-            },
-          },
-          {
-            icon: <Download size={15} className="shrink-0 opacity-70" />,
-            label: '导出笔记',
-            onClick: handleExport,
-            disabled: archived.length === 0 && !hasContent,
-          },
-        ].map((item) => (
-          <button
-            key={item.label}
-            onClick={item.onClick}
-            disabled={item.disabled}
-            className={`flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-[13px] tracking-[0.15em] transition-colors disabled:opacity-40 ${
-              dark ? 'hover:bg-white/5' : 'hover:bg-[#f6f1e7]'
-            }`}
-          >
-            {item.icon}
-            <span>{item.label}</span>
-            {'badge' in item && item.badge && (
-              <span
-                className={`ml-auto text-[9px] tracking-[0.15em] px-2 py-0.5 rounded-full ${
-                  dark
-                    ? 'bg-amber-950/60 text-amber-200/90'
-                    : 'bg-amber-100 text-amber-800'
-                }`}
-              >
-                {item.badge}
-              </span>
-            )}
-          </button>
-        ))}
-      </nav>
-
-      <div className="px-3 pb-6">
-        {/* 账号入口：未设密码 → 设密码（同步的钥匙）；已设 → 账号设置；未注册 → 昵称登录 */}
-        {!userId && (
-          <Link
-            href={me ? '/wenxin/password' : '/wenxin/login'}
-            className={`flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-[13px] tracking-[0.15em] transition-colors ${
-              dark ? 'hover:bg-white/5' : 'hover:bg-[#f6f1e7]'
-            }`}
-          >
-            {me ? (
-              <KeyRound size={15} className="shrink-0 opacity-70" />
-            ) : (
-              <LogIn size={15} className="shrink-0 opacity-70" />
-            )}
-            <span>
-              {me ? (me.hasPassword ? '账号设置' : '设置密码') : '昵称登录'}
-            </span>
-          </Link>
-        )}
-        <button
-          onClick={() => setDark((d) => !d)}
-          className={`flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-[13px] tracking-[0.15em] transition-colors ${
-            dark ? 'hover:bg-white/5' : 'hover:bg-[#f6f1e7]'
-          }`}
-        >
-          {dark ? (
-            <Sun size={15} className="shrink-0 opacity-70" />
-          ) : (
-            <Moon size={15} className="shrink-0 opacity-70" />
-          )}
-          <span>{dark ? '亮色模式' : '暗色模式'}</span>
-        </button>
-      </div>
-    </aside>
 
     {/* 翻书：对症书单上拉层（金句 + 书目卡片） */}
     <Drawer open={bookOpen} onOpenChange={setBookOpen}>

@@ -81,7 +81,6 @@ export default function PasswordClient() {
       style={{ fontFamily: SERIF }}
     >
       <div className="w-full max-w-sm">
-        <p className={`text-[11px] tracking-[0.4em] mb-2 ${theme.faint}`}>心镜</p>
         <h1 className="text-xl md:text-2xl leading-loose mb-2">给笔记一把钥匙</h1>
         <p className={`text-sm leading-loose mb-10 ${theme.faint}`}>
           设个密码，笔记就能同步上云，换设备也能找回来。昵称随时可以改。

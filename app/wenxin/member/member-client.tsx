@@ -43,6 +43,13 @@ export default function MemberClient() {
 
   const theme = getTheme(dark);
 
+  // 卡片：磨砂玻璃质感——半透明底 + 微模糊，悬停轻抬并落影
+  const cardCls = `rounded-2xl border backdrop-blur-sm px-6 py-7 sm:px-8 sm:py-8 transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] hover:-translate-y-1 ${
+    dark
+      ? 'border-gray-700/80 bg-white/[0.04] hover:border-gray-600 hover:bg-white/[0.08] hover:shadow-[0_22px_44px_-26px_rgba(0,0,0,0.6)]'
+      : 'border-[#e4dac6]/80 bg-white/70 hover:border-[#d8cdb6] hover:bg-white hover:shadow-[0_22px_44px_-26px_rgba(107,95,71,0.22)]'
+  }`;
+
   const applyPaid = (expireAt: string | null) => {
     setPaid(true);
     setMe((m) => (m ? { ...m, isMember: true, memberExpireAt: expireAt } : m));
@@ -102,7 +109,6 @@ export default function MemberClient() {
       style={{ fontFamily: SERIF }}
     >
       <div className="w-full max-w-sm">
-        <p className={`text-[11px] tracking-[0.4em] mb-2 ${theme.faint}`}>心镜</p>
         <h1 className="text-xl md:text-2xl leading-loose mb-2">会员</h1>
         <p className={`text-sm leading-loose mb-10 ${theme.faint}`}>
           照见深处的自己，需要一点陪伴。
@@ -126,11 +132,7 @@ export default function MemberClient() {
           </div>
         ) : paid || me.isMember ? (
           <div className="space-y-6">
-            <div
-              className={`rounded-2xl border px-6 py-8 text-center ${
-                dark ? 'border-gray-700' : 'border-[#e4dac6]'
-              }`}
-            >
+            <div className={`${cardCls} text-center`}>
               <p className="text-lg tracking-[0.2em] mb-2">
                 {paid ? '已开通' : '已是会员'}
               </p>
@@ -151,11 +153,7 @@ export default function MemberClient() {
           </div>
         ) : order ? (
           <div className="space-y-6">
-            <div
-              className={`rounded-2xl border px-6 py-8 text-center ${
-                dark ? 'border-gray-700' : 'border-[#e4dac6]'
-              }`}
-            >
+            <div className={`${cardCls} text-center`}>
               <p className={`text-[11px] tracking-[0.3em] mb-1 ${theme.faint}`}>
                 {order.planName} · ¥{order.amount.toFixed(2)}
               </p>
@@ -210,11 +208,7 @@ export default function MemberClient() {
           </div>
         ) : (
           <div className="space-y-6">
-            <div
-              className={`rounded-2xl border px-6 py-8 ${
-                dark ? 'border-gray-700' : 'border-[#e4dac6]'
-              }`}
-            >
+            <div className={cardCls}>
               <div className="flex items-baseline justify-between mb-4">
                 <p className="text-lg tracking-[0.2em]">月卡</p>
                 <p>

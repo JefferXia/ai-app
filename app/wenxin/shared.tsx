@@ -553,4 +553,14 @@ export const archiveStyles = `
     overflow: hidden;
     text-overflow: ellipsis;
   }
+
+  /* 顶栏 logo 胶囊：悬停时一道掠光自左向右扫过 */
+  @keyframes wxSheen {
+    from {
+      transform: translateX(-100%);
+    }
+    to {
+      transform: translateX(100%);
+    }
+  }
 `;
