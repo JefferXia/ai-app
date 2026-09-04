@@ -12,8 +12,8 @@ const NAME_RE = /^[\u4e00-\u9fa5A-Za-z0-9_·-]{2,20}$/;
 // 未设过密码的账号：直接设；已设过：需校验当前密码。
 export async function POST(req: Request) {
   try {
-    const identity = await getWenxinUser(req);
-    if (!identity) {
+    const userId = await getWenxinUser();
+    if (!userId) {
       return NextResponse.json(
         { success: false, error: '未授权访问' },
         { status: 401 }
@@ -34,7 +34,7 @@ export async function POST(req: Request) {
       );
     }
 
-    const user = await prisma.user.findUnique({ where: { id: identity.userId } });
+    const user = await prisma.user.findUnique({ where: { id: userId } });
     if (!user) {
       return NextResponse.json(
         { success: false, error: '账号不存在' },

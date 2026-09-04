@@ -1,11 +1,7 @@
 import { NextResponse } from 'next/server';
 import { compare } from 'bcrypt-ts';
 import prisma from '@/lib/prisma';
-import {
-  signWenxinSession,
-  wenxinCookieOptions,
-  WENXIN_COOKIE,
-} from '@/lib/wenxin-auth';
+import { signIn } from '@/app/(auth)/auth';
 
 export const runtime = 'nodejs';
 
@@ -69,12 +65,13 @@ export async function POST(req: Request) {
       );
     }
 
-    const res = NextResponse.json({
+    // 创建统一 NextAuth session（全站唯一登录态；失败则登录失败，见外层 catch）
+    await signIn('wenxin', { userId: user.id, redirect: false });
+
+    return NextResponse.json({
       success: true,
       data: { name: user.name, hasPassword: true },
     });
-    res.cookies.set(WENXIN_COOKIE, signWenxinSession(user.id), wenxinCookieOptions());
-    return res;
   } catch (error) {
     console.error('[wenxin login] POST error:', error);
     return NextResponse.json(

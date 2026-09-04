@@ -12,8 +12,8 @@ export const runtime = 'nodejs';
  */
 export async function POST(req: Request) {
   try {
-    const identity = await getWenxinUser(req);
-    if (!identity) {
+    const userId = await getWenxinUser();
+    if (!userId) {
       return NextResponse.json({ success: false, error: '未授权访问' }, { status: 401 });
     }
 
@@ -23,7 +23,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: false, error: '未知套餐' }, { status: 400 });
     }
 
-    const record = await createMemberOrder(identity.userId, plan);
+    const record = await createMemberOrder(userId, plan);
 
     const paymentUtils = createPaymentUtils();
     const paymentParams = paymentUtils.createApiPaymentParams({
@@ -32,7 +32,7 @@ export async function POST(req: Request) {
       type: 'alipay',
       out_trade_no: record.outTradeNo,
       clientip: paymentUtils.getClientIP(req as any),
-      param: JSON.stringify({ type: 'member', plan: plan.id, userId: identity.userId }),
+      param: JSON.stringify({ type: 'member', plan: plan.id, userId }),
       device: 'pc',
     });
 

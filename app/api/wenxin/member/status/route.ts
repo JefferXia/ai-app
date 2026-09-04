@@ -13,8 +13,8 @@ export const runtime = 'nodejs';
  */
 export async function GET(request: NextRequest) {
   try {
-    const identity = await getWenxinUser(request);
-    if (!identity) {
+    const userId = await getWenxinUser();
+    if (!userId) {
       return NextResponse.json({ success: false, error: '未授权访问' }, { status: 401 });
     }
 
@@ -25,7 +25,7 @@ export async function GET(request: NextRequest) {
 
     const record = await prisma.paymentRecord.findUnique({ where: { outTradeNo: orderId } });
     // 只能查自己的会员订单
-    if (!record || record.userId !== identity.userId || !record.rechargeType.startsWith('MEMBER_')) {
+    if (!record || record.userId !== userId || !record.rechargeType.startsWith('MEMBER_')) {
       return NextResponse.json({ success: false, error: '订单不存在' }, { status: 404 });
     }
 
@@ -54,7 +54,7 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    const member = await getMemberState(identity.userId);
+    const member = await getMemberState(userId);
     return NextResponse.json({
       success: true,
       data: {

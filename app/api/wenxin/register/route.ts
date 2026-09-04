@@ -1,12 +1,8 @@
 import { NextResponse } from 'next/server';
 import { Prisma } from '@prisma/client';
 import prisma from '@/lib/prisma';
-import {
-  getWenxinProfile,
-  signWenxinSession,
-  wenxinCookieOptions,
-  WENXIN_COOKIE,
-} from '@/lib/wenxin-auth';
+import { signIn } from '@/app/(auth)/auth';
+import { getWenxinProfile } from '@/lib/wenxin-auth';
 
 export const runtime = 'nodejs';
 
@@ -49,7 +45,7 @@ async function genUniqueName(): Promise<string> {
 // 密码留空（点「同步云端」时再引导设置）。幂等：已有会话直接返回当前账号。
 export async function POST(req: Request) {
   try {
-    const existing = await getWenxinProfile(req);
+    const existing = await getWenxinProfile();
     if (existing) {
       return NextResponse.json({
         success: true,
@@ -81,12 +77,13 @@ export async function POST(req: Request) {
       }
     }
 
-    const res = NextResponse.json({
+    // 创建统一 NextAuth session（失败则注册失败，见外层 catch）
+    await signIn('wenxin', { userId: user.id, redirect: false });
+
+    return NextResponse.json({
       success: true,
       data: { userId: user.id, name: user.name, hasPassword: false },
     });
-    res.cookies.set(WENXIN_COOKIE, signWenxinSession(user.id), wenxinCookieOptions());
-    return res;
   } catch (error) {
     console.error('[wenxin register] POST error:', error);
     return NextResponse.json(

@@ -160,14 +160,13 @@ async function applyDeletions(userId: string, ids: string[]) {
 // 增量拉取：?after=<毫秒时间戳>，返回 t > after 的条目（分页，含软删除 tombstone）
 export async function GET(req: Request) {
   try {
-    const identity = await getWenxinUser(req);
-    if (!identity) {
+    const userId = await getWenxinUser();
+    if (!userId) {
       return NextResponse.json(
         { success: false, error: '未授权访问' },
         { status: 401 }
       );
     }
-    const userId = identity.userId;
 
     await migrateLegacyWenxinData(userId);
 
@@ -210,14 +209,13 @@ export async function GET(req: Request) {
 // 推送：{ entries: 新归档（append-only，按 id 去重）, deletedIds: 待删除（软删除） }
 export async function POST(req: Request) {
   try {
-    const identity = await getWenxinUser(req);
-    if (!identity) {
+    const userId = await getWenxinUser();
+    if (!userId) {
       return NextResponse.json(
         { success: false, error: '未授权访问' },
         { status: 401 }
       );
     }
-    const userId = identity.userId;
 
     const body = await req.json().catch(() => null);
     const entries = sanitizeEntries(body?.entries);

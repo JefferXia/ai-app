@@ -9,7 +9,7 @@ const MAX_TEXT_LEN = 50_000;
 const MAX_HISTORY = 40;
 const MAX_MSG_LEN = 2_000;
 
-// 匿名用户限流：访谈是多轮的，额度比单轮引导宽一些（内存实现，重启清零）
+// 非会员限流：访谈是多轮的，额度比单轮引导宽一些（内存实现，重启清零）；会员不受限
 const anonHits = new Map<string, { day: number; count: number }>();
 const ANON_DAILY_LIMIT = 40;
 
@@ -43,15 +43,16 @@ function sanitizeHistory(input: unknown): GuideMessage[] {
 // 访谈式引路：mode 缺省为追问一轮；mode=compose 时把用户原话捋成一段日记
 export async function POST(req: Request) {
   try {
-    const identity = await getWenxinUser(req);
-    if (!identity) {
+    const userId = await getWenxinUser();
+    if (!userId) {
       return NextResponse.json(
         { success: false, error: '未授权访问' },
         { status: 401 }
       );
     }
 
-    if (identity.anonymous && !anonAllowed(identity.userId)) {
+    const member = await getMemberState(userId);
+    if (!member?.isMember && !anonAllowed(userId)) {
       return NextResponse.json(
         { success: false, error: '今日引路次数已用完' },
         { status: 429 }
@@ -65,14 +66,11 @@ export async function POST(req: Request) {
     const compose = body?.mode === 'compose';
 
     // 「整理成笔记」是会员功能：服务端硬门（防绕过前端直接调接口）
-    if (compose) {
-      const member = await getMemberState(identity.userId);
-      if (!member?.isMember) {
-        return NextResponse.json(
-          { success: false, error: '整理成笔记是会员功能' },
-          { status: 403 }
-        );
-      }
+    if (compose && !member?.isMember) {
+      return NextResponse.json(
+        { success: false, error: '整理成笔记是会员功能' },
+        { status: 403 }
+      );
     }
 
     const reply = compose

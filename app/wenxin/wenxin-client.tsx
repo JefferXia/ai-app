@@ -402,7 +402,7 @@ export default function WenxinClient() {
       setDark(localStorage.getItem(THEME_KEY) === 'dark');
       setLastSync(loadLastSync());
 
-      // 身份探测：统一问 /api/wenxin/me（NextAuth 主站登录与问心 cookie 会话都认）。
+      // 身份探测：统一问 /api/wenxin/me（认 NextAuth session，全站一套登录态）。
       // /me 返回 401 → 未注册：展示「我明白，开始写」，点击即注册入口。
       // 默认 consented=true 避免已登录用户闪出按钮，/me 明确 401 后才置 false
       try {
@@ -1302,18 +1302,18 @@ export default function WenxinClient() {
 
           {books && !booksLoading && (
             <div className="wx-fade-in relative">
+              {sting && (
+                <p
+                  className={`text-base leading-loose italic mb-6 ${dark ? 'text-gray-400' : 'text-[#6b5f47]'}`}
+                >
+                  {sting}
+                </p>
+              )}
               {/* 非会员：书单内容打码（模糊），解锁遮罩引去会员页。接口照常返回，数据在本地只是不展示 */}
               <div
                 className={me?.isMember ? '' : 'blur-md select-none pointer-events-none'}
                 aria-hidden={!me?.isMember}
               >
-                {sting && (
-                  <p
-                    className={`text-base leading-loose italic mb-6 ${dark ? 'text-gray-400' : 'text-[#6b5f47]'}`}
-                  >
-                    {sting}
-                  </p>
-                )}
               <div className="space-y-4">
                 {books.map((b, i) => (
                   <div

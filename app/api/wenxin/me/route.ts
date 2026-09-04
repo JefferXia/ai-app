@@ -4,8 +4,8 @@ import { getWenxinProfile } from '@/lib/wenxin-auth';
 export const runtime = 'nodejs';
 
 // 当前问心身份：昵称 + 是否已设密码（客户端据此决定同步引导和输入框状态）
-export async function GET(req: Request) {
-  const profile = await getWenxinProfile(req);
+export async function GET() {
+  const profile = await getWenxinProfile();
   if (!profile) {
     return NextResponse.json(
       { success: false, error: '未认证' },

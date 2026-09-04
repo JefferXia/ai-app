@@ -36,12 +36,12 @@ export const {
       },
       async authorize({ userId }: any) {
         if (!userId) return null;
-        
+
         try {
           const user = await prisma.user.findUnique({
             where: { id: userId }
           });
-          
+
           if (user) {
             return {
               id: user.id,
@@ -53,7 +53,38 @@ export const {
         } catch (error) {
           console.error('WeChat authorize error:', error);
         }
-        
+
+        return null;
+      },
+    }),
+    // 问心内部登录通道：仅服务端在昵称+密码校验通过后调用（/api/wenxin/login、/api/wenxin/register），
+    // 用于把问心登录态收敛为统一的 NextAuth session。不对外暴露表单。
+    Credentials({
+      id: "wenxin",
+      name: "Wenxin",
+      credentials: {
+        userId: { label: "User ID", type: "text" },
+      },
+      async authorize({ userId }: any) {
+        if (!userId) return null;
+
+        try {
+          const user = await prisma.user.findUnique({
+            where: { id: userId }
+          });
+
+          if (user) {
+            return {
+              id: user.id,
+              email: user.email,
+              name: user.name,
+              image: user.wechatAvatar,
+            } as User;
+          }
+        } catch (error) {
+          console.error('Wenxin authorize error:', error);
+        }
+
         return null;
       },
     }),
