@@ -22,8 +22,6 @@ interface EntryInput {
   id: string;
   t: number;
   text: string;
-  mood?: string | null;
-  guide?: string | null;
   sting?: string | null;
   books?: BookInput[] | null;
 }
@@ -66,10 +64,6 @@ function sanitizeEntries(input: unknown): EntryInput[] {
         id: e.id.slice(0, 40),
         t: e.t,
         text: e.text.slice(0, MAX_TEXT_LEN),
-        ...(typeof e.mood === 'string' ? { mood: e.mood.slice(0, 20) } : {}),
-        ...(typeof e.guide === 'string'
-          ? { guide: e.guide.slice(0, 500) }
-          : {}),
         ...(typeof e.sting === 'string'
           ? { sting: e.sting.slice(0, 500) }
           : {}),
@@ -189,8 +183,6 @@ export async function GET(req: Request) {
         ? { text: '', deleted: true as const }
         : {
             text: r.text,
-            mood: r.mood,
-            guide: r.guide,
             sting: r.sting,
             books: r.books,
           }),
@@ -229,8 +221,6 @@ export async function POST(req: Request) {
           userId,
           t: BigInt(e.t),
           text: e.text,
-          mood: e.mood ?? null,
-          guide: e.guide ?? null,
           sting: e.sting ?? null,
           books: e.books
             ? (e.books as unknown as Prisma.InputJsonValue)
@@ -240,16 +230,12 @@ export async function POST(req: Request) {
       });
       inserted = result.count;
 
-      // 心境/书单结果可能在条目首次推送后补回：对带附加字段的已存在条目做更新
-      const withExtras = entries.filter(
-        (e) => e.mood || e.guide || e.sting || e.books
-      );
+      // 书单结果可能在条目首次推送后补回：对带附加字段的已存在条目做更新
+      const withExtras = entries.filter((e) => e.sting || e.books);
       for (const e of withExtras) {
         await prisma.wenxinEntry.updateMany({
           where: { id: e.id, userId, deletedAt: null },
           data: {
-            mood: e.mood ?? null,
-            guide: e.guide ?? null,
             sting: e.sting ?? null,
             books: e.books
               ? (e.books as unknown as Prisma.InputJsonValue)

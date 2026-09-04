@@ -29,8 +29,6 @@ export interface ArchiveEntry {
   id: string; // 稳定 id（跨端合并与去重键）
   t: number; // 归档时间
   text: string;
-  mood?: string | null; // AI 匹配的十种心境之一
-  guide?: string | null; // 觉知者的从旁引导（一句话）
   sting?: string | null; // 归档时翻书（禅问）得到的金句
   books?: ZenBook[] | null; // 对症书单
   deleted?: boolean; // 服务端软删除标记（tombstone），仅同步拉取时出现
@@ -219,32 +217,12 @@ export async function putEntry(e: ArchiveEntry) {
   }
 }
 
-/** 归档后补回心境分析结果 */
-export async function updateEntryReflection(
-  id: string,
-  mood: string | null,
-  guide: string | null
-) {
-  try {
-    await getDb()?.entries.update(id, { mood, guide });
-  } catch {
-    // 静默失败
-  }
-}
-
-/** 云端拉取的条目并入本地：同 id 字段级合并，mood/guide 优先保留非空值 */
+/** 云端拉取的条目并入本地：同 id 合并（sting/books 随条目整存整取） */
 export async function mergeEntriesIntoDb(fresh: ArchiveEntry[]) {
   const db = getDb();
   if (!db || fresh.length === 0) return;
   try {
-    const existing = await db.entries.bulkGet(fresh.map((f) => f.id));
-    const merged = fresh.map((f, i) => {
-      const ex = existing[i];
-      return ex
-        ? { ...f, mood: f.mood ?? ex.mood, guide: f.guide ?? ex.guide }
-        : f;
-    });
-    await db.entries.bulkPut(merged);
+    await db.entries.bulkPut(fresh);
   } catch {
     // 静默失败
   }
@@ -375,22 +353,6 @@ export function EntryModal({
         <p className="whitespace-pre-wrap text-base md:text-lg leading-loose">
           {entry.text}
         </p>
-        {(entry.mood || entry.guide) && (
-          <div className={`mt-10 pt-8 border-t ${dark ? 'border-gray-800' : 'border-[#e5dcc8]'}`}>
-            {entry.mood && (
-              <p
-                className={`text-[10px] tracking-[0.4em] ${theme.faint} mb-4`}
-              >
-                心境 · {entry.mood}
-              </p>
-            )}
-            {entry.guide && (
-              <p className="text-sm md:text-base leading-loose italic opacity-80">
-                {entry.guide}
-              </p>
-            )}
-          </div>
-        )}
         {onDelete && (
           <div className="mt-10 flex justify-end">
             <button

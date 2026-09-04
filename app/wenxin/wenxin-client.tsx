@@ -36,7 +36,6 @@ import {
   requestPersistentStorage,
   loadArchive,
   putEntry,
-  updateEntryReflection,
   mergeEntriesIntoDb,
   deleteEntryRows,
   loadDeletedIds,
@@ -45,12 +44,6 @@ import {
 } from './shared';
 
 /* ===== 跨端同步：手动触发，先拉合并再推本地 ===== */
-
-// 心境分析开关：暂时停用（接口 /api/wenxin/reflect 保留，置 true 即重新启用）
-const REFLECT_ENABLED = false;
-
-// 回声开关：暂时隐藏（置 true 即恢复旧碎片浮现）
-const ECHO_ENABLED = false;
 
 // 首访欢迎：历史为空时写入一封初始日记，并以打字机效果呈现（仅一次）
 const WELCOME_KEY = 'wenxin_welcome_v1';
@@ -63,7 +56,7 @@ const WELCOME_TEXT = `你终于来了，这里是你的心镜。
 
 这里无分析，无总结，无追踪，所有数据存储在本地。
 
-点开始后，会为你自动注册一个随机身份，本地数据可自行导出备份。`;
+本地数据可自行导出备份，也可以选择加密同步到云端。`;
 
 /** 打字机：逐字显现，标点与换行处稍作停顿 */
 function Typewriter({
@@ -108,14 +101,12 @@ function mergeArchive(
     fingerprint.add(fp);
     const key = a.id ?? `t${a.t}`;
     const existing = map.get(key);
-    // 同 id 合并：mood/guide/sting/books 可能被另一端补全，优先保留非空值
+    // 同 id 合并：sting/books 可能被另一端补全，优先保留非空值
     map.set(
       key,
       existing
         ? {
             ...a,
-            mood: a.mood ?? existing.mood,
-            guide: a.guide ?? existing.guide,
             sting: a.sting ?? existing.sting,
             books: a.books ?? existing.books,
           }
@@ -335,8 +326,6 @@ export default function WenxinClient() {
   const [archived, setArchived] = useState<ArchiveEntry[]>([]);
   const [lastAdded, setLastAdded] = useState<string | null>(null);
   const [typingId, setTypingId] = useState<string | null>(null);
-  const [echo, setEcho] = useState<string | null>(null);
-  const [echoOut, setEchoOut] = useState(false);
   // 引路（访谈式）：采访者一轮一轮追问，聊完可捋成一段落回纸上
   const [guideOpen, setGuideOpen] = useState(false);
   const [guideMsgs, setGuideMsgs] = useState<
@@ -438,19 +427,6 @@ export default function WenxinClient() {
         } catch {}
       }
       setArchived(archiveList);
-
-      // 回声：小概率浮出一段旧碎片（不点名时间）—— 暂时隐藏（ECHO_ENABLED）
-      if (ECHO_ENABLED) {
-        const pool: string[] = [];
-        segs.forEach((s) => s.text.trim() && pool.push(s.text));
-        archiveList.forEach((a) => a.text.trim() && pool.push(a.text));
-        if (pool.length > 0 && Math.random() < 0.35) {
-          const src = pool[Math.floor(Math.random() * pool.length)];
-          const paras = splitParagraphs(src);
-          const p = paras[Math.floor(Math.random() * paras.length)] ?? src;
-          setEcho(p.length > 120 ? p.slice(0, 120) + ' …' : p);
-        }
-      }
 
       setHydrated(true);
     })();
@@ -629,11 +605,6 @@ export default function WenxinClient() {
   }, [hydrated]);
 
   const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    // 开始落笔，回声消散
-    if (echo && !echoOut) {
-      setEchoOut(true);
-      setTimeout(() => setEcho(null), 700);
-    }
     const val = e.target.value;
     setSegments((prev) => {
       if (!prev.length) return [{ id: genId(), t: Date.now(), text: val }];
@@ -921,38 +892,6 @@ export default function WenxinClient() {
       const el = flowRef.current;
       if (el) el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
     });
-
-    // 心境分析：暂时停用（REFLECT_ENABLED）；接口保留以备后续启用
-    if (REFLECT_ENABLED && syncKey) {
-      (async () => {
-        try {
-          const rr = await fetch('/api/wenxin/reflect', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ text }),
-          });
-          const rj = await rr.json();
-          const mood = rj?.data?.mood ?? null;
-          const guide = rj?.data?.guide ?? null;
-          if (!rr.ok || !rj?.success || (!mood && !guide)) return;
-          // 回填本地（IndexedDB 粒度更新，随下次手动同步推送）
-          setArchived((prev) =>
-            prev.map((a) => (a.id === entry.id ? { ...a, mood, guide } : a))
-          );
-          updateEntryReflection(entry.id, mood, guide);
-          // 该条目可能已被推送过（游标之后无新条目），直接补推一次分析结果
-          fetch('/api/wenxin/entries', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              entries: [{ ...entry, mood, guide }],
-            }),
-          }).catch(() => {});
-        } catch {
-          // 分析失败不影响归档
-        }
-      })();
-    }
   };
 
   // 快捷键：Cmd/Ctrl + . 照镜子，Esc 合上
@@ -1095,24 +1034,6 @@ export default function WenxinClient() {
         {/* 纸：一条持续流动的文字，占满历史流之下的剩余空间；文字过长时纸内滚动，
             操作行固定在底部不被挤出去 */}
         <div className="max-w-2xl w-full mx-auto px-6 pt-2 pb-8 flex-1 min-h-0 flex flex-col">
-          {/* 回声：旧碎片无端浮现，落笔即散（ECHO_ENABLED 关闭时不出现） */}
-          {echo && (
-            <div
-              className={`mb-10 shrink-0 transition-opacity duration-700 ${echoOut ? 'opacity-0' : 'opacity-100'}`}
-            >
-              <p
-                className={`text-[10px] tracking-[0.4em] ${theme.faint} mb-4 opacity-70`}
-              >
-                回声
-              </p>
-              <p
-                className={`text-sm md:text-base leading-loose italic ${theme.faint}`}
-              >
-                {echo}
-              </p>
-            </div>
-          )}
-
           <div className="flex-1 min-h-0 overflow-y-auto">
             <textarea
               ref={taRef}
