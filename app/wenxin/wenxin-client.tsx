@@ -10,7 +10,18 @@ import {
   BookOpen,
   SendHorizontal,
   PenLine,
+  CircleEllipsis,
+  Copy,
+  Trash2,
 } from 'lucide-react';
+import { toast } from 'sonner';
+import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
   Drawer,
@@ -36,6 +47,7 @@ import {
   requestPersistentStorage,
   loadArchive,
   putEntry,
+  deleteArchiveEntry,
   mergeEntriesIntoDb,
   deleteEntryRows,
   loadDeletedIds,
@@ -314,6 +326,95 @@ function buildMirror(
   };
 }
 
+/* 历史记录操作菜单：复制 / 删除（两步确认，3 秒内再点一次才生效） */
+function EntryMenu({
+  entry,
+  dark,
+  onDelete,
+}: {
+  entry: ArchiveEntry;
+  dark: boolean;
+  onDelete: (entry: ArchiveEntry) => void;
+}) {
+  const { copyToClipboard } = useCopyToClipboard({ timeout: 1500 });
+  const [confirming, setConfirming] = useState(false);
+  const confirmTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (confirmTimer.current) clearTimeout(confirmTimer.current);
+    };
+  }, []);
+
+  const itemCls = `flex items-center gap-2 text-xs tracking-[0.2em] cursor-pointer ${
+    dark
+      ? 'text-gray-400 focus:bg-gray-800 focus:text-gray-200'
+      : 'text-[#8a7f6a] focus:bg-[#f1e9d8] focus:text-[#6b5f47]'
+  }`;
+
+  return (
+    <DropdownMenu
+      onOpenChange={(open) => {
+        if (!open) {
+          if (confirmTimer.current) clearTimeout(confirmTimer.current);
+          setConfirming(false);
+        }
+      }}
+    >
+      <DropdownMenuTrigger asChild>
+        <button
+          aria-label="更多操作"
+          className={`inline-flex items-center gap-1.5 text-[12px] tracking-[0.2em] transition-colors ${
+            dark
+              ? 'text-gray-500 hover:text-gray-300'
+              : 'text-[#b8ad98] hover:text-[#6b5f47]'
+          }`}
+        >
+          <CircleEllipsis size={14} />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent
+        align="start"
+        className={
+          dark
+            ? 'bg-[#17171a] border-gray-800'
+            : 'bg-[#fbf7ec] border-[#e5dcc8]'
+        }
+      >
+        <DropdownMenuItem
+          className={itemCls}
+          onSelect={() => {
+            copyToClipboard(entry.text);
+            toast.success('已复制');
+          }}
+        >
+          <Copy size={12} />
+          复制
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          className={`${itemCls} ${
+            confirming ? (dark ? 'text-red-300' : 'text-[#b0654f]') : ''
+          }`}
+          onSelect={(e) => {
+            if (confirming) {
+              if (confirmTimer.current) clearTimeout(confirmTimer.current);
+              onDelete(entry);
+              return;
+            }
+            // 第一次点击只进入确认态：阻止菜单关闭，3 秒内再点才删
+            e.preventDefault();
+            setConfirming(true);
+            confirmTimer.current = setTimeout(() => setConfirming(false), 3000);
+          }}
+        >
+          <Trash2 size={12} />
+          {confirming ? '再点一次，彻底删除' : '删除'}
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
 export default function WenxinClient() {
   const { userInfo } = useGlobalContext();
   const userId: string | undefined = userInfo?.id;
@@ -586,6 +687,18 @@ export default function WenxinClient() {
     } catch {
       return 'error';
     }
+  };
+
+  // 删除历史记录：本地 IndexedDB 删除并记 tombstone，立即推服务端
+  // （服务端软删除并清空内容，行留作 tombstone 防止他端重推复活）；他端下次同步拉取生效
+  const handleDeleteEntry = (entry: ArchiveEntry) => {
+    deleteArchiveEntry(entry.id);
+    setArchived((cur) => cur.filter((a) => a.id !== entry.id));
+    fetch('/api/wenxin/entries', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ entries: [], deletedIds: loadDeletedIds() }),
+    }).catch(() => {});
   };
 
   const activeText = segments.length ? segments[segments.length - 1].text : '';
@@ -970,7 +1083,7 @@ export default function WenxinClient() {
                   </div>
                   <div className="flex-1 pb-10 md:pb-12">
                     <p
-                      className={`text-[10px] tracking-[0.3em] ${theme.dividerText} mb-3`}
+                      className={`text-[11px] tracking-[0.3em] ${theme.dividerText} mb-3`}
                     >
                       {fmtTime(a.t)}
                     </p>
@@ -988,19 +1101,28 @@ export default function WenxinClient() {
                         a.text
                       )}
                     </p>
-                    {/* 翻书封存的书单：点开上拉层回看 */}
-                    {a.books && a.books.length > 0 && (
-                      <button
-                        onClick={() => openEntryBooks(a)}
-                        className={`mt-3 inline-flex items-center gap-1.5 text-[11px] tracking-[0.2em] transition-colors ${
-                          dark
-                            ? 'text-gray-600 hover:text-gray-400'
-                            : 'text-[#bfb299] hover:text-[#6b5f47]'
-                        }`}
-                      >
-                        <BookOpen size={12} />
-                        对症书单 · {a.books.length} 本
-                      </button>
+                    {/* 底部操作行：左书单（有则出），右复制/删除菜单（打字机播放中不出手） */}
+                    {((a.books && a.books.length > 0) || a.id !== typingId) && (
+                      <div className="mt-3 flex items-center justify-between">
+                        {a.books && a.books.length > 0 ? (
+                          <button
+                            onClick={() => openEntryBooks(a)}
+                            className={`inline-flex items-center gap-1.5 text-[11px] tracking-[0.2em] transition-colors ${
+                              dark
+                                ? 'text-gray-600 hover:text-gray-400'
+                                : 'text-[#bfb299] hover:text-[#6b5f47]'
+                            }`}
+                          >
+                            <BookOpen size={12} />
+                            对症书单 · {a.books.length} 本
+                          </button>
+                        ) : (
+                          <span />
+                        )}
+                        {a.id !== typingId && (
+                          <EntryMenu entry={a} dark={dark} onDelete={handleDeleteEntry} />
+                        )}
+                      </div>
                     )}
                   </div>
                 </div>
@@ -1024,9 +1146,9 @@ export default function WenxinClient() {
             </button>
             <Link
               href="/wenxin/login"
-              className={`text-[10px] tracking-[0.3em] ${theme.faint} opacity-70 hover:opacity-100 transition-opacity`}
+              className={`text-[10px] tracking-[0.3em] ${theme.faint} opacity-80 hover:opacity-100 transition-opacity`}
             >
-              已有账号？昵称登录
+              已有账号？去登录
             </Link>
           </div>
         )}
@@ -1057,7 +1179,7 @@ export default function WenxinClient() {
                 <button
                   onClick={openGuide}
                   disabled={guideBusy && !guideOpen}
-                  className={`group flex items-center gap-1.5 px-1 py-1 text-[12px] tracking-[0.25em] transition-colors duration-300 ${
+                  className={`group flex items-center gap-1.5 px-1 py-1 text-[13px] tracking-[0.25em] transition-colors duration-300 ${
                     guideBusy && !guideOpen ? 'opacity-40' : ''
                   } ${dark ? 'text-gray-300' : 'text-[#6b5f47]'}`}
                 >
@@ -1071,7 +1193,7 @@ export default function WenxinClient() {
                 {/* 照见：随机抽两段不同时刻的文字，左右对照（⌘.） */}
                 <button
                   onClick={toggleMirror}
-                  className={`group flex items-center gap-1.5 px-1 py-1 text-[12px] tracking-[0.25em] transition-colors duration-300 ${dark ? 'text-gray-300' : 'text-[#6b5f47]'}`}
+                  className={`group flex items-center gap-1.5 px-1 py-1 text-[13px] tracking-[0.25em] transition-colors duration-300 ${dark ? 'text-gray-300' : 'text-[#6b5f47]'}`}
                 >
                   <Eye
                     size={13}
@@ -1084,7 +1206,7 @@ export default function WenxinClient() {
                 <button
                   onClick={handleBooks}
                   disabled={booksLoading || !hasContent}
-                  className={`group flex items-center gap-1.5 px-1 py-1 text-[12px] tracking-[0.25em] transition-colors duration-300 ${
+                  className={`group flex items-center gap-1.5 px-1 py-1 text-[13px] tracking-[0.25em] transition-colors duration-300 ${
                     booksLoading || !hasContent ? 'opacity-40' : ''
                   } ${dark ? 'text-gray-300' : 'text-[#6b5f47]'}`}
                 >

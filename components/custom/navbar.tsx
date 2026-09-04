@@ -191,7 +191,7 @@ export function WenxinNavbar({
             <span className="text-[12px] tracking-[0.3em] opacity-80">
               {displayName}
             </span>
-            {!userId && me && !me.hasPassword && (
+            {me && !me.hasPassword && (
               <span className={`text-[10px] tracking-[0.2em] ${dark ? 'text-gray-600' : 'text-[#bfb299]'}`}>
                 未设密码
               </span>
@@ -262,23 +262,21 @@ export function WenxinNavbar({
 
         <div className="px-3 pb-6">
           {/* 账号入口：未设密码 → 设密码（同步的钥匙）；已设 → 账号设置；未注册 → 昵称登录 */}
-          {!userId && (
-            <Link
-              href={me ? '/wenxin/password' : '/wenxin/login'}
-              className={`flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-[13px] tracking-[0.15em] transition-colors ${
-                dark ? 'hover:bg-white/5' : 'hover:bg-[#f6f1e7]'
-              }`}
-            >
-              {me ? (
-                <KeyRound size={15} className="shrink-0 opacity-70" />
-              ) : (
-                <LogIn size={15} className="shrink-0 opacity-70" />
-              )}
-              <span>
-                {me ? (me.hasPassword ? '账号设置' : '设置密码') : '昵称登录'}
-              </span>
-            </Link>
-          )}
+          <Link
+            href={me ? '/wenxin/password' : '/wenxin/login'}
+            className={`flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-[13px] tracking-[0.15em] transition-colors ${
+              dark ? 'hover:bg-white/5' : 'hover:bg-[#f6f1e7]'
+            }`}
+          >
+            {me ? (
+              <KeyRound size={15} className="shrink-0 opacity-70" />
+            ) : (
+              <LogIn size={15} className="shrink-0 opacity-70" />
+            )}
+            <span>
+              {me ? (me.hasPassword ? '账号设置' : '设置密码') : '昵称登录'}
+            </span>
+          </Link>
           <button
             onClick={onToggleDark}
             className={`flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-[13px] tracking-[0.15em] transition-colors ${
