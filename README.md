@@ -72,8 +72,7 @@ Visit [localhost:3000](http://localhost:3000) to see the app.
 ## Documentation
 
 - [CLAUDE.md](./CLAUDE.md) - Project instructions for AI assistants
-- [README-PAYMENT.md](./README-PAYMENT.md) - Payment system documentation
-- [docs/aura-agent-prd.md](./docs/aura-agent-prd.md) - Aura agent system PRD
+- [docs/wenxin-prd.md](./docs/wenxin-prd.md) - 问心（心镜）PRD
 
 ## License
 

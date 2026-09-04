@@ -52,9 +52,6 @@ const REFLECT_ENABLED = false;
 // 回声开关：暂时隐藏（置 true 即恢复旧碎片浮现）
 const ECHO_ENABLED = false;
 
-// 禅问入口开关：暂时隐藏（置 true 即恢复 logo 旁的禅问链接）
-const ZEN_ASK_ENTRY = false;
-
 // 首访欢迎：历史为空时写入一封初始日记，并以打字机效果呈现（仅一次）
 const WELCOME_KEY = 'wenxin_welcome_v1';
 
@@ -986,8 +983,7 @@ export default function WenxinClient() {
       style={{ fontFamily: SERIF }}
     >
       <style dangerouslySetInnerHTML={{ __html: archiveStyles }} />
-      {/* 顶栏：心镜 logo 胶囊 + 悬浮菜单（组件见 components/custom/navbar）。
-          禅问入口仍由 ZEN_ASK_ENTRY 开关控制 */}
+      {/* 顶栏：心镜 logo 胶囊 + 悬浮菜单（组件见 components/custom/navbar） */}
       <WenxinNavbar
         dark={dark}
         onToggleDark={() => setDark((d) => !d)}
@@ -1001,7 +997,6 @@ export default function WenxinClient() {
         onSync={handleSync}
         onExport={handleExport}
         exportDisabled={archived.length === 0 && !hasContent}
-        showZenAsk={ZEN_ASK_ENTRY}
       />
 
       {/* 主流区：上方历史流，下方输入框，自顶向下排列 */}

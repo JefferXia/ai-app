@@ -97,7 +97,7 @@ export default async function RootLayout({
         >
           <Toaster position="top-center" />
           <GlobalContextProvider user={session?.user}>
-            <Navbar user={session?.user} />
+            <Navbar />
             {children}
           </GlobalContextProvider>
         </ThemeProvider>

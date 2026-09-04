@@ -1,9 +1,8 @@
 'use client';
 
 import Link from 'next/link';
-import { type User } from 'next-auth';
 import React, { useEffect, useState } from 'react';
-import { usePathname, useSearchParams } from 'next/navigation';
+import { usePathname } from 'next/navigation';
 import { useTheme } from 'next-themes';
 import {
   Moon,
@@ -16,27 +15,7 @@ import {
   LogIn,
   Crown,
 } from 'lucide-react';
-import { UserNav } from '@/components/custom/navbar-user-nav';
 import { SERIF, THEME_KEY, fmtTime } from '@/app/wenxin/shared';
-
-// 用户状态组件
-const UserSection = ({ user }: { user: User | undefined }) => {
-  const searchParams = useSearchParams();
-  const code = searchParams.get('code');
-
-  const loginHref = code ? `/login?code=${code}` : '/login';
-
-  return user ? (
-    <UserNav user={user} />
-  ) : (
-    <Link
-      href={loginHref}
-      className="h-11 inline-flex items-center px-4 bg-black/30 backdrop-blur-sm rounded-l-full text-white/80 hover:text-white hover:bg-black/40 transition-colors text-sm"
-    >
-      登录
-    </Link>
-  );
-};
 
 /* ===== 心镜统一 logo =====
  * 「墨块字标」胶囊：描边玻璃底，悬停掠光扫过、墨块微倾。
@@ -126,7 +105,6 @@ export function WenxinNavbar({
   onSync,
   onExport,
   exportDisabled,
-  showZenAsk = false,
 }: {
   dark: boolean;
   onToggleDark: () => void;
@@ -140,7 +118,6 @@ export function WenxinNavbar({
   onSync: () => void;
   onExport: () => void;
   exportDisabled: boolean;
-  showZenAsk?: boolean;
 }) {
   // 菜单内显示的昵称：账号登录跟账号名，否则跟心镜内的昵称
   const displayName =
@@ -157,17 +134,6 @@ export function WenxinNavbar({
       >
         <div className="flex items-center gap-4">
           <WenxinLogo dark={dark} />
-          {/* 禅问入口：默认隐藏，由页面开关决定是否传入 */}
-          {showZenAsk && (
-            <Link
-              href="/zen-ask"
-              className={`text-xs tracking-[0.4em] opacity-60 transition-opacity hover:opacity-100 ${
-                dark ? 'text-gray-400' : 'text-[#8a7f6a]'
-              }`}
-            >
-              禅问
-            </Link>
-          )}
         </div>
 
         {/* 菜单开关：与 logo 同语汇的玻璃胶囊，只放图标 */}
@@ -335,9 +301,9 @@ export function WenxinNavbar({
 /* ===== 全局导航栏 =====
  * 统一 logo 全局出现：心镜主页（/ 与 /wenxin）用自己的流式顶栏（logo + 菜单），
  * 其余页面由这里给一个悬浮顶栏——左侧统一 logo；菜单只在心镜主页出现。
- * 心镜子页（/wenxin/member 等）只给 logo，不带旧账户菜单。
+ * 心镜子页（/wenxin/member 等）只给 logo。
  */
-export function Navbar({ user }: { user: User | undefined }) {
+export function Navbar() {
   const pathname = usePathname();
 
   // 心镜主页：/ 与 /wenxin 都渲染 wenxin-client，其自带流式顶栏（logo + 菜单）
@@ -345,21 +311,14 @@ export function Navbar({ user }: { user: User | undefined }) {
   if (isWenxinMain) return null;
 
   // 定义不需要显示导航栏的页面路径
-  const hiddenPaths = [
-    '/login',
-    '/register',
-    '/profile/account',
-    '/profile/invite',
-  ];
+  const hiddenPaths = ['/login', '/register'];
   if (hiddenPaths.includes(pathname)) return null;
 
-  // 心镜子页：只给统一 logo；其余页面：logo + 右上角账户入口
   const isWenxinSub = pathname.startsWith('/wenxin');
 
   return (
     <nav className="fixed inset-x-0 top-0 z-50 flex h-16 items-center justify-between px-4 md:px-6">
       <GlobalLogo isWenxin={isWenxinSub} />
-      {!isWenxinSub && <UserSection user={user} />}
     </nav>
   );
 }
