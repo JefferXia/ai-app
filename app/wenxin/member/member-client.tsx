@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
+import { toast } from 'sonner';
 import { SERIF, getTheme, THEME_KEY } from '../shared';
 
 /* 心镜会员：月卡一档，支付宝扫码/跳转支付。
@@ -74,6 +75,24 @@ export default function MemberClient() {
       setChecking(false);
     }
   };
+
+  // ZPAY 支付完成跳回（/api/payment/return → /wenxin/member?paid=1&orderId=xxx）：
+  // 提示并主动确认一次到账；paid=0 提示未完成。读完即清掉 URL 参数，防刷新重复弹
+  useEffect(() => {
+    if (!hydrated) return;
+    const sp = new URLSearchParams(window.location.search);
+    const paidParam = sp.get('paid');
+    if (!paidParam) return;
+    const orderId = sp.get('orderId');
+    window.history.replaceState({}, '', '/wenxin/member');
+    if (paidParam === '1') {
+      toast.success('支付成功，正在确认到账');
+      if (orderId && me) checkPaid(orderId);
+    } else {
+      toast('支付未完成');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hydrated, me]);
 
   const createOrder = async () => {
     if (busy) return;

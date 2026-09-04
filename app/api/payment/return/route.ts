@@ -4,7 +4,8 @@ import { createPaymentUtils } from '@/lib/payment'
 /**
  * 页面跳转通知接口
  * GET /api/payment/return
- * 这是ZPAY页面跳转通知的接口，用于用户支付完成后的跳转
+ * ZPAY 支付完成后的浏览器跳转：验签后回会员页，由页面轮询 /api/wenxin/member/status 确认到账
+ * （到账以 /api/payment/notify 异步回调为准，这里只负责把用户带回来）
  */
 export async function GET(request: NextRequest) {
   try {
@@ -24,31 +25,28 @@ export async function GET(request: NextRequest) {
       sign_type: searchParams.get('sign_type') || ''
     }
 
+    const memberUrl = new URL('/wenxin/member', request.url)
+
     // 验证签名
     const paymentUtils = createPaymentUtils()
     if (!paymentUtils.verifySign(returnParams, returnParams.sign)) {
       console.error('页面跳转签名验证失败:', returnParams)
-      // 跳转到支付失败页面
-      return NextResponse.redirect(new URL('/payment/failed', request.url))
+      memberUrl.searchParams.set('paid', '0')
+      return NextResponse.redirect(memberUrl)
     }
 
-    // 根据支付状态跳转到不同页面
+    // 根据支付状态回跳会员页
     if (returnParams.trade_status === 'TRADE_SUCCESS') {
-      // 支付成功，跳转到成功页面
-      const successUrl = new URL('/payment/success', request.url)
-      successUrl.searchParams.set('orderId', returnParams.out_trade_no)
-      successUrl.searchParams.set('amount', returnParams.money)
-      return NextResponse.redirect(successUrl)
+      memberUrl.searchParams.set('paid', '1')
+      memberUrl.searchParams.set('orderId', returnParams.out_trade_no)
     } else {
-      // 支付失败，跳转到失败页面
-      const failedUrl = new URL('/payment/failed', request.url)
-      failedUrl.searchParams.set('orderId', returnParams.out_trade_no)
-      return NextResponse.redirect(failedUrl)
+      memberUrl.searchParams.set('paid', '0')
     }
+    return NextResponse.redirect(memberUrl)
 
   } catch (error) {
     console.error('处理页面跳转失败:', error)
-    // 跳转到错误页面
-    return NextResponse.redirect(new URL('/payment/error', request.url))
+    // 状态未知：回会员页（轮询自愈会确认真实到账结果）
+    return NextResponse.redirect(new URL('/wenxin/member', request.url))
   }
 } 
