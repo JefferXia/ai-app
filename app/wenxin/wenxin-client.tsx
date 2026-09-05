@@ -68,11 +68,11 @@ const WELCOME_TEXT = `你终于来了，这里是你的心镜。
 
 一个无目的地自我观察的空间。打开，写，关掉。
 
-吾日三省吾身，心镜就像内心的一面镜子，助你照见自己——而照见本身就是全部。
+吾日三省吾身，心镜就像内心的一面镜子，助你照见自己。
 
-这里无分析，无总结，无追踪，所有数据存储在本地。
+而照见本身就是全部。
 
-本地数据可自行导出备份，也可以选择加密同步到云端。`;
+这里无分析，无总结，无追踪，所有数据存储在本地，可自行导出备份。`;
 
 /** 打字机：逐字显现，标点与换行处稍作停顿 */
 function Typewriter({
@@ -1216,22 +1216,35 @@ export default function WenxinClient() {
         {/* 知情同意：欢迎信打完字后，信末浮出确认按钮（点击即注册问心账号）；确认前输入框禁用 */}
         {!userId && !consented && !typingId && (
           <div className="max-w-2xl w-full mx-auto px-6 pb-2 shrink-0 flex flex-col items-center gap-4">
-            <button
-              onClick={handleConsent}
-              className={`text-xs tracking-[0.3em] px-8 py-3 rounded-full border transition-all duration-300 hover:scale-105 wx-fade-in ${
-                dark
-                  ? 'border-gray-700 text-gray-300 hover:text-white hover:border-gray-500'
-                  : 'border-[#ddd3bf] text-[#6b5f47] hover:border-[#c4b9a4]'
-              }`}
-            >
-              我明白，开始写
-            </button>
-            <Link
-              href="/wenxin/login"
-              className={`text-[10px] tracking-[0.3em] ${theme.faint} opacity-80 hover:opacity-100 transition-opacity`}
-            >
-              已有账号？去登录
-            </Link>
+            {/* 内层 items-start：小字与「我明白，开始写」左缘对齐 */}
+            <div className="flex flex-col items-start gap-3 wx-fade-in">
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={handleConsent}
+                  className={`text-xs tracking-[0.3em] px-8 py-3 rounded-full transition-all duration-300 hover:scale-105 ${
+                    dark
+                      ? 'bg-gray-200 text-gray-900 hover:bg-white'
+                      : 'bg-[#4a4232] text-[#f6f1e7] hover:bg-[#5d5340]'
+                  }`}
+                >
+                  我明白，开始写
+                </button>
+                <Link
+                  href="/wenxin/login"
+                  className={`text-xs tracking-[0.3em] px-8 py-3 rounded-full border transition-all duration-300 hover:scale-105
+                  ${
+                    dark
+                    ? 'border-gray-700 text-gray-300 hover:text-white hover:border-gray-500'
+                    : 'border-[#ddd3bf] text-[#6b5f47] hover:border-[#c4b9a4]'
+                  }`}
+                >
+                  已有账号
+                </Link>
+              </div>
+              <p className={`text-[12px] tracking-[0.2em] ${theme.faint}`}>
+                点击按钮将自动创建账号
+              </p>
+            </div>
           </div>
         )}
 
