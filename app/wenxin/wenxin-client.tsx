@@ -61,6 +61,9 @@ import {
 // 首访欢迎：历史为空时写入一封初始日记，并以打字机效果呈现（仅一次）
 const WELCOME_KEY = 'wenxin_welcome_v1';
 
+// 新手引导：引路/照见/翻书依次浮出小气泡（仅一次；无遮罩不阻断页面）
+const TOUR_KEY = 'wenxin_tour_v1';
+
 const WELCOME_TEXT = `你终于来了，这里是你的心镜。
 
 一个无目的地自我观察的空间。打开，写，关掉。
@@ -416,6 +419,56 @@ function EntryMenu({
   );
 }
 
+/* 新手引导气泡：锚在功能按钮上方的小浮层，无遮罩、不阻断页面 */
+const TOUR_STEPS = [
+  { key: 'guide', text: '写不下去时点「引路」，有人陪你一句一句聊出来。' },
+  { key: 'mirror', text: '此刻所写「照见」过去所写，对照即明。' },
+  { key: 'books', text: '心中困惑试试「翻书」，读一份对症书单。' },
+] as const;
+
+function TourBubble({
+  dark,
+  text,
+  isLast,
+  onNext,
+}: {
+  dark: boolean;
+  text: string;
+  isLast: boolean;
+  onNext: () => void;
+}) {
+  return (
+    <div
+      className={`wx-fade-in absolute bottom-full left-0 mb-3 z-40 w-44 rounded-xl border px-4 py-3 shadow-lg ${
+        dark
+          ? 'bg-[#17171a] border-gray-700 text-gray-300'
+          : 'bg-white border-[#e4dac6] text-[#6b5f47]'
+      }`}
+    >
+      <p className="text-[11px] leading-relaxed tracking-[0.05em] mb-2.5">
+        {text}
+      </p>
+      <button
+        onClick={onNext}
+        className={`px-3.5 py-1.5 rounded-full text-[10px] tracking-[0.2em] transition-colors ${
+          dark
+            ? 'bg-gray-200 text-gray-900 hover:bg-white'
+            : 'bg-[#4a4232] text-[#f6f1e7] hover:bg-[#5d5340]'
+        }`}
+      >
+        {isLast ? '知道了' : '下一步'}
+      </button>
+      {/* 小三角指向按钮 */}
+      <span
+        aria-hidden="true"
+        className={`absolute left-4 top-full -mt-1 w-2 h-2 rotate-45 border-r border-b ${
+          dark ? 'bg-[#17171a] border-gray-700' : 'bg-white border-[#e4dac6]'
+        }`}
+      />
+    </div>
+  );
+}
+
 export default function WenxinClient() {
   const { userInfo } = useGlobalContext();
   const userId: string | undefined = userInfo?.id;
@@ -428,6 +481,9 @@ export default function WenxinClient() {
   const [archived, setArchived] = useState<ArchiveEntry[]>([]);
   const [lastAdded, setLastAdded] = useState<string | null>(null);
   const [typingId, setTypingId] = useState<string | null>(null);
+  // 新手引导：当前步（0 引路 / 1 照见 / 2 翻书），null 为未开始或已完成
+  const [tourStep, setTourStep] = useState<number | null>(null);
+  const tourStartedRef = useRef(false);
   // 引路（访谈式）：采访者一轮一轮追问，聊完可捋成一段落回纸上
   const [guideOpen, setGuideOpen] = useState(false);
   const [guideMsgs, setGuideMsgs] = useState<
@@ -710,6 +766,31 @@ export default function WenxinClient() {
     const el = flowRef.current;
     if (el) el.scrollTop = el.scrollHeight;
   }, [hydrated]);
+
+  // 新手引导：操作区（引路/照见/翻书）首次可见时启动，仅一次；无遮罩不阻断
+  useEffect(() => {
+    if (!hydrated || tourStartedRef.current) return;
+    if (!userId && !consented) return; // 操作区还未出现（知情同意前）
+    try {
+      if (localStorage.getItem(TOUR_KEY)) return;
+    } catch {}
+    tourStartedRef.current = true;
+    setTourStep(0);
+  }, [hydrated, userId, consented]);
+
+  // 下一步 / 完成：走完写 localStorage，之后不再出现
+  const advanceTour = () => {
+    setTourStep((s) => {
+      if (s === null) return s;
+      if (s >= TOUR_STEPS.length - 1) {
+        try {
+          localStorage.setItem(TOUR_KEY, '1');
+        } catch {}
+        return null;
+      }
+      return s + 1;
+    });
+  };
 
   //  textarea 自动增高 + 聚焦
   useEffect(() => {
@@ -1177,46 +1258,61 @@ export default function WenxinClient() {
               <div className="flex items-center gap-4">
                 {/* 引路：卡住时点一下，采访者在上拉层里一轮轮追问，聊完捋成一段落回纸上。
                     次级动作：幽灵样式（无边框、小号），与主动作「归档」拉开层级 */}
-                <button
-                  onClick={openGuide}
-                  disabled={guideBusy && !guideOpen}
-                  className={`group flex items-center gap-1.5 px-1 py-1 text-[13px] tracking-[0.25em] transition-colors duration-300 ${
-                    guideBusy && !guideOpen ? 'opacity-40' : ''
-                  } ${dark ? 'text-gray-300' : 'text-[#6b5f47]'}`}
-                >
-                  <Lightbulb
-                    size={13}
-                    className={`fill-transparent transition-[fill] duration-300 group-hover:fill-current ${guideBusy ? 'animate-pulse' : ''}`}
-                  />
-                  引路
-                </button>
+                <div className="relative">
+                  <button
+                    onClick={openGuide}
+                    disabled={guideBusy && !guideOpen}
+                    className={`group flex items-center gap-1.5 px-1 py-1 text-[13px] tracking-[0.25em] transition-colors duration-300 ${
+                      guideBusy && !guideOpen ? 'opacity-40' : ''
+                    } ${dark ? 'text-gray-300' : 'text-[#6b5f47]'}`}
+                  >
+                    <Lightbulb
+                      size={13}
+                      className={`fill-transparent transition-[fill] duration-300 group-hover:fill-current ${guideBusy ? 'animate-pulse' : ''}`}
+                    />
+                    引路
+                  </button>
+                  {tourStep === 0 && (
+                    <TourBubble dark={dark} text={TOUR_STEPS[0].text} isLast={false} onNext={advanceTour} />
+                  )}
+                </div>
 
                 {/* 照见：随机抽两段不同时刻的文字，左右对照（⌘.） */}
-                <button
-                  onClick={toggleMirror}
-                  className={`group flex items-center gap-1.5 px-1 py-1 text-[13px] tracking-[0.25em] transition-colors duration-300 ${dark ? 'text-gray-300' : 'text-[#6b5f47]'}`}
-                >
-                  <Eye
-                    size={13}
-                    className="fill-transparent transition-[fill] duration-300 group-hover:fill-current"
-                  />
-                  照见
-                </button>
+                <div className="relative">
+                  <button
+                    onClick={toggleMirror}
+                    className={`group flex items-center gap-1.5 px-1 py-1 text-[13px] tracking-[0.25em] transition-colors duration-300 ${dark ? 'text-gray-300' : 'text-[#6b5f47]'}`}
+                  >
+                    <Eye
+                      size={13}
+                      className="fill-transparent transition-[fill] duration-300 group-hover:fill-current"
+                    />
+                    照见
+                  </button>
+                  {tourStep === 1 && (
+                    <TourBubble dark={dark} text={TOUR_STEPS[1].text} isLast={false} onNext={advanceTour} />
+                  )}
+                </div>
 
                 {/* 翻书：纸上此刻的话，禅问配一份对症书单（上拉层展示） */}
-                <button
-                  onClick={handleBooks}
-                  disabled={booksLoading || !hasContent}
-                  className={`group flex items-center gap-1.5 px-1 py-1 text-[13px] tracking-[0.25em] transition-colors duration-300 ${
-                    booksLoading || !hasContent ? 'opacity-40' : ''
-                  } ${dark ? 'text-gray-300' : 'text-[#6b5f47]'}`}
-                >
-                  <BookOpen
-                    size={13}
-                    className={`fill-transparent transition-[fill] duration-300 group-hover:fill-current ${booksLoading ? 'animate-pulse' : ''}`}
-                  />
-                  翻书
-                </button>
+                <div className="relative">
+                  <button
+                    onClick={handleBooks}
+                    disabled={booksLoading || !hasContent}
+                    className={`group flex items-center gap-1.5 px-1 py-1 text-[13px] tracking-[0.25em] transition-colors duration-300 ${
+                      booksLoading || !hasContent ? 'opacity-40' : ''
+                    } ${dark ? 'text-gray-300' : 'text-[#6b5f47]'}`}
+                  >
+                    <BookOpen
+                      size={13}
+                      className={`fill-transparent transition-[fill] duration-300 group-hover:fill-current ${booksLoading ? 'animate-pulse' : ''}`}
+                    />
+                    翻书
+                  </button>
+                  {tourStep === 2 && (
+                    <TourBubble dark={dark} text={TOUR_STEPS[2].text} isLast onNext={advanceTour} />
+                  )}
+                </div>
               </div>
 
               {hasContent && (
