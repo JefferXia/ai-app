@@ -1476,21 +1476,22 @@ export default function WenxinClient() {
                     <div className="flex items-baseline justify-between gap-4">
                       <p className="text-base md:text-lg leading-snug">
                         《{b.title}》
-                        {b.author && (
+                        {/* {b.author && (
                           <span
                             className={`text-xs md:text-sm ml-2 ${theme.faint}`}
                           >
                             {b.author}
                           </span>
+                        )} */}
+                        {b.chapter && (
+                          <span
+                            className={`shrink-0 max-w-[40%] text-right text-[11px] leading-snug ${theme.faint}`}
+                          >
+                            {b.chapter}
+                          </span>
                         )}
                       </p>
-                      {b.chapter && (
-                        <span
-                          className={`shrink-0 max-w-[40%] text-right text-[11px] leading-snug ${theme.faint}`}
-                        >
-                          {b.chapter}
-                        </span>
-                      )}
+                      
                     </div>
                     {/* 原文 */}
                     {b.original_quote && (

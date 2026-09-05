@@ -305,12 +305,13 @@ export function WenxinNavbar({
 export function Navbar() {
   const pathname = usePathname();
 
-  // 心镜主页：/ 与 /wenxin 都渲染 wenxin-client，其自带流式顶栏（logo + 菜单）
-  const isWenxinMain = pathname === '/' || pathname === '/wenxin';
+  // 心镜主页 /wenxin 渲染 wenxin-client，其自带流式顶栏（logo + 菜单）；
+  // 首页 / 是落地页，自带 header，不需要全局顶栏
+  const isWenxinMain = pathname === '/wenxin';
   if (isWenxinMain) return null;
 
   // 定义不需要显示导航栏的页面路径
-  const hiddenPaths = ['/login', '/register'];
+  const hiddenPaths = ['/', '/login', '/register'];
   if (hiddenPaths.includes(pathname)) return null;
 
   const isWenxinSub = pathname.startsWith('/wenxin');
