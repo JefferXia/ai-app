@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { SERIF, getTheme, THEME_KEY } from '../shared';
+import { MEMBER_PRICE_LABEL } from '@/lib/member-plan';
 
 /* 心镜会员：月卡一档，支付宝扫码/跳转支付。
  * 流程：下单 → 展示二维码 → 用户付完点「已完成付款」查状态（服务端会向 ZPAY 查单自愈）→ 已开通 */
@@ -231,7 +232,7 @@ export default function MemberClient() {
               <div className="flex items-baseline justify-between mb-4">
                 <p className="text-lg tracking-[0.2em]">月卡</p>
                 <p>
-                  <span className="text-2xl">¥19.9</span>
+                  <span className="text-2xl">¥{MEMBER_PRICE_LABEL}</span>
                   <span className={`text-xs ml-1 ${theme.faint}`}>/ 月</span>
                 </p>
               </div>

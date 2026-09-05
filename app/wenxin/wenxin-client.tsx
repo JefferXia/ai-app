@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard';
+import { MEMBER_PRICE_LABEL } from '@/lib/member-plan';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -999,7 +1000,7 @@ export default function WenxinClient() {
     setSting(null);
     setBooksError(null);
     setBookOpen(false);
-    taRef.current?.focus();
+    // taRef.current?.focus();
     // 滚到历史流最底部，露出刚淡入的一条
     requestAnimationFrame(() => {
       const el = flowRef.current;
@@ -1417,7 +1418,7 @@ export default function WenxinClient() {
                           : 'bg-[#4a4232] text-[#f6f1e7] hover:bg-[#5d5340]'
                       }`}
                     >
-                      ¥19.9 开通月卡
+                      ¥{MEMBER_PRICE_LABEL} 开通月卡
                     </a>
                   </div>
                 </div>
@@ -1628,7 +1629,7 @@ export default function WenxinClient() {
                 : 'bg-[#4a4232] text-[#f6f1e7] hover:bg-[#5d5340]'
             }`}
           >
-            ¥19.9 开通月卡
+            ¥{MEMBER_PRICE_LABEL} 开通月卡
           </a>
           <button
             onClick={() => setMemberPromptOpen(false)}

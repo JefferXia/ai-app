@@ -1,13 +1,15 @@
 import prisma from '@/lib/prisma';
+import { MEMBER_PRICE } from '@/lib/member-plan';
 
 /* ===== 问心会员：月卡一档，套餐→金额映射只存在于服务端（防客户端改价） =====
  *
  * PaymentRecord.rechargeType = 'MEMBER_MONTHLY' 与积分充值（'POINT'）区分；
  * 回调按 rechargeType 分发到账逻辑，幂等：仅当记录仍是 PENDING 才处理。
+ * 价格经 NEXT_PUBLIC_WENXIN_MEMBER_PRICE 统一配置（见 lib/member-plan.ts，默认 19）。
  */
 
 export const MEMBER_PLANS = {
-  MONTHLY: { id: 'MONTHLY' as const, name: '心镜月卡', price: 19.9, days: 30 },
+  MONTHLY: { id: 'MONTHLY' as const, name: '心镜月卡', price: MEMBER_PRICE, days: 30 },
 } as const;
 
 export type MemberPlanId = keyof typeof MEMBER_PLANS;

@@ -16,6 +16,7 @@ import {
   Crown,
 } from 'lucide-react';
 import { SERIF, THEME_KEY, fmtTime } from '@/app/wenxin/shared';
+import { MEMBER_PRICE_LABEL } from '@/lib/member-plan';
 
 /* ===== 心镜统一 logo =====
  * 「墨块字标」胶囊：描边玻璃底，悬停掠光扫过、墨块微倾。
@@ -120,8 +121,7 @@ export function WenxinNavbar({
   exportDisabled: boolean;
 }) {
   // 菜单内显示的昵称：账号登录跟账号名，否则跟心镜内的昵称
-  const displayName =
-    (userId ? (accountName ?? '心镜') : (me?.name ?? '心镜')) || '心镜';
+  const displayName = me?.name || '心镜';
 
   return (
     <>
@@ -212,7 +212,8 @@ export function WenxinNavbar({
                 syncStatus === 'syncing'
                   ? '同步中…'
                   : syncStatus === 'synced'
-                    ? `已同步${lastSync ? ` · ${fmtTime(lastSync)}` : ''}`
+                    // ? `已同步${lastSync ? ` · ${fmtTime(lastSync)}` : ''}`
+                    ? `已同步`
                     : syncStatus === 'error'
                       ? '同步失败 · 重试'
                       : '同步云端',
@@ -223,7 +224,7 @@ export function WenxinNavbar({
             {
               icon: <Crown size={15} className="shrink-0 opacity-70" />,
               label: '会员',
-              badge: me?.isMember ? '已开通' : '¥19.9/月',
+              badge: me?.isMember ? '已开通' : `¥${MEMBER_PRICE_LABEL}/月`,
               onClick: () => {
                 window.location.href = '/wenxin/member';
               },
