@@ -2,6 +2,8 @@ import { Metadata } from 'next';
 import { Toaster } from 'sonner';
 import { ThemeProvider } from '@/components/custom/theme-provider';
 import { Navbar } from '@/components/custom/navbar';
+import { PwaRegister } from '@/components/custom/pwa-register';
+import { PwaInstallPrompt } from '@/components/custom/pwa-install-prompt';
 import { GlobalContextProvider } from './globalContext';
 import { auth } from './(auth)/auth';
 import { cookies } from 'next/headers';
@@ -35,6 +37,10 @@ export const metadata: Metadata = {
 
 export const viewport = {
   maximumScale: 1, // Disable auto-zoom on mobile Safari
+  themeColor: [
+    { media: '(prefers-color-scheme: light)', color: '#f6f1e7' },
+    { media: '(prefers-color-scheme: dark)', color: '#0b0b0c' },
+  ],
 };
 
 const LIGHT_THEME_COLOR = 'hsl(0 0% 100%)';
@@ -67,6 +73,15 @@ export default async function RootLayout({
   return (
     <html lang="zh-CN" suppressHydrationWarning>
       <head>
+        <link rel="manifest" href="/manifest.webmanifest" />
+        <link rel="apple-touch-icon" href="/images/icon-192.png" />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-title" content="心镜" />
+        <meta
+          name="apple-mobile-web-app-status-bar-style"
+          content="black-translucent"
+        />
+        <meta name="mobile-web-app-capable" content="yes" />
         <script
           dangerouslySetInnerHTML={{
             __html: THEME_COLOR_SCRIPT,
@@ -99,6 +114,8 @@ export default async function RootLayout({
           <GlobalContextProvider user={session?.user}>
             <Navbar />
             {children}
+            <PwaRegister />
+            <PwaInstallPrompt />
           </GlobalContextProvider>
         </ThemeProvider>
       </body>
