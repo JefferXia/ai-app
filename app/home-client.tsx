@@ -78,10 +78,14 @@ export default function HomeClient() {
           写下，即照见
         </h1>
         <p
-          className={`mt-6 text-sm md:text-base leading-loose ${theme.faint} wx-fade-in`}
+          className={`mt-6 text-sm md:text-base leading-loose wx-fade-in ${
+            dark ? 'text-gray-500' : 'text-[#6b5f47]'
+          }`}
           style={{ animationDelay: '0.15s' }}
         >
-          一个无目的地自我观察的笔记空间。打开，写，关掉。
+          一个无目的地自我观察的笔记空间
+          <br />
+          当你开始输出，每次梳理、每次复盘，都在悄悄治愈自己
         </p>
 
         {/* 主动作 */}
@@ -94,7 +98,7 @@ export default function HomeClient() {
           }`}
           style={{ animationDelay: '0.3s' }}
         >
-          开始记录
+          开始落笔
         </Link>
 
         {/* 三个特性：安静的一行一句 */}

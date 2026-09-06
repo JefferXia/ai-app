@@ -1483,15 +1483,14 @@ export default function WenxinClient() {
                             {b.author}
                           </span>
                         )} */}
-                        {b.chapter && (
-                          <span
-                            className={`shrink-0 max-w-[40%] text-right text-[11px] leading-snug ${theme.faint}`}
-                          >
-                            {b.chapter}
-                          </span>
-                        )}
                       </p>
-                      
+                      {b.chapter && (
+                        <span
+                          className={`shrink-0 max-w-[40%] text-right text-[11px] leading-snug ${theme.faint}`}
+                        >
+                          {b.chapter}
+                        </span>
+                      )}
                     </div>
                     {/* 原文 */}
                     {b.original_quote && (
