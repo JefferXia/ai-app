@@ -74,8 +74,8 @@ export async function POST(req: Request) {
     }
 
     const reply = compose
-      ? await guideCompose(paper, history)
-      : await guideReply(paper, history);
+      ? await guideCompose(paper, history, userId)
+      : await guideReply(paper, history, userId);
 
     if (!reply) {
       return NextResponse.json(

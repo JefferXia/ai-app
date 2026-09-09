@@ -1,4 +1,5 @@
 import OpenAI from 'openai';
+import { injectMemory, rememberText } from '@/lib/voicemem-client';
 
 /* ===== 问心 · 引路（访谈式写作陪伴：追问出深度，捋顺成日记） ===== */
 
@@ -88,7 +89,8 @@ function buildMessages(
  *  轮数越多，越往收束推——他一直答，不代表他还想聊 */
 export async function guideReply(
   paper: string,
-  history: GuideMessage[]
+  history: GuideMessage[],
+  userId: string = ''
 ): Promise<string | null> {
   const client = getClient();
   if (!client) return null;
@@ -100,10 +102,15 @@ export async function guideReply(
       : userTurns >= 2
         ? `\n\n# 当前节奏\n已经聊了 ${userTurns} 轮。事件应当已经具体，往「这件事对他意味着什么」走；问的问题要有分量，一两轮内抵达核心。`
         : '';
+  let messages = buildMessages(GUIDE_PROMPT + pacing, paper, history);
+  // 注入跨会话记忆（VOICEMEM_URL 未配则降级返回原 messages）
+  if (userId) {
+    messages = await injectMemory(messages, userId);
+  }
   try {
     const response = await client.chat.completions.create({
       model,
-      messages: buildMessages(GUIDE_PROMPT + pacing, paper, history),
+      messages,
       temperature: 0.7,
       max_tokens: 600,
     });
@@ -118,7 +125,8 @@ export async function guideReply(
 /** 成稿：把用户在纸上和访谈中的原话捋成一段日记（访谈者的话全部拆掉） */
 export async function guideCompose(
   paper: string,
-  history: GuideMessage[]
+  history: GuideMessage[],
+  userId: string = ''
 ): Promise<string | null> {
   const client = getClient();
   if (!client) return null;
@@ -135,6 +143,12 @@ export async function guideCompose(
     .filter(Boolean)
     .join('\n\n');
   if (!material) return null;
+  // 成稿这件事特别值得记住：把"刚写完一段话"这件事也写进记忆
+  // （右脑情绪归因需要 agent_reply）
+  const lastAgent = [...history].reverse().find((m) => m.role === 'assistant')?.content;
+  if (userId) {
+    void rememberText(material.slice(0, 4000), userId, lastAgent);
+  }
   try {
     const response = await client.chat.completions.create({
       model,

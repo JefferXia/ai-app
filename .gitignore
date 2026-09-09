@@ -42,3 +42,7 @@ yarn-error.log*
 wenxin-prd.md
 # TypeScript incremental build cache
 tsconfig.tsbuildinfo
+# VoiceMem 微服务：跟踪源码，忽略数据/缓存
+services/voicemem/data/
+services/voicemem/__pycache__/
+services/voicemem/*.log
