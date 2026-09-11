@@ -14,6 +14,7 @@ import {
   KeyRound,
   LogIn,
   Crown,
+  Gift,
 } from 'lucide-react';
 import { SERIF, THEME_KEY, fmtTime } from '@/app/wenxin/shared';
 import { MEMBER_PRICE_LABEL } from '@/lib/member-plan';
@@ -229,6 +230,18 @@ export function WenxinNavbar({
                 window.location.href = '/wenxin/member';
               },
             },
+            // 邀请码跟着账号走：仅注册账号可见
+            ...(me
+              ? [
+                  {
+                    icon: <Gift size={15} className="shrink-0 opacity-70" />,
+                    label: '邀请码',
+                    onClick: () => {
+                      window.location.href = '/wenxin/invite';
+                    },
+                  },
+                ]
+              : []),
             {
               icon: <Download size={15} className="shrink-0 opacity-70" />,
               label: '导出笔记',

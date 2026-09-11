@@ -3,6 +3,11 @@ import { Prisma } from '@prisma/client';
 import prisma from '@/lib/prisma';
 import { signIn } from '@/app/(auth)/auth';
 import { getWenxinProfile } from '@/lib/wenxin-auth';
+import {
+  createInviteRelation,
+  generateUniqueInviteCode,
+  validateInviteCode,
+} from '@/lib/invite';
 
 export const runtime = 'nodejs';
 
@@ -43,6 +48,8 @@ async function genUniqueName(): Promise<string> {
 
 // 注册问心账号：点「我明白，开始写」即触发。昵称随机生成（行者+数字），
 // 密码留空（点「同步云端」时再引导设置）。幂等：已有会话直接返回当前账号。
+// 可从 body 带邀请码（分享链接 ?code=xxx）：注册成功后写入 invited_by 并建立邀请记录；
+// 同时为新用户生成自己的邀请码，便于继续分享。邀请相关失败不影响注册本身。
 export async function POST(req: Request) {
   try {
     const existing = await getWenxinProfile();
@@ -64,6 +71,16 @@ export async function POST(req: Request) {
       );
     }
 
+    // 邀请码为可选入参；非法格式直接忽略，不阻断注册
+    let inviteCode: string | null = null;
+    try {
+      const body = await req.json().catch(() => null);
+      const code = typeof body?.code === 'string' ? body.code.trim().toUpperCase() : '';
+      if (/^[A-Z0-9]{6}$/.test(code)) inviteCode = code;
+    } catch {
+      // body 解析失败按无邀请码处理
+    }
+
     const name = await genUniqueName();
     let user;
     try {
@@ -75,6 +92,25 @@ export async function POST(req: Request) {
       } else {
         throw e;
       }
+    }
+
+    // 邀请关系：校验通过才绑定（写入 user.invited_by + InviteRecord），失败静默
+    if (inviteCode) {
+      try {
+        const { valid, inviterId } = await validateInviteCode(inviteCode);
+        if (valid && inviterId && inviterId !== user.id) {
+          await createInviteRelation(inviteCode, user.id);
+        }
+      } catch (e) {
+        console.error('[wenxin register] 绑定邀请码失败:', e);
+      }
+    }
+
+    // 新用户自己的邀请码（分享裂变用），失败不影响注册
+    try {
+      await generateUniqueInviteCode(user.id);
+    } catch (e) {
+      console.error('[wenxin register] 生成邀请码失败:', e);
     }
 
     // 创建统一 NextAuth session（失败则注册失败，见外层 catch）

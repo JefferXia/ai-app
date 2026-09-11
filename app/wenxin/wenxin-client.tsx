@@ -610,10 +610,16 @@ export default function WenxinClient() {
   }, [dark, hydrated]);
 
   // 确保已注册问心账号（cookie 会话）。注册是幂等的：已有会话直接返回当前账号
+  // 邀请链路：URL 带 ?code=xxx（来自分享链接）时随注册上报，服务端校验后写入 invited_by
   const ensureRegistered = async (): Promise<boolean> => {
     if (userId || me) return true;
     try {
-      const r = await fetch('/api/wenxin/register', { method: 'POST' });
+      const code = new URLSearchParams(window.location.search).get('code');
+      const r = await fetch('/api/wenxin/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(code ? { code } : {}),
+      });
       const j = await r.json().catch(() => null);
       if (r.ok && j?.success) {
         setMe(j.data);

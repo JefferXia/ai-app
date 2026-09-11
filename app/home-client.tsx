@@ -47,9 +47,13 @@ const FEATURES = [
 export default function HomeClient() {
   const [dark, setDark] = useState(false);
   const [mounted, setMounted] = useState(false);
+  // 邀请链路：从分享链接带来的邀请码，进书写页时一并带上
+  const [inviteCode, setInviteCode] = useState<string | null>(null);
 
   useEffect(() => {
     setDark(localStorage.getItem(THEME_KEY) === 'dark');
+    const code = new URLSearchParams(window.location.search).get('code');
+    if (code && /^[A-Za-z0-9]{6}$/.test(code)) setInviteCode(code.toUpperCase());
     setMounted(true);
   }, []);
 
@@ -90,7 +94,7 @@ export default function HomeClient() {
 
         {/* 主动作 */}
         <Link
-          href="/wenxin"
+          href={inviteCode ? `/wenxin?code=${inviteCode}` : '/wenxin'}
           className={`mt-12 px-10 py-3.5 rounded-full text-sm tracking-[0.3em] transition-all duration-300 hover:scale-105 wx-fade-in ${
             dark
               ? 'bg-gray-200 text-gray-900 hover:bg-white'
