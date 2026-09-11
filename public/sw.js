@@ -3,14 +3,14 @@
  * 支付、登录、上传、API 全部不缓存——避免余额、登录态、回写出问题。
  * 第三方域名（res.wx.qq.com、www.clarity.ms、Google Fonts）走网络直连。
  */
-const VERSION = 'wx-shell-v1';
+const VERSION = 'wx-shell-v2';
 const SHELL = [
   '/',
   '/wenxin',
   '/wenxin/zen',
   '/manifest.webmanifest',
-  '/images/icon-192.png',
-  '/images/icon-512.png',
+  '/images/icon_192.png',
+  '/images/icon_512.png',
 ];
 
 self.addEventListener('install', (event) => {
