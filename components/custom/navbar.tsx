@@ -42,13 +42,18 @@ export function WenxinLogo({ dark }: { dark: boolean }) {
           dark ? 'via-white/10' : 'via-white/40'
         }`}
       />
-      {/* 墨块字标：亮色深底浅字，暗色反转 */}
+      {/* 墨块字标：应用图标，亮色用 icon-192，暗色用 icon-light-192；大小圆角与原版一致 */}
       <span
-        className={`relative flex h-7 w-7 items-center justify-center overflow-hidden rounded-lg text-[15px] leading-none transition-transform duration-500 ease-[cubic-bezier(0.34,1.56,0.64,1)] group-hover/logo:-rotate-6 group-hover/logo:scale-[1.06] ${
-          dark ? 'bg-[#f6f1e7] text-[#2a2620]' : 'bg-[#2a2620] text-[#f6f1e7]'
+        className={`relative flex h-7 w-7 items-center justify-center overflow-hidden rounded-lg transition-transform duration-500 ease-[cubic-bezier(0.34,1.56,0.64,1)] group-hover/logo:-rotate-6 group-hover/logo:scale-[1.06] ${
+          dark ? 'bg-[#f6f1e7]' : 'bg-[#2a2620]'
         }`}
       >
-        心
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={dark ? '/images/icon-light-192.png' : '/images/icon-192.png'}
+          alt="心镜"
+          className="h-full w-full object-cover"
+        />
       </span>
       <span
         className={`relative text-[15px] tracking-[0.1em] transition-colors duration-300 ${
