@@ -59,6 +59,7 @@ model User {
   conversationSummaries ConversationSummary[]           // 对话摘要
   userMemories    UserMemory[]                        // 用户记忆
   wenxinEntries  WenxinEntry[]                        // 问心归档条目
+  ynThoughts     YnThought[]                          // 一念念头
 
   @@index([invite_code])
   @@index([invited_by])
@@ -448,4 +449,40 @@ model WenxinEntry {
   user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, t])
+}
+
+// 一念 - 念头（登录制，点评依赖服务端 LLM）
+model YnThought {
+  id         String   @id @default(uuid())
+  userId     String
+  text       String   @db.Text
+  // 打标结果（docs/yinian-npc-spec.md §4）
+  domain     String?  @db.VarChar(20) // career/relationship/family/self/meaning/money/health/creation/loss/other
+  emotion    String?  @db.VarChar(20) // calm/hot/low/anxious/numb
+  attachment String?  @db.VarChar(20) // result/recognition/control/relation/certainty/past/none
+  safety     String   @default("ok") @db.VarChar(10) // ok/watch/crisis
+  isDeep     Boolean  @default(false) // 深念标记（长按），影响点评数量上限
+
+  createdAt  DateTime @default(now())
+
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  replies    YnReply[]
+
+  @@index([userId, createdAt(sort: Desc)])
+}
+
+// 一念 - NPC 点评（信笺）
+model YnReply {
+  id        String   @id @default(uuid())
+  thoughtId String
+  npcKey    String   @db.VarChar(20) // lib/yinian/npcs.ts 的 key
+  content   String   @db.Text        @default("")
+  status    String   @default("pending") @db.VarChar(10) // pending/done/failed
+  error     String?  @db.VarChar(200)
+
+  createdAt DateTime @default(now())
+
+  thought   YnThought @relation(fields: [thoughtId], references: [id], onDelete: Cascade)
+
+  @@index([thoughtId, createdAt])
 }

@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>一念 One Mind · 一期视觉设计稿</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+/* ============ 设计基石（继承心镜暗色系） ============ */
+:root {
+  --bg: #0b0b0c;
+  --surface: #141416;
+  --surface-2: #17171a;
+  --line: #26262b;
+  --ink: #d6d3cd;          /* 正文 · 灰白墨 */
+  --ink-dim: #8b897f;      /* 弱化 */
+  --ink-faint: #55544e;    /* 极弱 */
+  --vermilion: #a8483a;    /* 朱砂 · 印 */
+  --amber: #c9a86a;        /* 琥珀 · 有价信息/炽热 */
+  --qing: #7d8a94;         /* 玄青 · 老子 */
+  --moon: #b8b8b0;         /* 月白 · 庄子 */
+  --dai: #6a7ba0;          /* 黛蓝 · 荣格 */
+  --warm: #a08a70;         /* 暖褐 · 阿德勒 */
+  --serif: "Noto Serif SC", "Songti SC", serif;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: var(--serif);
+  background: var(--bg);
+  color: var(--ink);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ============ 星空背景 ============ */
+.sky {
+  position: fixed; inset: 0; z-index: 0; pointer-events: none;
+  background:
+    radial-gradient(1px 1px at 12% 18%, rgba(255,255,255,.35) 50%, transparent 51%),
+    radial-gradient(1px 1px at 34% 8%,  rgba(255,255,255,.22) 50%, transparent 51%),
+    radial-gradient(1.5px 1.5px at 58% 22%, rgba(214,211,205,.3) 50%, transparent 51%),
+    radial-gradient(1px 1px at 76% 12%, rgba(255,255,255,.18) 50%, transparent 51%),
+    radial-gradient(1px 1px at 89% 30%, rgba(201,168,106,.25) 50%, transparent 51%),
+    radial-gradient(1px 1px at 22% 42%, rgba(255,255,255,.12) 50%, transparent 51%),
+    radial-gradient(1.5px 1.5px at 45% 55%, rgba(255,255,255,.16) 50%, transparent 51%),
+    radial-gradient(1px 1px at 68% 48%, rgba(255,255,255,.2) 50%, transparent 51%),
+    radial-gradient(1px 1px at 8% 66%,  rgba(255,255,255,.15) 50%, transparent 51%),
+    radial-gradient(1px 1px at 92% 72%, rgba(255,255,255,.12) 50%, transparent 51%),
+    radial-gradient(1.5px 1.5px at 30% 80%, rgba(214,211,205,.2) 50%, transparent 51%),
+    radial-gradient(1px 1px at 55% 88%, rgba(255,255,255,.14) 50%, transparent 51%),
+    radial-gradient(1px 1px at 80% 92%, rgba(201,168,106,.18) 50%, transparent 51%),
+    var(--bg);
+}
+/* 一颗缓慢呼吸的亮星 */
+.sky::after {
+  content: ""; position: absolute; left: 70%; top: 26%;
+  width: 3px; height: 3px; border-radius: 50%;
+  background: rgba(230,225,215,.8);
+  box-shadow: 0 0 12px 2px rgba(230,225,215,.25);
+  animation: breathe 3.6s ease-in-out infinite;
+}
+@keyframes breathe { 0%,100% { opacity:.35 } 50% { opacity:.9 } }
+
+/* ============ 设计稿框架 ============ */
+.board { position: relative; z-index: 1; max-width: 880px; margin: 0 auto; padding: 64px 24px 120px; }
+.board-label {
+  text-align: center; font-size: 11px; letter-spacing: .4em;
+  color: var(--ink-faint); margin-bottom: 8px;
+}
+.board-title {
+  text-align: center; font-size: 22px; font-weight: 400;
+  letter-spacing: .12em; margin-bottom: 6px;
+}
+.board-sub {
+  text-align: center; font-size: 12px; color: var(--ink-dim);
+  letter-spacing: .2em; margin-bottom: 72px;
+}
+.screen-label {
+  font-size: 11px; letter-spacing: .35em; color: var(--ink-faint);
+  margin: 96px 0 20px; display: flex; align-items: center; gap: 16px;
+}
+.screen-label::after { content: ""; flex: 1; height: 1px; background: var(--line); }
+.screen-label:first-of-type { margin-top: 0; }
+.screen-note { font-size: 12px; color: var(--ink-dim); line-height: 2; margin-bottom: 24px; letter-spacing: .05em; }
+
+/* ============ 顶栏 ============ */
+.topbar {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 4px; margin-bottom: 40px;
+}
+.logo {
+  display: inline-flex; align-items: center; gap: 10px;
+  font-size: 15px; letter-spacing: .3em; color: var(--ink);
+}
+.logo-seal {
+  width: 26px; height: 26px; border-radius: 6px;
+  background: var(--vermilion);
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 13px; color: #f3ece2; letter-spacing: 0;
+  box-shadow: 0 0 16px rgba(168,72,58,.35);
+}
+.topnav { display: flex; gap: 28px; }
+.topnav span {
+  font-size: 12px; letter-spacing: .25em; color: var(--ink-dim); cursor: pointer;
+  transition: color .3s;
+}
+.topnav span:hover { color: var(--ink); }
+
+/* ============ 书写区 ============ */
+.composer { margin-bottom: 56px; }
+.composer textarea {
+  width: 100%; min-height: 96px; resize: none;
+  background: transparent; border: none; outline: none;
+  font-family: var(--serif); font-size: 17px; line-height: 2;
+  color: var(--ink); letter-spacing: .03em;
+}
+.composer textarea::placeholder { color: var(--ink-faint); }
+.composer-bar {
+  display: flex; align-items: center; justify-content: space-between;
+  padding-top: 14px; border-top: 1px solid var(--line);
+}
+.composer-hint { font-size: 11px; letter-spacing: .2em; color: var(--ink-faint); }
+.btn-release {
+  border: 1px solid var(--line); border-radius: 999px;
+  background: transparent; color: var(--ink-dim);
+  font-family: var(--serif); font-size: 12px; letter-spacing: .3em;
+  padding: 8px 26px 8px 30px; cursor: pointer;
+  transition: all .3s;
+}
+.btn-release:hover { color: var(--ink); border-color: var(--ink-faint); }
+
+/* ============ 念头卡片 ============ */
+.thought {
+  position: relative; padding: 26px 4px 22px;
+  border-bottom: 1px solid var(--line);
+}
+.thought-dot {
+  position: absolute; left: -14px; top: 38px;
+  width: 5px; height: 5px; border-radius: 50%;
+}
+.dot-calm  { background: #e8e4da; box-shadow: 0 0 8px rgba(232,228,218,.5); }
+.dot-hot   { background: var(--amber); box-shadow: 0 0 8px rgba(201,168,106,.55); }
+.dot-low   { background: #8fa3b0; box-shadow: 0 0 8px rgba(143,163,176,.5); }
+.thought-text { font-size: 15.5px; line-height: 2; letter-spacing: .03em; }
+.thought-meta {
+  margin-top: 14px; font-size: 11px; letter-spacing: .25em; color: var(--ink-faint);
+  display: flex; align-items: center; gap: 18px;
+}
+/* 印位：虚线空位 = 有人在来的路上 */
+.seal-slots { display: flex; gap: 10px; margin-left: auto; }
+.seal-slot {
+  width: 22px; height: 22px; border-radius: 6px;
+  border: 1px dashed #3a3a40;
+  animation: slotwait 2.8s ease-in-out infinite;
+}
+@keyframes slotwait { 0%,100% { opacity:.4 } 50% { opacity:.9 } }
+/* 已落印 */
+.seal-mini {
+  width: 22px; height: 22px; border-radius: 6px;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 11px; color: #f3ece2; cursor: pointer;
+  transition: transform .3s;
+}
+.seal-mini:hover { transform: scale(1.12); }
+
+/* ============ 信笺（点评详情） ============ */
+.thought-anchor {
+  padding: 28px 4px; border-bottom: 1px solid var(--line); margin-bottom: 8px;
+}
+.letter {
+  position: relative;
+  margin: 36px 0 36px 28px;
+  padding: 26px 28px 22px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 4px 14px 14px 14px;
+  max-width: 560px;
+}
+.letter.cool { background: #121519; border-color: #232b32; }  /* 庄子 · 冷青纸温 */
+.letter.warm { background: #171412; border-color: #2c2620; }  /* 阿德勒 · 暖褐纸温 */
+.letter-head {
+  display: flex; align-items: center; gap: 12px; margin-bottom: 16px;
+}
+.letter-seal {
+  width: 34px; height: 34px; border-radius: 8px;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 16px; color: #f3ece2; flex-shrink: 0;
+}
+.letter-name { font-size: 13px; letter-spacing: .3em; }
+.letter-anchor { font-size: 10px; letter-spacing: .2em; color: var(--ink-faint); margin-top: 3px; }
+.letter-body { font-size: 14.5px; line-height: 2.1; letter-spacing: .03em; color: var(--ink); }
+.letter-body em { font-style: normal; color: var(--amber); }
+/* 印色 */
+.ink-laozi   { background: #3d4a52; }  /* 玄青 */
+.ink-zhuang  { background: #6e6e66; }  /* 月白(深调压暗) */
+.ink-jung    { background: #46538a; }  /* 黛蓝 */
+.ink-adler   { background: #7a5f45; }  /* 暖褐 */
+.ink-yangming{ background: var(--vermilion); } /* 朱砂 · 主NPC */
+.ink-jobs    { background: #2e2e33; }  /* 炭黑 */
+.ink-su      { background: #8a6d4f; }  /* 茶褐 */
+
+/* ============ 名人堂 · 印墙 ============ */
+.hall-grid {
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px;
+  background: var(--line); border: 1px solid var(--line);
+}
+.hall-cell {
+  background: var(--bg); padding: 34px 18px 28px;
+  display: flex; flex-direction: column; align-items: center; gap: 14px;
+  transition: background .4s; cursor: pointer;
+}
+.hall-cell:hover { background: var(--surface); }
+.hall-seal {
+  width: 52px; height: 52px; border-radius: 12px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 24px; color: #f3ece2;
+  transition: transform .4s;
+}
+.hall-cell:hover .hall-seal { transform: scale(1.08) rotate(-2deg); }
+.hall-name { font-size: 13px; letter-spacing: .35em; text-indent: .35em; }
+.hall-tag { font-size: 10px; letter-spacing: .15em; color: var(--ink-faint); text-align: center; line-height: 1.9; }
+.hall-status { font-size: 9px; letter-spacing: .3em; color: var(--ink-faint); opacity: .7; }
+.hall-status.roam { color: #6d6a5f; }
+
+@media (prefers-reduced-motion: reduce) {
+  .sky::after, .seal-slot { animation: none; }
+}
+@media (max-width: 640px) {
+  .hall-grid { grid-template-columns: repeat(2, 1fr); }
+  .letter { margin-left: 0; }
+  .thought-dot { display: none; }
+}
+</style>
+</head>
+<body>
+<div class="sky"></div>
+<div class="board">
+
+  <div class="board-label">ONE MIND · 设计稿 v0.1</div>
+  <div class="board-title">一 念</div>
+  <div class="board-sub">心镜让你照见自己 · 一念让传奇心智照见你</div>
+
+  <!-- ================= 界面一：念头流 ================= -->
+  <div class="screen-label">界面一 · 念头流（主页 / 暗色星空）</div>
+  <div class="screen-note">
+    打开即写，无「新建」。左侧光点 = 情绪底色（暖白·平静 / 琥珀·炽热 / 青灰·低落）。
+    虚线印位 = 「有人在来的路上」；印落下 = 点评已抵达。发布时文字落定、光点升起归入流中（~300ms）。
+  </div>
+
+  <div class="topbar">
+    <span class="logo"><span class="logo-seal">念</span>一 念</span>
+    <nav class="topnav"><span>星空</span><span>名人堂</span><span>回观</span></nav>
+  </div>
+
+  <div class="composer">
+    <textarea placeholder="此刻心里有什么，就写什么"></textarea>
+    <div class="composer-bar">
+      <span class="composer-hint">写下即照见 · 仅你与 NPC 可见</span>
+      <button class="btn-release">放 出 这 一 念</button>
+    </div>
+  </div>
+
+  <div class="thought">
+    <span class="thought-dot dot-hot"></span>
+    <p class="thought-text">加班第三年，晋升名单里又没有我。明知道不该只用结果定义自己，可心里这股不甘，压不下去。</p>
+    <div class="thought-meta">
+      <span>周二的深夜</span>
+      <span class="seal-slots">
+        <span class="seal-mini ink-laozi" title="老子">老</span>
+        <span class="seal-mini ink-adler" title="阿德勒">勒</span>
+        <span class="seal-slot"></span>
+      </span>
+    </div>
+  </div>
+
+  <div class="thought">
+    <span class="thought-dot dot-calm"></span>
+    <p class="thought-text">清晨跑步时突然想通：我怕的不是失败，是别人看见失败的我。</p>
+    <div class="thought-meta">
+      <span>初冬的清晨</span>
+      <span class="seal-slots">
+        <span class="seal-mini ink-jung" title="荣格">影</span>
+        <span class="seal-mini ink-yangming" title="王阳明">知</span>
+      </span>
+    </div>
+  </div>
+
+  <div class="thought">
+    <span class="thought-dot dot-low"></span>
+    <p class="thought-text">母亲走后第七天。屋子很静，静得能听见冰箱的声音。</p>
+    <div class="thought-meta">
+      <span>周日的午后</span>
+      <span class="seal-slots">
+        <span class="seal-slot"></span>
+        <span class="seal-slot"></span>
+      </span>
+    </div>
+  </div>
+
+  <!-- ================= 界面二：信笺点评 ================= -->
+  <div class="screen-label">界面二 · 念头详情与信笺点评</div>
+  <div class="screen-note">
+    点评不用评论区，用信笺。不做人为延迟——大模型返回即落印、信笺流式展开，多位 NPC 按生成完成的自然次序抵达。
+    落款不用精确时间，用感受锚点（「老子 · 于深夜」）。信笺纸温是 NPC 的身份色：庄子偏冷青，阿德勒偏暖褐。
+  </div>
+
+  <div class="thought-anchor">
+    <span class="thought-dot dot-hot" style="left:0"></span>
+    <p class="thought-text" style="padding-left:20px">加班第三年，晋升名单里又没有我。明知道不该只用结果定义自己，可心里这股不甘，压不下去。</p>
+    <div class="thought-meta" style="padding-left:20px"><span>周二的深夜 · 深念</span></div>
+  </div>
+
+  <div class="letter">
+    <div class="letter-head">
+      <span class="letter-seal ink-laozi">老</span>
+      <div>
+        <div class="letter-name">老 子</div>
+        <div class="letter-anchor">于深夜</div>
+      </div>
+    </div>
+    <p class="letter-body">三年的夜不是白熬的，先别急着想通。「企者不立，跨者不行。」压不下去的，不是不甘，是你在用力压它。水从不压自己的波澜——<em>孰能浊以静之徐清</em>？今夜先让它浊着。</p>
+  </div>
+
+  <div class="letter warm">
+    <div class="letter-head">
+      <span class="letter-seal ink-adler">勒</span>
+      <div>
+        <div class="letter-name">阿 德 勒</div>
+        <div class="letter-anchor">于深夜</div>
+      </div>
+    </div>
+    <p class="letter-body">不甘被听见，是改变的开始——很多人连承认它的勇气都没有。等这股劲缓一些，可以轻轻问自己一句：这份不甘，想带我去哪里？它是指向「再争取一次」，还是指向「换一种活法」？<em>两个方向都是勇气</em>，不甘本身不是错。</p>
+  </div>
+
+  <div class="letter cool">
+    <div class="letter-head">
+      <span class="letter-seal ink-zhuang">庄</span>
+      <div>
+        <div class="letter-name">庄 子</div>
+        <div class="letter-anchor">于深夜</div>
+      </div>
+    </div>
+    <p class="letter-body">鹪鹩巢林，不过一枝；偃鼠饮河，不过满腹。名单装不下你三年的光阴，更装不下你。<em>今夜先睡</em>，名单之外的天地，明天再看也不迟。</p>
+  </div>
+
+  <!-- ================= 界面三：名人堂 ================= -->
+  <div class="screen-label">界面三 · 名人堂（印墙）</div>
+  <div class="screen-note">
+    每位 NPC 一方单字印，不用肖像、不用西文字母，统一在东方印玺美学里。
+    常驻八位 + 云游七位；云游者印面半暗，「云游中」——无常感即稀缺感。
+  </div>
+
+  <div class="hall-grid">
+    <div class="hall-cell">
+      <span class="hall-seal ink-yangming">知</span>
+      <span class="hall-name">王阳明</span>
+      <span class="hall-tag">你未看此花时<br>此花与汝心同归于寂</span>
+      <span class="hall-status">常驻 · 主</span>
+    </div>
+    <div class="hall-cell">
+      <span class="hall-seal ink-laozi">老</span>
+      <span class="hall-name">老 子</span>
+      <span class="hall-tag">你在用力的地方<br>就是问题所在</span>
+      <span class="hall-status">常驻</span>
+    </div>
+    <div class="hall-cell">
+      <span class="hall-seal ink-zhuang">庄</span>
+      <span class="hall-name">庄 子</span>
+      <span class="hall-tag">你计较的<br>在宇宙尺度下不值一提</span>
+      <span class="hall-status">常驻</span>
+    </div>
+    <div class="hall-cell">
+      <span class="hall-seal ink-su">轼</span>
+      <span class="hall-name">苏 轼</span>
+      <span class="hall-tag">用一碗人间烟火<br>消解你的执念</span>
+      <span class="hall-status">常驻</span>
+    </div>
+    <div class="hall-cell">
+      <span class="hall-seal" style="background:#4a4a52">诘</span>
+      <span class="hall-name">苏格拉底</span>
+      <span class="hall-tag">只问不答<br>追问到你自证或自破</span>
+      <span class="hall-status">常驻</span>
+    </div>
+    <div class="hall-cell">
+      <span class="hall-seal ink-jung">影</span>
+      <span class="hall-name">荣 格</span>
+      <span class="hall-tag">念头里你不愿承认的部分<br>叫阴影</span>
+      <span class="hall-status">常驻</span>
+    </div>
+    <div class="hall-cell">
+      <span class="hall-seal ink-adler">勒</span>
+      <span class="hall-name">阿 德 勒</span>
+      <span class="hall-tag">这个念头<br>让你逃避了什么？</span>
+      <span class="hall-status">常驻</span>
+    </div>
+    <div class="hall-cell">
+      <span class="hall-seal ink-jobs">简</span>
+      <span class="hall-name">乔布斯</span>
+      <span class="hall-tag">砍掉你念头里的 90%<br>剩下的才是你</span>
+      <span class="hall-status">常驻</span>
+    </div>
+    <div class="hall-cell" style="opacity:.55">
+      <span class="hall-seal" style="background:#33313a">慧</span>
+      <span class="hall-name">慧 能</span>
+      <span class="hall-tag">本来无一物<br>何处惹尘埃</span>
+      <span class="hall-status roam">云游中</span>
+    </div>
+    <div class="hall-cell" style="opacity:.55">
+      <span class="hall-seal" style="background:#3a3a30">尼</span>
+      <span class="hall-name">尼 采</span>
+      <span class="hall-tag">痛苦是软弱还是淬炼<br>取决于你是否甘愿</span>
+      <span class="hall-status roam">云游中</span>
+    </div>
+    <div class="hall-cell" style="opacity:.55">
+      <span class="hall-seal" style="background:#2f3330">勒</span>
+      <span class="hall-name">马可·奥勒留</span>
+      <span class="hall-tag">区分能控制与不能控制的<br>然后闭嘴做事</span>
+      <span class="hall-status roam">云游中</span>
+    </div>
+    <div class="hall-cell" style="opacity:.55">
+      <span class="hall-seal" style="background:#36302e">曼</span>
+      <span class="hall-name">费 曼</span>
+      <span class="hall-tag">用最简单的话讲清你的念头<br>讲不清就是没想清</span>
+      <span class="hall-status roam">云游中</span>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>
