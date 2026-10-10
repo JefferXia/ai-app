@@ -298,6 +298,7 @@ function Planet({
           onClick={
             interactive
               ? (e: ThreeEvent<MouseEvent>) => {
+                  if (e.delta > 4) return; // 拖拽后松开不算点击
                   e.stopPropagation();
                   onStarClick(star.id, e.clientX, e.clientY);
                 }
@@ -346,7 +347,15 @@ function getNucleusTexture(): THREE.Texture {
  * 参考作 detail=28 是因半径 20 占满屏幕；我们半径 2.4，detail=16 足够平滑且 7 颗同屏不卡。
  */
 
-function Sun({ sun, position }: { sun: SceneSun; position: [number, number, number] }) {
+function Sun({
+  sun,
+  position,
+  onSunClick,
+}: {
+  sun: SceneSun;
+  position: [number, number, number];
+  onSunClick: (domain: string, x: number, y: number) => void;
+}) {
   const halo = useRef<THREE.Sprite>(null);
   const phase = hash01(`${sun.domain}:sp`) * Math.PI * 2;
   // 每个领域的团块在噪声场里有自己的偏移 → 形态各异且恒定
@@ -382,7 +391,16 @@ function Sun({ sun, position }: { sun: SceneSun; position: [number, number, numb
 
   return (
     <group position={position}>
-      <mesh geometry={geo}>
+      <mesh
+        geometry={geo}
+        onClick={(e: ThreeEvent<MouseEvent>) => {
+          if (e.delta > 4) return; // 拖拽后松开不算点击
+          e.stopPropagation();
+          onSunClick(sun.domain, e.clientX, e.clientY);
+        }}
+        onPointerOver={() => (document.body.style.cursor = 'pointer')}
+        onPointerOut={() => (document.body.style.cursor = '')}
+      >
         <meshPhongMaterial map={getNucleusTexture()} />
       </mesh>
       <sprite ref={halo} scale={[SUN_R * 5.2, SUN_R * 5.2, 1]}>
@@ -412,6 +430,7 @@ function System({
   metaRef,
   objectsRef,
   onStarClick,
+  onSunClick,
   onToggleFocus,
 }: {
   sun: SceneSun;
@@ -421,6 +440,7 @@ function System({
   metaRef: React.MutableRefObject<PlanetMeta[]>;
   objectsRef: React.MutableRefObject<Map<string, THREE.Object3D>>;
   onStarClick: (id: string, x: number, y: number) => void;
+  onSunClick: (domain: string, x: number, y: number) => void;
   onToggleFocus: (domain: string) => void;
 }) {
   const spinRef = useRef<THREE.Group>(null);
@@ -496,6 +516,7 @@ function System({
         scale={shellR}
         renderOrder={-1}
         onClick={(e: ThreeEvent<MouseEvent>) => {
+          if (e.delta > 4) return; // 拖拽旋转后松开不算点击
           e.stopPropagation();
           onToggleFocus(sun.domain);
         }}
@@ -510,7 +531,7 @@ function System({
           depthWrite={false}
         />
       </mesh>
-      <Sun sun={sun} position={[0, 0, 0]} />
+      <Sun sun={sun} position={[0, 0, 0]} onSunClick={onSunClick} />
       {/* 星尘层：随星团刚性慢转（行星不在此组内——刚性旋转量纲和单星公转接近，
           会把所有行星"带着同速走"，公转必须完全由各自轨道参数决定） */}
       <group ref={spinRef}>
@@ -680,6 +701,7 @@ export default function UniverseScene({
   stars,
   suns,
   onStarClick,
+  onSunClick,
   onFocusChange,
   apiRef,
   controlsEnabled = true,
@@ -688,6 +710,7 @@ export default function UniverseScene({
   suns: SceneSun[];
   vortices?: SceneVortex[]; // 执念漩涡搁置：接收但暂不渲染
   onStarClick: (id: string, screenX: number, screenY: number) => void;
+  onSunClick: (domain: string, screenX: number, screenY: number) => void;
   onVortexClick?: (attachment: string, screenX: number, screenY: number) => void;
   onFocusChange?: (domain: string | null) => void;
   apiRef: React.MutableRefObject<SceneApi | null>;
@@ -767,6 +790,7 @@ export default function UniverseScene({
           metaRef={metaRef}
           objectsRef={objectsRef}
           onStarClick={onStarClick}
+          onSunClick={onSunClick}
           onToggleFocus={toggleFocus}
         />
       ))}

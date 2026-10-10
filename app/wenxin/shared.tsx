@@ -105,10 +105,26 @@ export function getPeriod(h: number): string {
   return '深夜'; // 23:00 - 05:00
 }
 
-/** 纸团标签：周二的深夜 */
+/** 纸团标签：本周 → 周二的深夜；上周 → 上周二的深夜；更早 → 两周前/上月/几个月前的深夜 */
 export function anchorLabel(t: number): string {
   const d = new Date(t);
-  return `${WEEKDAYS[d.getDay()]}的${getPeriod(d.getHours())}`;
+  const now = new Date();
+  const period = getPeriod(d.getHours());
+  const cn = (n: number) => (n === 2 ? '两' : String(n)); // 两周前，而非 2 周前
+  // 周一为一周之始
+  const startOfWeek = (x: Date) => {
+    const s = new Date(x.getFullYear(), x.getMonth(), x.getDate());
+    s.setDate(s.getDate() - ((s.getDay() + 6) % 7));
+    return s.getTime();
+  };
+  const weekDiff = Math.round((startOfWeek(now) - startOfWeek(d)) / (7 * 86400000));
+  if (weekDiff <= 0) return `${WEEKDAYS[d.getDay()]}的${period}`;
+  if (weekDiff === 1) return `上${WEEKDAYS[d.getDay()]}的${period}`;
+  if (weekDiff <= 4) return `${cn(weekDiff)}周前的${period}`;
+  const monthDiff = (now.getFullYear() - d.getFullYear()) * 12 + now.getMonth() - d.getMonth();
+  if (monthDiff <= 1) return `上月的${period}`;
+  if (monthDiff < 12) return `${cn(monthDiff)}个月前的${period}`;
+  return `${Math.floor(monthDiff / 12)}年前的${period}`;
 }
 
 /** 书写流分隔线：初冬的清晨 · 11月25日 */

@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import { SERIF, anchorLabel } from '../../wenxin/shared';
 import { NPC_DISPLAY, CARE_REPLY } from '@/lib/yinian/npc-display';
-import { STAR_CSS, Planet, Spinner, panelPlacement, VORTEX_NAME } from '../yinian-shared';
+import { STAR_CSS, Planet, Spinner, panelPlacement, VORTEX_NAME, DOMAIN_LABEL } from '../yinian-shared';
 import { computeUniverse, type VortexInfo } from '../universe';
 import type { SceneApi, SceneStar, SceneSun, SceneVortex } from './universe-scene';
 
@@ -59,6 +59,7 @@ export default function SkyClient() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [planetPos, setPlanetPos] = useState<{ x: number; y: number } | null>(null);
   const [vortexView, setVortexView] = useState<{ info: VortexInfo; x: number; y: number } | null>(null);
+  const [sunView, setSunView] = useState<{ domain: string; x: number; y: number } | null>(null);
   // 操作提示 banner（参考 Space Globe 2 的 banner：玻璃拟态，首次交互后淡出移除）
   const [bannerFade, setBannerFade] = useState(false);
   const [bannerGone, setBannerGone] = useState(false);
@@ -84,6 +85,7 @@ export default function SkyClient() {
   /* ---------- 3D 场景回调 ---------- */
   const openStarAt = useCallback((id: string, x: number, y: number) => {
     setVortexView(null);
+    setSunView(null);
     setPlanetPos(clampAnchor(x, y));
     setSelectedId(id);
   }, []);
@@ -93,19 +95,30 @@ export default function SkyClient() {
     if (!info) return;
     setSelectedId(null);
     setPlanetPos(null);
+    setSunView(null);
     setVortexView({ info, x, y });
+  }, []);
+
+  // 点中团状物：打开该领域的念想列表
+  const openSunAt = useCallback((domain: string, x: number, y: number) => {
+    setSelectedId(null);
+    setPlanetPos(null);
+    setVortexView(null);
+    setSunView({ domain, ...clampAnchor(x, y) });
   }, []);
 
   function closeAll() {
     setSelectedId(null);
     setPlanetPos(null);
     setVortexView(null);
+    setSunView(null);
   }
 
-  // 漩涡成员 → 用场景 API 投影该星世界坐标为屏幕坐标，按点星流程展开
-  function openVortexMember(id: string) {
+  // 列表成员 → 用场景 API 投影该星世界坐标为屏幕坐标，按点星流程展开
+  function openMember(id: string) {
     const p = sceneApi.current?.project(id);
     setVortexView(null);
+    setSunView(null);
     if (!p) return;
     setPlanetPos(clampAnchor(p.x, p.y));
     setSelectedId(id);
@@ -180,7 +193,7 @@ export default function SkyClient() {
     [universe]
   );
 
-  const overlayOpen = !!selected || !!vortexView;
+  const overlayOpen = !!selected || !!vortexView || !!sunView;
 
   return (
     <div style={S.page}>
@@ -199,6 +212,7 @@ export default function SkyClient() {
             suns={sceneSuns}
             vortices={sceneVortices}
             onStarClick={openStarAt}
+            onSunClick={openSunAt}
             onVortexClick={openVortexAt}
             apiRef={sceneApi}
             controlsEnabled={!overlayOpen}
@@ -252,6 +266,34 @@ export default function SkyClient() {
         </div>
       )}
 
+      {/* 团状物视图：一团念想（该领域的念想列表，按时间新→旧） */}
+      {sunView && (
+        <div style={S.overlay} onClick={() => setSunView(null)}>
+          {(() => {
+            const p = panelPlacement(sunView, window.innerWidth, window.innerHeight);
+            const members = (stars ?? [])
+              .filter((s) => s.domain === sunView.domain)
+              .sort((a, b) => b.createdAt - a.createdAt);
+            return (
+              <div
+                className={p.side === 'below' ? 'yn-pop' : 'yn-pop-side'}
+                style={{ ...S.detail, left: p.left, top: p.top, width: p.width, maxHeight: p.maxHeight }}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <p style={S.vortexTitle}>关于{DOMAIN_LABEL[sunView.domain] ?? sunView.domain}的一团念想</p>
+                <p style={S.vortexSub}>{members.length} 个念想</p>
+                {members.map((s) => (
+                  <button key={s.id} style={S.vortexMember} onClick={() => openMember(s.id)}>
+                    <span style={S.vortexMemberAnchor}>{anchorLabel(s.createdAt)}</span>
+                    <span style={S.vortexMemberText}>{s.text}</span>
+                  </button>
+                ))}
+              </div>
+            );
+          })()}
+        </div>
+      )}
+
       {/* 漩涡视图 */}
       {vortexView && (
         <div style={S.overlay} onClick={() => setVortexView(null)}>
@@ -271,7 +313,7 @@ export default function SkyClient() {
                 <p style={S.vortexTitle}>{name}漩涡</p>
                 <p style={S.vortexSub}>{vortexView.info.count} 个念头被它牵引</p>
                 {members.map((s) => (
-                  <button key={s.id} style={S.vortexMember} onClick={() => openVortexMember(s.id)}>
+                  <button key={s.id} style={S.vortexMember} onClick={() => openMember(s.id)}>
                     <span style={S.vortexMemberAnchor}>{anchorLabel(s.createdAt)}</span>
                     <span style={S.vortexMemberText}>{s.text}</span>
                   </button>
