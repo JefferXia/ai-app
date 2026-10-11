@@ -21,27 +21,8 @@ export const DOMAIN_LABEL: Record<string, string> = {
   other: '其他',
 };
 
-/* ===== 执念（attachment）中文名 =====
- * LABEL 用于散称；VORTEX_NAME 用于漩涡命名（PRD §6.2：「求认可漩涡」）。
- */
-export const ATTACHMENT_LABEL: Record<string, string> = {
-  result: '结果',
-  recognition: '认可',
-  control: '掌控',
-  relation: '牵绊',
-  certainty: '确定',
-  past: '从前',
-  none: '无',
-};
-
-export const VORTEX_NAME: Record<string, string> = {
-  result: '求果',
-  recognition: '求认可',
-  control: '怕失控',
-  relation: '系于人',
-  certainty: '求确定',
-  past: '困于昔',
-};
+/* ===== 执念（attachment）：2026-10-11 漩涡可视化下线，ATTACHMENT_LABEL/VORTEX_NAME 一并移除。
+ * 字段仍由打标器入库，将来重做执念可视化时再恢复命名。 ===== */
 
 /* ===== 星体视觉语法（docs/design/yinian-star-visual.md） =====
  * 三通道：色相族（valence）× 能量（arousal：光晕强度/脉动节奏）× 质感（表面渐变）。
@@ -121,37 +102,6 @@ export function StarBody({ emotion, size = 140 }: { emotion: string | null; size
         margin: '0 auto',
       }}
     />
-  );
-}
-
-/* ===== 引力漩涡（PRD §6.2）：同执念 ≥10 念显形。
- * 视觉：双臂锥形渐变缓转 + 暗核——漩涡是「引力」，不是发光体，故保持暗、哑、半透明。
- * x/y 为星野容器内百分比坐标；尺寸随星数增长（有上限，防糊屏）。
- */
-export function Vortex({
-  x,
-  y,
-  count,
-  name,
-  onClick,
-}: {
-  x: number;
-  y: number;
-  count: number;
-  name: string;
-  onClick?: (e: React.MouseEvent<HTMLButtonElement>) => void;
-}) {
-  const size = Math.min(88, 34 + Math.sqrt(count) * 12);
-  return (
-    <button
-      className="yn-vortex"
-      style={{ left: `${x}%`, top: `${y}%`, width: size, height: size }}
-      title={`${name}漩涡 · ${count} 星`}
-      aria-label={`${name}漩涡，${count} 个念头被它牵引`}
-      onClick={onClick}
-    >
-      <span className="yn-vortex-core" aria-hidden />
-    </button>
   );
 }
 
@@ -279,33 +229,10 @@ export const STAR_CSS = `
     0%,100% { box-shadow: 0 0 60px 12px rgba(201,168,106,.4), inset -8px -12px 30px rgba(0,0,0,.55) }
     50% { box-shadow: 0 0 96px 26px rgba(201,168,106,.58), inset -8px -12px 30px rgba(0,0,0,.55) }
   }
-  /* 引力漩涡：双臂锥形渐变缓转，暗核居中；纵向压扁与螺旋臂透视一致 */
-  .yn-vortex {
-    position: absolute; transform: translate(-50%, -50%) scaleY(.82);
-    border: none; border-radius: 50%; cursor: pointer; padding: 0; background: transparent;
-  }
-  .yn-vortex::before {
-    content: ""; position: absolute; inset: 0; border-radius: 50%;
-    background: conic-gradient(from 0deg,
-      transparent 0 12%, rgba(165,161,152,.26) 24%, transparent 36% 62%,
-      rgba(165,161,152,.26) 74%, transparent 86% 100%);
-    filter: blur(1.5px);
-    animation: yn-swirl 22s linear infinite;
-  }
-  .yn-vortex-core {
-    position: absolute; left: 50%; top: 50%; width: 5px; height: 5px;
-    transform: translate(-50%, -50%); border-radius: 50%;
-    background: #0b0b0c;
-    box-shadow: 0 0 10px 3px rgba(165,161,152,.35), 0 0 2px 1px rgba(214,211,205,.5);
-  }
-  @keyframes yn-swirl { from { transform: rotate(0) } to { transform: rotate(360deg) } }
   /* NPC 痕迹：被点评的星多一圈印色光环（PRD §6.3），最多三圈 */
   .yn-trace {
     position: absolute; border: 1px solid; border-radius: 50%;
     pointer-events: none;
-  }
-  @media (prefers-reduced-motion: reduce) {
-    .yn-vortex::before { animation: none; }
   }
   @media (prefers-reduced-motion: reduce) {
     .yn-starbody, .yn-planet, .yn-planet-surface, .yn-pop, .yn-pop-side, .yn-pulse-hot, .yn-breathe-slow, .yn-flicker, .yn-corona { animation: none; }

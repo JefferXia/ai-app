@@ -5,8 +5,8 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { SERIF, anchorLabel, seeded } from '../wenxin/shared';
 import { NPC_DISPLAY, CARE_REPLY } from '@/lib/yinian/npc-display';
-import { STAR_CSS, Planet, Spinner, Vortex, panelPlacement, starVisualOf, VORTEX_NAME } from './yinian-shared';
-import { computeUniverse, type UniverseLayout, type VortexInfo } from './universe';
+import { STAR_CSS, Planet, Spinner, panelPlacement, starVisualOf } from './yinian-shared';
+import { computeUniverse, type UniverseLayout } from './universe';
 
 /* ===== 一念 · 首页即星空（二期：心念宇宙） =====
  * 书写区在上，念头以星点散布于下方夜空；放出后光点升起没入星空；
@@ -53,7 +53,6 @@ export default function YinianClient() {
   const [planetPos, setPlanetPos] = useState<{ x: number; y: number } | null>(null); // 星球原地放大的锚点（视口坐标）
   const [bornId, setBornId] = useState<string | null>(null); // 刚放出的星，播升起动效
   const [confirmBurn, setConfirmBurn] = useState<string | null>(null);
-  const [vortexView, setVortexView] = useState<{ info: VortexInfo; x: number; y: number } | null>(null); // 点开的漩涡视图
   const burnTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const selected = thoughts?.find((t) => t.id === selectedId) ?? null;
@@ -70,27 +69,6 @@ export default function YinianClient() {
   function closeStar() {
     setSelectedId(null);
     setPlanetPos(null);
-  }
-
-  /* ---------- 点漩涡：浮层锚定点击处，列出被牵引的星 ---------- */
-  function openVortex(info: VortexInfo, e: React.MouseEvent<HTMLButtonElement>) {
-    closeStar();
-    setVortexView({ info, x: e.clientX, y: e.clientY });
-  }
-  function closeVortex() {
-    setVortexView(null);
-  }
-  // 漩涡成员 → 找到那颗星，按点星流程展开
-  function openVortexMember(id: string) {
-    const t = thoughts?.find((x) => x.id === id);
-    const el = document.querySelector<HTMLButtonElement>(`[data-tid="${id}"]`);
-    setVortexView(null);
-    if (!t || !el) return;
-    const rect = el.getBoundingClientRect();
-    const x = Math.min(Math.max(rect.left + rect.width / 2, 90), window.innerWidth - 90);
-    const y = Math.min(Math.max(rect.top + rect.height / 2, 110), window.innerHeight * 0.42);
-    setPlanetPos({ x, y });
-    setSelectedId(t.id);
   }
 
   /* ---------- 数据 ---------- */
@@ -153,7 +131,6 @@ export default function YinianClient() {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         closeStar();
-        closeVortex();
       }
     };
     window.addEventListener('keydown', onKey);
@@ -161,11 +138,11 @@ export default function YinianClient() {
   }, []);
 
   /* ---------- 宇宙布局：同一份数据永远算出同一片宇宙。
-   * 键只含布局输入（id/domain/attachment），点评轮询更新不触发重算 ---------- */
+   * 键只含布局输入（id/domain），点评轮询更新不触发重算 ---------- */
   const layoutCache = useRef<{ key: string; val: UniverseLayout } | null>(null);
   const universe = useMemo(() => {
     if (!thoughts) return null;
-    const key = thoughts.map((t) => `${t.id}:${t.domain ?? ''}:${t.attachment ?? ''}`).join('|');
+    const key = thoughts.map((t) => `${t.id}:${t.domain ?? ''}`).join('|');
     if (layoutCache.current?.key !== key) {
       layoutCache.current = { key, val: computeUniverse(thoughts) };
     }
@@ -271,21 +248,11 @@ export default function YinianClient() {
           </div>
         </section>
 
-        {/* 星野：宇宙布局——同领域聚星座，同执念 ≥10 念成漩涡；打标未完成时按初始散布 */}
+        {/* 星野：宇宙布局——同领域聚星座；打标未完成时按初始散布 */}
         <main style={S.field}>
           {thoughts === null && (
             <div style={S.loadingWrap}><Spinner /></div>
           )}
-          {universe?.vortices.map((v) => (
-            <Vortex
-              key={v.attachment}
-              x={v.x}
-              y={v.y}
-              count={v.count}
-              name={VORTEX_NAME[v.attachment] ?? v.attachment}
-              onClick={(e) => openVortex(v, e)}
-            />
-          ))}
           {thoughts?.map((t) => {
             const v = starVisualOf(t.emotion);
             const size = t.isDeep ? 8 : 5;
@@ -428,35 +395,6 @@ export default function YinianClient() {
           })()}
         </div>
       )}
-      {/* 漩涡视图：点开漩涡，看哪些念头被它牵引；点某颗星进入详情 */}
-      {vortexView && (
-        <div style={S.overlay} onClick={closeVortex}>
-          {(() => {
-            const p = panelPlacement(vortexView, window.innerWidth, window.innerHeight);
-            const name = VORTEX_NAME[vortexView.info.attachment] ?? vortexView.info.attachment;
-            const members = vortexView.info.memberIds
-              .map((id) => thoughts?.find((t) => t.id === id))
-              .filter((t): t is Thought => !!t)
-              .reverse(); // 新的在前
-            return (
-              <div
-                className={p.side === 'below' ? 'yn-pop' : 'yn-pop-side'}
-                style={{ ...S.detail, left: p.left, top: p.top, width: p.width, maxHeight: p.maxHeight }}
-                onClick={(e) => e.stopPropagation()}
-              >
-                <p style={S.vortexTitle}>{name}漩涡</p>
-                <p style={S.vortexSub}>{vortexView.info.count} 个念头被它牵引</p>
-                {members.map((t) => (
-                  <button key={t.id} style={S.vortexMember} onClick={() => openVortexMember(t.id)}>
-                    <span style={S.vortexMemberAnchor}>{anchorLabel(t.createdAt)}</span>
-                    <span style={S.vortexMemberText}>{t.text}</span>
-                  </button>
-                ))}
-              </div>
-            );
-          })()}
-        </div>
-      )}
     </div>
   );
 }
@@ -513,17 +451,6 @@ const S: Record<string, React.CSSProperties> = {
     width: 40, height: 40, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
     border: '1px solid #3a3a40', color: '#7d7a72', background: 'rgba(11,11,12,.6)', backdropFilter: 'blur(4px)',
     transition: 'all .3s',
-  },
-  vortexTitle: { fontSize: 15, letterSpacing: '0.4em', color: '#d6d3cd', marginBottom: 6 },
-  vortexSub: { fontSize: 12, letterSpacing: '0.2em', color: '#7d7a72', marginBottom: 8 },
-  vortexMember: {
-    display: 'block', width: '100%', textAlign: 'left', background: 'none', border: 'none',
-    borderTop: '1px solid #26262b', padding: '10px 0', cursor: 'pointer', fontFamily: SERIF,
-  },
-  vortexMemberAnchor: { display: 'block', fontSize: 12, letterSpacing: '0.25em', color: '#7d7a72', marginBottom: 4 },
-  vortexMemberText: {
-    display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden',
-    fontSize: 13, lineHeight: 1.9, color: '#a5a198', letterSpacing: '0.02em',
   },
   detailOps: { display: 'flex', justifyContent: 'flex-end', gap: 12, marginTop: 18, paddingTop: 14, borderTop: '1px solid #26262b' },
   deepBtn: {

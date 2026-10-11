@@ -14,9 +14,8 @@
  *   此时其行星才可点；再点背景球或 ESC 回全景。自由星在无聚焦时可点。
  * - 全局背景：页面级 CSS 星野图（sky1.jpg cover + brightness 40%，参考作的 body 背景写法）。
  * - 无领域自由星 = 散布小行星，不公转，只自转。
- * - 已下线（2026-10-10）：星团流星（效果不佳）、行星 NPC 痕迹环。
- * - 执念漩涡（attachment 螺旋）2026-10-09 起暂时搁置：场景不渲染漩涡，
- *   props 保留（sky-client 照常传入），被捕获的星回归各自领域/自由星。
+ * - 已下线（2026-10-10/11）：星团流星（效果不佳）、行星 NPC 痕迹环、
+ *   attachment 引力漩涡（视觉令人迷惑；attachment 数据仍入库，布局不再使用）。
  * 视觉语法映射见 docs/design/yinian-star-visual.md §2.1。
  */
 
@@ -33,7 +32,6 @@ export interface SceneStar {
   emotion: string | null;
   isDeep: boolean;
   domain: string | null;
-  vortex: string | null; // 被哪个执念漩涡捕获（attachment key），未捕获为 null；漩涡搁置期间忽略
   x: number; // 布局百分比（预留，3D 场景不直接用）
   y: number;
   z: number; // 深度 -1…1
@@ -45,15 +43,6 @@ export interface SceneSun {
   x: number;
   y: number;
   z: number;
-}
-
-export interface SceneVortex {
-  attachment: string;
-  name: string;
-  x: number;
-  y: number;
-  z: number;
-  count: number;
 }
 
 export interface SceneApi {
@@ -708,10 +697,8 @@ export default function UniverseScene({
 }: {
   stars: SceneStar[];
   suns: SceneSun[];
-  vortices?: SceneVortex[]; // 执念漩涡搁置：接收但暂不渲染
   onStarClick: (id: string, screenX: number, screenY: number) => void;
   onSunClick: (domain: string, screenX: number, screenY: number) => void;
-  onVortexClick?: (attachment: string, screenX: number, screenY: number) => void;
   onFocusChange?: (domain: string | null) => void;
   apiRef: React.MutableRefObject<SceneApi | null>;
   controlsEnabled?: boolean;
@@ -722,7 +709,7 @@ export default function UniverseScene({
 
   metaRef.current = [];
 
-  /* 归属划分：漩涡搁置期间被捕获的星回归领域/自由星 */
+  /* 归属划分：有领域的进星团，其余的为自由星 */
   const bySystem = useMemo(() => {
     const map = new Map<string, SceneStar[]>();
     const free: SceneStar[] = [];

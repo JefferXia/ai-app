@@ -15,11 +15,12 @@ import type { ThoughtTag } from './tag';
 
 const CARE_NPC_KEY = 'care'; // 红线话术的伪 NPC key（前端特判渲染）
 
-/** 生成后质检（对应规范 §2 废稿线里最易机器判定的两条） */
+/** 生成后质检（机器可判定的废稿线） */
 function violates(npcKey: string, content: string): boolean {
   const name = NPCS[npcKey]?.name ?? '';
   if (name && new RegExp(`${name}(说|说过|讲|认为)`).test(content)) return true; // 第三人称自称
-  if (/承接句|视角句|收束句/.test(content)) return true; // 结构标记泄漏
+  if (/承接句|视角句|收束句|心智模型|【.{1,8}】/.test(content)) return true; // 结构/提示词泄漏
+  if (/^(我能感受到|听到你这样说|辛苦了|抱抱你|我理解你的感受)/.test(content)) return true; // 安慰式开场
   return false;
 }
 

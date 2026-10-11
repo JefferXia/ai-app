@@ -5,9 +5,9 @@ import { useRouter } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import { SERIF, anchorLabel } from '../../wenxin/shared';
 import { NPC_DISPLAY, CARE_REPLY } from '@/lib/yinian/npc-display';
-import { STAR_CSS, Planet, Spinner, panelPlacement, VORTEX_NAME, DOMAIN_LABEL } from '../yinian-shared';
-import { computeUniverse, type VortexInfo } from '../universe';
-import type { SceneApi, SceneStar, SceneSun, SceneVortex } from './universe-scene';
+import { STAR_CSS, Planet, Spinner, panelPlacement, DOMAIN_LABEL } from '../yinian-shared';
+import { computeUniverse } from '../universe';
+import type { SceneApi, SceneStar, SceneSun } from './universe-scene';
 
 /* ===== 一念 · 星空页（心念宇宙 · 3D 完整视图） =====
  * 布局与首页同一引擎（2D 百分比 + z 深度），此处渲染为真 3D：
@@ -58,7 +58,6 @@ export default function SkyClient() {
   const [stars, setStars] = useState<Star[] | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [planetPos, setPlanetPos] = useState<{ x: number; y: number } | null>(null);
-  const [vortexView, setVortexView] = useState<{ info: VortexInfo; x: number; y: number } | null>(null);
   const [sunView, setSunView] = useState<{ domain: string; x: number; y: number } | null>(null);
   // 操作提示 banner（参考 Space Globe 2 的 banner：玻璃拟态，首次交互后淡出移除）
   const [bannerFade, setBannerFade] = useState(false);
@@ -84,40 +83,27 @@ export default function SkyClient() {
 
   /* ---------- 3D 场景回调 ---------- */
   const openStarAt = useCallback((id: string, x: number, y: number) => {
-    setVortexView(null);
     setSunView(null);
     setPlanetPos(clampAnchor(x, y));
     setSelectedId(id);
-  }, []);
-
-  const openVortexAt = useCallback((attachment: string, x: number, y: number) => {
-    const info = universeRef.current?.vortices.find((v) => v.attachment === attachment);
-    if (!info) return;
-    setSelectedId(null);
-    setPlanetPos(null);
-    setSunView(null);
-    setVortexView({ info, x, y });
   }, []);
 
   // 点中团状物：打开该领域的念想列表
   const openSunAt = useCallback((domain: string, x: number, y: number) => {
     setSelectedId(null);
     setPlanetPos(null);
-    setVortexView(null);
     setSunView({ domain, ...clampAnchor(x, y) });
   }, []);
 
   function closeAll() {
     setSelectedId(null);
     setPlanetPos(null);
-    setVortexView(null);
     setSunView(null);
   }
 
   // 列表成员 → 用场景 API 投影该星世界坐标为屏幕坐标，按点星流程展开
   function openMember(id: string) {
     const p = sceneApi.current?.project(id);
-    setVortexView(null);
     setSunView(null);
     if (!p) return;
     setPlanetPos(clampAnchor(p.x, p.y));
@@ -152,13 +138,10 @@ export default function SkyClient() {
 
   /* 宇宙布局：与首页同一引擎，同一份数据同一片宇宙 */
   const universe = useMemo(() => (stars ? computeUniverse(stars) : null), [stars]);
-  const universeRef = useRef(universe);
-  universeRef.current = universe;
 
-  /* 场景数据：布局坐标 + 情绪 + 领域归属 + 漩涡捕获 + NPC 痕迹 */
+  /* 场景数据：布局坐标 + 情绪 + 领域归属 + NPC 痕迹 */
   const sceneStars: SceneStar[] = useMemo(() => {
     if (!stars || !universe) return [];
-    const vortexAttachments = new Set(universe.vortices.map((v) => v.attachment));
     return stars.map((s) => {
       const p = universe.pos.get(s.id);
       const tracers = [...new Set(s.replies.filter((r) => r.status === 'done').map((r) => r.npcKey))]
@@ -169,7 +152,6 @@ export default function SkyClient() {
         emotion: s.emotion,
         isDeep: s.isDeep,
         domain: s.domain,
-        vortex: s.attachment && vortexAttachments.has(s.attachment) ? s.attachment : null,
         x: p?.x ?? 50,
         y: p?.y ?? 44,
         z: p?.z ?? 0,
@@ -180,20 +162,7 @@ export default function SkyClient() {
 
   const sceneSuns: SceneSun[] = useMemo(() => universe?.anchors ?? [], [universe]);
 
-  const sceneVortices: SceneVortex[] = useMemo(
-    () =>
-      (universe?.vortices ?? []).map((v) => ({
-        attachment: v.attachment,
-        name: VORTEX_NAME[v.attachment] ?? v.attachment,
-        x: v.x,
-        y: v.y,
-        z: v.z,
-        count: v.count,
-      })),
-    [universe]
-  );
-
-  const overlayOpen = !!selected || !!vortexView || !!sunView;
+  const overlayOpen = !!selected || !!sunView;
 
   return (
     <div style={S.page}>
@@ -210,10 +179,8 @@ export default function SkyClient() {
           <UniverseScene
             stars={sceneStars}
             suns={sceneSuns}
-            vortices={sceneVortices}
             onStarClick={openStarAt}
             onSunClick={openSunAt}
-            onVortexClick={openVortexAt}
             apiRef={sceneApi}
             controlsEnabled={!overlayOpen}
           />
@@ -280,42 +247,12 @@ export default function SkyClient() {
                 style={{ ...S.detail, left: p.left, top: p.top, width: p.width, maxHeight: p.maxHeight }}
                 onClick={(e) => e.stopPropagation()}
               >
-                <p style={S.vortexTitle}>关于{DOMAIN_LABEL[sunView.domain] ?? sunView.domain}的一团念想</p>
-                <p style={S.vortexSub}>{members.length} 个念想</p>
+                <p style={S.panelTitle}>关于{DOMAIN_LABEL[sunView.domain] ?? sunView.domain}的一团念想</p>
+                <p style={S.panelSub}>{members.length} 个念想</p>
                 {members.map((s) => (
-                  <button key={s.id} style={S.vortexMember} onClick={() => openMember(s.id)}>
-                    <span style={S.vortexMemberAnchor}>{anchorLabel(s.createdAt)}</span>
-                    <span style={S.vortexMemberText}>{s.text}</span>
-                  </button>
-                ))}
-              </div>
-            );
-          })()}
-        </div>
-      )}
-
-      {/* 漩涡视图 */}
-      {vortexView && (
-        <div style={S.overlay} onClick={() => setVortexView(null)}>
-          {(() => {
-            const p = panelPlacement(vortexView, window.innerWidth, window.innerHeight);
-            const name = VORTEX_NAME[vortexView.info.attachment] ?? vortexView.info.attachment;
-            const members = vortexView.info.memberIds
-              .map((id) => stars?.find((s) => s.id === id))
-              .filter((s): s is Star => !!s)
-              .reverse();
-            return (
-              <div
-                className={p.side === 'below' ? 'yn-pop' : 'yn-pop-side'}
-                style={{ ...S.detail, left: p.left, top: p.top, width: p.width, maxHeight: p.maxHeight }}
-                onClick={(e) => e.stopPropagation()}
-              >
-                <p style={S.vortexTitle}>{name}漩涡</p>
-                <p style={S.vortexSub}>{vortexView.info.count} 个念头被它牵引</p>
-                {members.map((s) => (
-                  <button key={s.id} style={S.vortexMember} onClick={() => openMember(s.id)}>
-                    <span style={S.vortexMemberAnchor}>{anchorLabel(s.createdAt)}</span>
-                    <span style={S.vortexMemberText}>{s.text}</span>
+                  <button key={s.id} style={S.panelMember} onClick={() => openMember(s.id)}>
+                    <span style={S.panelMemberAnchor}>{anchorLabel(s.createdAt)}</span>
+                    <span style={S.panelMemberText}>{s.text}</span>
                   </button>
                 ))}
               </div>
@@ -364,14 +301,14 @@ const S: Record<string, React.CSSProperties> = {
   },
   miniName: { fontSize: 12, letterSpacing: '0.3em', color: '#a5a198', marginBottom: 6 },
   miniBody: { fontSize: 14, lineHeight: 1.9, letterSpacing: '0.02em', whiteSpace: 'pre-wrap' },
-  vortexTitle: { fontSize: 15, letterSpacing: '0.4em', color: '#d6d3cd', marginBottom: 6 },
-  vortexSub: { fontSize: 12, letterSpacing: '0.2em', color: '#7d7a72', marginBottom: 8 },
-  vortexMember: {
+  panelTitle: { fontSize: 15, letterSpacing: '0.4em', color: '#d6d3cd', marginBottom: 6 },
+  panelSub: { fontSize: 12, letterSpacing: '0.2em', color: '#7d7a72', marginBottom: 8 },
+  panelMember: {
     display: 'block', width: '100%', textAlign: 'left', background: 'none', border: 'none',
     borderTop: '1px solid #26262b', padding: '10px 0', cursor: 'pointer', fontFamily: SERIF,
   },
-  vortexMemberAnchor: { display: 'block', fontSize: 12, letterSpacing: '0.25em', color: '#7d7a72', marginBottom: 4 },
-  vortexMemberText: {
+  panelMemberAnchor: { display: 'block', fontSize: 12, letterSpacing: '0.25em', color: '#7d7a72', marginBottom: 4 },
+  panelMemberText: {
     display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden',
     fontSize: 13, lineHeight: 1.9, color: '#a5a198', letterSpacing: '0.02em',
   },
