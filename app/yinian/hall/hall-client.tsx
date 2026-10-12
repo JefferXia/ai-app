@@ -122,10 +122,10 @@ const S: Record<string, React.CSSProperties> = {
   page: { minHeight: '100vh', background: '#0b0b0c', color: '#d6d3cd', fontFamily: SERIF },
   board: { position: 'relative', zIndex: 1, maxWidth: 720, margin: '0 auto', padding: '96px 24px 120px' },
   topbar: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 4px', marginBottom: 40 },
-  back: { fontSize: 12, letterSpacing: '0.3em', color: '#7d7a72', textDecoration: 'none' },
-  title: { fontSize: 13, letterSpacing: '0.5em', color: '#a5a198' },
-  intro: { fontSize: 13, lineHeight: 2.4, letterSpacing: '0.15em', color: '#7d7a72', textAlign: 'center', marginBottom: 56 },
-  groupTitle: { fontSize: 12, letterSpacing: '0.6em', color: '#7d7a72', fontWeight: 400, marginBottom: 24 },
+  back: { fontSize: 12, letterSpacing: '0.3em', color: '#d5d5d5', textDecoration: 'none' },
+  title: { fontSize: 13, letterSpacing: '0.5em', color: '#d5d5d5' },
+  intro: { fontSize: 13, lineHeight: 2.4, letterSpacing: '0.15em', color: '#d5d5d5', textAlign: 'center', marginBottom: 56 },
+  groupTitle: { fontSize: 12, letterSpacing: '0.6em', color: '#d5d5d5', fontWeight: 400, marginBottom: 24 },
   wall: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(96px, 1fr))', gap: '28px 12px' },
   tile: { background: 'none', border: 'none', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, padding: 8, transition: 'opacity .3s' },
   tileSeal: {
@@ -133,8 +133,8 @@ const S: Record<string, React.CSSProperties> = {
     alignItems: 'center', justifyContent: 'center', fontSize: 24, color: '#f3ece2',
     boxShadow: '0 0 24px rgba(0,0,0,.4)',
   },
-  tileName: { fontSize: 12, letterSpacing: '0.25em', color: '#a5a198', fontFamily: SERIF },
-  roamNote: { marginTop: 24, fontSize: 12, letterSpacing: '0.2em', color: '#7d7a72', lineHeight: 2 },
+  tileName: { fontSize: 12, letterSpacing: '0.25em', color: '#d5d5d5', fontFamily: SERIF },
+  roamNote: { marginTop: 24, fontSize: 12, letterSpacing: '0.2em', color: '#d5d5d5', lineHeight: 2 },
   overlay: {
     position: 'fixed', inset: 0, zIndex: 50, background: 'rgba(0,0,0,.5)',
     backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24,
@@ -149,13 +149,13 @@ const S: Record<string, React.CSSProperties> = {
     alignItems: 'center', justifyContent: 'center', fontSize: 20, color: '#f3ece2', flexShrink: 0,
   },
   detailName: { fontSize: 16, letterSpacing: '0.3em' },
-  detailStatus: { marginLeft: 12, fontSize: 12, letterSpacing: '0.2em', color: '#7d7a72', border: '1px solid #3a3a40', borderRadius: 999, padding: '3px 10px', verticalAlign: 'middle' },
-  detailPersona: { fontSize: 12, letterSpacing: '0.15em', color: '#7d7a72', marginTop: 6, lineHeight: 1.9 },
+  detailStatus: { marginLeft: 12, fontSize: 12, letterSpacing: '0.2em', color: '#d5d5d5', border: '1px solid #3a3a40', borderRadius: 999, padding: '3px 10px', verticalAlign: 'middle' },
+  detailPersona: { fontSize: 12, letterSpacing: '0.15em', color: '#d5d5d5', marginTop: 6, lineHeight: 1.9 },
   detailTagline: { fontSize: 14.5, lineHeight: 2.1, letterSpacing: '0.05em', color: '#c9a86a', marginBottom: 24 },
-  sectionLabel: { fontSize: 12, letterSpacing: '0.4em', color: '#7d7a72', marginBottom: 10 },
+  sectionLabel: { fontSize: 12, letterSpacing: '0.4em', color: '#d5d5d5', marginBottom: 10 },
   detailMind: { fontSize: 13, lineHeight: 2.2, letterSpacing: '0.03em', color: '#b8b5ac', marginBottom: 24 },
   domainRow: { display: 'flex', flexWrap: 'wrap', gap: 8 },
-  domainChip: { fontSize: 12, letterSpacing: '0.25em', color: '#a5a198', border: '1px solid #3a3a40', borderRadius: 999, padding: '4px 12px' },
+  domainChip: { fontSize: 12, letterSpacing: '0.25em', color: '#d5d5d5', border: '1px solid #3a3a40', borderRadius: 999, padding: '4px 12px' },
 };
 
 const CSS = `

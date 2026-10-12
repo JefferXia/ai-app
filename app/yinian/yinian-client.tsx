@@ -381,7 +381,8 @@ export default function YinianClient() {
               <button
                 style={{
                   ...S.burnBtn,
-                  color: confirmBurn === selected.id ? '#d08069' : '#7d7a72',
+                  color: confirmBurn === selected.id ? '#f3ece2' : '#d5d5d5',
+                  background: confirmBurn === selected.id ? '#a8483a' : '#2a2a2e',
                   borderColor: confirmBurn === selected.id ? '#a8483a' : '#3a3a40',
                 }}
                 onClick={() => burn(selected)}
@@ -413,15 +414,15 @@ const S: Record<string, React.CSSProperties> = {
     display: 'flex', alignItems: 'center', justifyContent: 'space-between',
     paddingTop: 14, borderTop: '1px solid #26262b',
   },
-  hint: { fontSize: 12, letterSpacing: '0.2em', color: '#7d7a72' },
+  hint: { fontSize: 12, letterSpacing: '0.2em', color: '#d5d5d5' },
   btnRelease: {
-    border: '1px solid #3a3a40', borderRadius: 999, background: 'transparent',
-    color: '#a5a198', fontFamily: SERIF, fontSize: 12, letterSpacing: '0.3em',
+    border: '1px solid #d5d5d5', borderRadius: 999, background: '#d5d5d5',
+    color: '#141416', fontFamily: SERIF, fontSize: 12, letterSpacing: '0.3em',
     padding: '8px 26px 8px 30px', cursor: 'pointer', transition: 'all .3s',
   },
   field: { position: 'relative', flex: 1, minHeight: 0 },
   loadingWrap: { position: 'absolute', left: '50%', top: '38%', transform: 'translate(-50%, -50%)' },
-  empty: { position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#7d7a72', fontSize: 13, letterSpacing: '0.2em', textAlign: 'center' },
+  empty: { position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#d5d5d5', fontSize: 13, letterSpacing: '0.2em', textAlign: 'center' },
   overlay: {
     position: 'fixed', inset: 0, zIndex: 50, background: 'rgba(0,0,0,.45)',
     backdropFilter: 'blur(3px)',
@@ -431,7 +432,7 @@ const S: Record<string, React.CSSProperties> = {
     background: '#141416', border: '1px solid #26262b', borderRadius: 8, padding: '18px 18px 14px',
   },
   detailTop: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 },
-  detailAnchor: { fontSize: 12, letterSpacing: '0.3em', color: '#7d7a72' },
+  detailAnchor: { fontSize: 12, letterSpacing: '0.3em', color: '#d5d5d5' },
   deepMark: { color: '#c9a86a' },
   sealSlots: { display: 'flex', gap: 10 },
   detailText: { fontSize: 15, lineHeight: 2.1, letterSpacing: '0.03em', whiteSpace: 'pre-wrap', marginBottom: 4 },
@@ -442,25 +443,25 @@ const S: Record<string, React.CSSProperties> = {
     width: 26, height: 26, borderRadius: 6, display: 'inline-flex',
     alignItems: 'center', justifyContent: 'center', fontSize: 12, color: '#f3ece2', flexShrink: 0,
   },
-  letterMeta: { fontSize: 12, letterSpacing: '0.2em', color: '#a5a198', marginBottom: 4 },
-  letterAnchorInline: { color: '#7d7a72' },
+  letterMeta: { fontSize: 12, letterSpacing: '0.2em', color: '#d5d5d5', marginBottom: 4 },
+  letterAnchorInline: { color: '#d5d5d5' },
   letterBody: { fontSize: 14, lineHeight: 1.9, letterSpacing: '0.02em', whiteSpace: 'pre-wrap' },
-  waiting: { fontSize: 12, letterSpacing: '0.3em', color: '#7d7a72', margin: '18px 0 4px' },
+  waiting: { fontSize: 12, letterSpacing: '0.3em', color: '#d5d5d5', margin: '18px 0 4px' },
   skyBtn: {
     position: 'fixed', right: 28, bottom: 28, zIndex: 5,
     width: 40, height: 40, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
-    border: '1px solid #3a3a40', color: '#7d7a72', background: 'rgba(11,11,12,.6)', backdropFilter: 'blur(4px)',
+    border: '1px solid #d5d5d5', color: '#141416', background: '#d5d5d5',
     transition: 'all .3s',
   },
   detailOps: { display: 'flex', justifyContent: 'flex-end', gap: 12, marginTop: 18, paddingTop: 14, borderTop: '1px solid #26262b' },
   deepBtn: {
-    background: 'none', border: '1px solid #3a3a40', borderRadius: 999,
-    fontFamily: SERIF, fontSize: 12, letterSpacing: '0.3em', color: '#7d7a72',
+    background: '#2a2a2e', border: '1px solid #3a3a40', borderRadius: 999,
+    fontFamily: SERIF, fontSize: 12, letterSpacing: '0.3em', color: '#d5d5d5',
     cursor: 'pointer', padding: '6px 18px 6px 22px', transition: 'all .3s',
   },
   burnBtn: {
-    background: 'none', border: '1px solid #3a3a40', borderRadius: 999,
-    fontFamily: SERIF, fontSize: 12,
+    background: '#2a2a2e', border: '1px solid #3a3a40', borderRadius: 999,
+    fontFamily: SERIF, fontSize: 12, color: '#d5d5d5',
     letterSpacing: '0.3em', cursor: 'pointer', padding: '6px 18px 6px 22px', transition: 'all .3s',
   },
 };
@@ -495,7 +496,7 @@ const CSS = `
   }
   @keyframes yn-stamp { 0% { transform: scale(1.4); opacity: 0 } 100% { transform: scale(1); opacity: 1 } }
   .yn-fade { animation: yn-fade .4s ease-out; }
-  .yn-skybtn:hover { color: #d6d3cd !important; border-color: #55534d !important; }
+  .yn-skybtn:hover { background: #ffffff !important; border-color: #ffffff !important; color: #0b0b0c !important; }
   @keyframes yn-fade { from { opacity: 0; transform: translateY(12px) } to { opacity: 1; transform: none } }
   @media (prefers-reduced-motion: reduce) {
     .yn-star, .yn-star-deep, .yn-star-born, .yn-seal-slot, .yn-seal, .yn-fade { animation: none; transition: none; }

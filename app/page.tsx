@@ -1,11 +1,11 @@
 import type { Metadata } from 'next';
-import HomeClient from './home-client';
+import StarHomeClient from './star-home-client';
 
 export const metadata: Metadata = {
-  title: '心镜 - 用心照见，向内觉知',
-  description: '一个无目的地自我观察的空间。打开，写，关掉。',
+  title: '一念 · One Mind',
+  description: '照见本心，认知觉醒，让传奇心智照见你的每一个念头',
 };
 
 export default function Home() {
-  return <HomeClient />;
+  return <StarHomeClient />;
 }

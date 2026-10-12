@@ -244,7 +244,7 @@ export const STAR_CSS = `
  */
 export function Spinner({
   size = 40,
-  color = '#7d7a72',
+  color = '#d5d5d5',
   label = '加载中',
   className,
 }: {
@@ -273,7 +273,7 @@ const SPINNER_CSS = `
   .yn-spinner { display: inline-block; position: relative; animation: yn-spin-rotate 2s infinite linear; }
   .yn-spinner-dot1, .yn-spinner-dot2 {
     width: 60%; height: 60%; display: inline-block; position: absolute; top: 0;
-    background: var(--yn-spin-dot, #7d7a72); border-radius: 100%;
+    background: var(--yn-spin-dot, #d5d5d5); border-radius: 100%;
     animation: yn-spin-bounce 2s infinite ease-in-out;
   }
   .yn-spinner-dot2 { top: auto; bottom: 0; animation-delay: -1s; }

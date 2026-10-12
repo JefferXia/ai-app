@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { Lightbulb, Eye, BookOpen } from 'lucide-react';
-import { SERIF, getTheme, THEME_KEY, archiveStyles } from './wenxin/shared';
+import { SERIF, getTheme, THEME_KEY, archiveStyles } from '../wenxin/shared';
 import { WenxinLogo } from '@/components/custom/navbar';
 
 /* 首页（落地页）：一句话说清心镜是什么，讲清为什么写/写什么/怎么写，一个按钮进入书写。
