@@ -315,49 +315,11 @@ export function WenxinNavbar({
   );
 }
 
-/* ===== 一念顶栏：全站统一 logo + 名人堂/回观导航（暗色星空体系，logo 用暗色变体） ===== */
-function YinianBar({ pathname }: { pathname: string }) {
-  // 3D 心念宇宙页全屏沉浸：只留左上角悬浮 logo
-  if (pathname === '/yinian/sky') {
-    return (
-      <nav className="fixed left-4 top-4 z-50 md:left-6 md:top-5">
-        <WenxinLogo dark />
-      </nav>
-    );
-  }
-  const items = [
-    { href: '/yinian/hall', label: '名人堂' },
-    // 星空页保留但导航不显示（首页即星空；/yinian/sky 留作二期心念宇宙完整版）
-    { href: '/yinian/echo', label: '回观' },
-  ];
-  return (
-    <nav className="fixed inset-x-0 top-0 z-50 flex h-16 items-center justify-between px-4 md:px-6">
-      <WenxinLogo dark />
-      <div className="flex items-center gap-5 md:gap-7">
-        {items.map((it) => {
-          const active = pathname.startsWith(it.href);
-          return (
-            <Link
-              key={it.href}
-              href={it.href}
-              className={`text-[12px] tracking-[0.3em] transition-colors duration-300 ${
-                active ? 'text-[#e8e4da]' : 'text-[#a5a198] hover:text-[#e8e4da]'
-              }`}
-              style={{ fontFamily: SERIF }}
-            >
-              {it.label}
-            </Link>
-          );
-        })}
-      </div>
-    </nav>
-  );
-}
-
 /* ===== 全局导航栏 =====
  * 统一 logo 全局出现：心镜主页（/ 与 /wenxin）用自己的流式顶栏（logo + 菜单），
  * 其余页面由这里给一个悬浮顶栏——左侧统一 logo；菜单只在心镜主页出现。
- * 心镜子页（/wenxin/member 等）只给 logo；一念（/yinian）用专属暗色顶栏。
+ * 心镜子页（/wenxin/member 等）只给 logo；
+ * 一念体系（/ 与 /yinian/*）由页面自渲染公共顶栏 YinianHeader（app/yinian/yinian-header），这里不再重复。
  */
 export function Navbar() {
   const pathname = usePathname();
@@ -371,10 +333,8 @@ export function Navbar() {
   const hiddenPaths = ['/', '/login', '/register'];
   if (hiddenPaths.includes(pathname)) return null;
 
-  // 一念体系：专属暗色顶栏（logo + 导航）
-  if (pathname.startsWith('/yinian')) {
-    return <YinianBar pathname={pathname} />;
-  }
+  // 一念体系：页面自渲染公共顶栏 YinianHeader
+  if (pathname.startsWith('/yinian')) return null;
 
   const isWenxinSub = pathname.startsWith('/wenxin');
 

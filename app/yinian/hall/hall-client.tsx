@@ -1,9 +1,9 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import Link from 'next/link';
 import { SERIF } from '../../wenxin/shared';
 import { DOMAIN_LABEL, SKY_BG_CSS } from '../yinian-shared';
+import YinianHeader from '../yinian-header';
 
 /* ===== 一念 · 名人堂：一面印墙（常驻全亮 + 云游半暗），点击看详情 ===== */
 
@@ -37,14 +37,10 @@ export default function HallClient({ npcs }: { npcs: HallNpc[] }) {
   return (
     <div style={S.page}>
       <style>{SKY_BG_CSS + CSS}</style>
+      <YinianHeader />
       <div className="yn-sky" aria-hidden />
 
       <div style={S.board}>
-        <header style={S.topbar}>
-          <Link href="/yinian" style={S.back}>← 一念</Link>
-          <span style={S.title}>名人堂</span>
-        </header>
-
         <p style={S.intro}>
           十五位心智，八位常驻，七位云游。
           <br />
@@ -121,9 +117,6 @@ function SealTile({ npc, onOpen }: { npc: HallNpc; onOpen: () => void }) {
 const S: Record<string, React.CSSProperties> = {
   page: { minHeight: '100vh', background: '#0b0b0c', color: '#d6d3cd', fontFamily: SERIF },
   board: { position: 'relative', zIndex: 1, maxWidth: 720, margin: '0 auto', padding: '96px 24px 120px' },
-  topbar: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 4px', marginBottom: 40 },
-  back: { fontSize: 12, letterSpacing: '0.3em', color: '#d5d5d5', textDecoration: 'none' },
-  title: { fontSize: 13, letterSpacing: '0.5em', color: '#d5d5d5' },
   intro: { fontSize: 13, lineHeight: 2.4, letterSpacing: '0.15em', color: '#d5d5d5', textAlign: 'center', marginBottom: 56 },
   groupTitle: { fontSize: 12, letterSpacing: '0.6em', color: '#d5d5d5', fontWeight: 400, marginBottom: 24 },
   wall: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(96px, 1fr))', gap: '28px 12px' },

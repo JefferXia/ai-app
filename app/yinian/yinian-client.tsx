@@ -7,6 +7,7 @@ import { SERIF, anchorLabel, seeded } from '../wenxin/shared';
 import { NPC_DISPLAY, CARE_REPLY } from '@/lib/yinian/npc-display';
 import { STAR_CSS, Planet, Spinner, panelPlacement, starVisualOf } from './yinian-shared';
 import { computeUniverse, type UniverseLayout } from './universe';
+import YinianHeader from './yinian-header';
 
 /* ===== 一念 · 首页即星空（二期：心念宇宙） =====
  * 书写区在上，念头以星点散布于下方夜空；放出后光点升起没入星空；
@@ -217,6 +218,7 @@ export default function YinianClient() {
   return (
     <div style={S.page}>
       <style>{STAR_CSS + CSS}</style>
+      <YinianHeader />
 
       <div style={S.board}>
         {/* 书写区 */}

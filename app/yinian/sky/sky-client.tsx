@@ -8,6 +8,7 @@ import { NPC_DISPLAY, CARE_REPLY } from '@/lib/yinian/npc-display';
 import { STAR_CSS, Planet, Spinner, panelPlacement, DOMAIN_LABEL } from '../yinian-shared';
 import { computeUniverse } from '../universe';
 import type { SceneApi, SceneStar, SceneSun } from './universe-scene';
+import YinianHeader from '../yinian-header';
 
 /* ===== 一念 · 星空页（心念宇宙 · 3D 完整视图） =====
  * 布局与首页同一引擎（2D 百分比 + z 深度），此处渲染为真 3D：
@@ -167,8 +168,9 @@ export default function SkyClient() {
   return (
     <div style={S.page}>
       <style>{STAR_CSS + CSS}</style>
+      <YinianHeader />
 
-      {/* 3D 星野全屏（页内无 header，只保留全站 logo；远景星层在场景内，随相机视差） */}
+      {/* 3D 星野全屏（远景星层在场景内，随相机视差） */}
       <main style={S.field}>
         {/* 页面星野背景（参考作的 body 背景）：本地 sky1.jpg，brightness 压暗，垫在画布下 */}
         <div aria-hidden style={S.skyBg} />

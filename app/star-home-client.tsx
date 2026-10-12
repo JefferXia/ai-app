@@ -3,10 +3,11 @@
 import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
 import { SERIF } from './wenxin/shared';
+import YinianHeader from './yinian/yinian-header';
 
 /* 新首页：一念星空落地页。
  * 视觉参考 stars-scroll-effect：固定星空容器，星星带深度（视差速度）随机散布，
- * 滚动时星星以不同速度上移，并按滚动速度纵向拉伸（warp 效果）；
+ * 滚动时星星以不同速度上移（参考项目的 warp 拉伸被其 twinkle 动画覆盖，实际不生效，故不做）；
  * 语汇对齐一念：#0b0b0c 夜空、衬线、#d6d3cd 正文、#d5d5d5 次级、#c9a86a 金。 */
 
 interface Star {
@@ -44,13 +45,13 @@ const SECTIONS = [
   },
   {
     mark: '贰',
-    title: '星有回信',
-    body: '传奇心智路过你的星，留下一封信。被看见，本身就是一种回答。',
+    title: '念有回复',
+    body: '传奇心智路过你的星，留下一条评论。被看见，本身就是一种回答。',
   },
   {
     mark: '叁',
     title: '回观',
-    body: '重读那时的星与信，隔着时间，看见当时的自己。',
+    body: '重读那时的念与评论，隔着时间，看见当时的自己。',
   },
 ] as const;
 
@@ -76,25 +77,22 @@ export default function StarHomeClient() {
     if (code && /^[A-Za-z0-9]{6}$/.test(code)) setInviteCode(code.toUpperCase());
   }, []);
 
-  /* 滚动视差 + warp 拉伸：lerp 平滑滚动值，速度映射为 scaleY */
+  /* 滚动视差：lerp 平滑滚动值，星星按深度不同速度上移。
+     注：参考 stars-scroll-effect 的 scaleY 拉伸因其自身 twinkle 动画覆盖而实际不生效，
+     这里对齐其真实观感——只做视差移动，不做 warp 拉伸 */
   useEffect(() => {
     if (!stars) return;
     let raf = 0;
     let smooth = window.scrollY;
-    let vel = 0;
     const loop = () => {
       const target = window.scrollY;
-      const prev = smooth;
       smooth += (target - smooth) * 0.12;
-      vel = vel * 0.85 + (smooth - prev) * 0.15;
-      const stretch = Math.max(1, Math.min(1 + Math.abs(vel) * 0.35, 5));
       stars.forEach((s, i) => {
         const el = starRefs.current[i];
         if (!el || s.speed === 0) return;
         let pos = (s.initialY - smooth * s.speed * 0.05) % 100;
         if (pos < 0) pos += 100;
         el.style.top = pos + '%';
-        el.style.transform = `scaleY(${stretch})`;
       });
       raf = requestAnimationFrame(loop);
     };
@@ -108,8 +106,8 @@ export default function StarHomeClient() {
     <div style={S.page}>
       <style>{CSS}</style>
 
-      {/* 星空背景（固定，滚动视差）。两层结构：外层管位置与 warp 拉长（JS 内联 transform），
-          内层管闪烁脉动（CSS 动画 transform）——否则 CSS 动画优先级高，会盖住拉长的 scaleY */}
+      {/* 星空背景（固定，滚动视差）。两层结构：外层管位置（JS 内联 top），
+          内层管闪烁脉动（CSS 动画 transform/opacity），互不干扰 */}
       <div aria-hidden style={S.starField}>
         {stars?.map((s, i) => (
           <div
@@ -137,16 +135,8 @@ export default function StarHomeClient() {
         ))}
       </div>
 
-      {/* 顶部导航：磨砂玻璃胶囊（参考 frosted-glass-gooey-gravity-nav），
-          hover 时白色药丸以弹簧缓动在长链接背后展开，文字转深色 */}
-      <nav className="yn-home-nav yn-home-fade" style={{ animationDelay: '0.15s' }}>
-        <ul>
-          <li><Link href="/yinian">一念</Link></li>
-          <li><Link href="/yinian/sky">心念宇宙</Link></li>
-          <li><Link href="/yinian/hall">名人堂</Link></li>
-          <li><Link href="/yinian/echo">回观</Link></li>
-        </ul>
-      </nav>
+      {/* 公共顶栏：双圆 logo（One Mind）+ 导航胶囊（所有 yinian 页面共用） */}
+      <YinianHeader />
 
       <main style={S.main}>
         {/* Hero */}
@@ -155,7 +145,7 @@ export default function StarHomeClient() {
             One Mind
           </h1>
           <h2 style={{ ...S.title, animationDelay: '0.2s' }} className="yn-home-fade">
-            一念宇宙
+            心念合一
           </h2>
           <p style={{ ...S.tagline, animationDelay: '0.35s' }} className="yn-home-fade">
             写下即照见——让传奇心智照见你的每一个念头
@@ -177,22 +167,22 @@ export default function StarHomeClient() {
               </ul>
             </div>
           </div>
-          <Link
-            href="/yinian"
-            style={{ ...S.cta, animationDelay: '0.5s' }}
-            className="yn-home-fade"
-          >
-            放 出 一 念
-          </Link>
+          {/* 入场淡入放外层：hover 的 lightning 会重置同元素 animation，
+              分层后移开鼠标不会重播入场动画 */}
+          <div className="yn-home-fade" style={{ animationDelay: '0.5s', marginTop: 48 }}>
+            <Link href="/yinian" style={{ ...S.cta, marginTop: 0 }} className="yn-home-cta">
+              记 录 心 念
+            </Link>
+          </div>
           <p style={{ ...S.scrollHint, animationDelay: '0.8s' }} className="yn-home-fade">
-            向下滚动，穿过这片星
+            向下滚动，穿过这片星空
           </p>
         </section>
 
         {/* 三段式介绍 */}
         {SECTIONS.map((sec) => (
           <section key={sec.mark} style={S.section}>
-            <p style={S.mark}>{sec.mark}</p>
+            {/* <p style={S.mark}>{sec.mark}</p> */}
             <h2 style={S.sectionTitle}>{sec.title}</h2>
             <p style={S.sectionBody}>{sec.body}</p>
           </section>
@@ -201,8 +191,8 @@ export default function StarHomeClient() {
         {/* 入口（链接已收入顶部导航，这里只留主动作） */}
         <section style={S.section}>
           <p style={S.mark}>入 口</p>
-          <Link href="/yinian" style={S.cta}>
-            放 出 一 念
+          <Link href="/yinian" style={S.cta} className="yn-home-cta">
+          记 录 心 念
           </Link>
         </section>
       </main>
@@ -246,9 +236,9 @@ const S: Record<string, React.CSSProperties> = {
     marginTop: 48,
     padding: '12px 34px 12px 40px',
     borderRadius: 999,
-    background: '#d5d5d5',
-    border: '1px solid #d5d5d5',
-    color: '#141416',
+    background: '#222',
+    border: '2px solid #f1c40f',
+    color: '#f1c40f',
     fontSize: 12,
     letterSpacing: '0.3em',
     textDecoration: 'none',
@@ -268,8 +258,8 @@ const S: Record<string, React.CSSProperties> = {
   sectionTitle: { fontSize: 24, fontWeight: 400, letterSpacing: '0.4em', margin: 0, textIndent: '0.4em' },
   sectionBody: {
     marginTop: 24,
-    maxWidth: 420,
-    fontSize: 13,
+    maxWidth: 520,
+    fontSize: 14,
     lineHeight: 2.6,
     letterSpacing: '0.15em',
     color: '#d5d5d5',
@@ -279,7 +269,7 @@ const S: Record<string, React.CSSProperties> = {
 const CSS = `
   .yn-home-star-pos {
     position: absolute;
-    will-change: transform, top;
+    will-change: top;
   }
   .yn-home-star {
     width: 100%;
@@ -305,72 +295,14 @@ const CSS = `
     -webkit-text-fill-color: transparent;
   }
 
-  /* ===== 磨砂玻璃导航（参考 frosted-glass-gooey-gravity-nav） =====
-     省略了参考中的噪点纹理 mask（外链资源）与粒子爆发 JS；
-     保留：玻璃模糊 + 多层内阴影、hover 药丸以 linear() 弹簧缓动展开 */
-  .yn-home-nav {
-    --yn-linear-ease: linear(0, 0.068, 0.19 2.7%, 0.804 8.1%, 1.037, 1.199 13.2%, 1.245, 1.27 15.8%, 1.274, 1.272 17.4%, 1.249 19.1%, 0.996 28%, 0.949, 0.928 33.3%, 0.926, 0.933 36.8%, 1.001 45.6%, 1.013, 1.019 50.8%, 1.018 54.4%, 1 63.1%, 0.995 68%, 1.001 85%, 1);
-    position: fixed;
-    top: 22px;
-    left: 50%;
-    transform: translateX(-50%);
-    z-index: 20;
-    background: rgba(255, 255, 255, 0.06);
-    backdrop-filter: blur(9px) brightness(1.1);
-    -webkit-backdrop-filter: blur(9px) brightness(1.1);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 999px;
-    padding: 5px;
-    box-shadow:
-      0 4px 20px rgba(0, 0, 0, .35),
-      0 4px 10px rgba(0, 0, 0, .18),
-      inset 0 -4px 15px 6px rgba(255, 255, 255, .06),
-      inset 0 -2px 5px rgba(255, 255, 255, .05),
-      inset 0 -1px 1px rgba(255, 255, 255, .18),
-      inset 0 10px 15px rgba(0, 0, 0, .18),
-      inset 0 1px 2px rgba(255, 255, 255, .14);
-  }
-  .yn-home-nav ul {
-    display: flex;
-    gap: 2px;
-    list-style: none;
-    padding: 0;
-    margin: 0;
-  }
-  .yn-home-nav a {
-    position: relative;
-    isolation: isolate;
-    display: block;
-    padding: 8px 18px 8px 22px;
-    border-radius: 999px;
-    color: #d5d5d5;
-    font-size: 12px;
-    letter-spacing: 0.25em;
-    text-decoration: none;
-    transition: color .3s ease;
-  }
-  .yn-home-nav a::after {
-    content: "";
-    position: absolute;
-    inset: 0;
-    border-radius: 999px;
-    background: #d5d5d5;
-    opacity: 0;
-    scale: 0;
-    z-index: -1;
-    transition: all .9s var(--yn-linear-ease);
-  }
-  .yn-home-nav a:hover,
-  .yn-home-nav a:focus-visible {
-    color: #141416;
-  }
-  .yn-home-nav a:hover::after,
-  .yn-home-nav a:focus-visible::after {
-    opacity: 1;
-    scale: 1;
-  }
-  @media (max-width: 480px) {
-    .yn-home-nav a { padding: 7px 12px 7px 15px; font-size: 11px; }
+  /* ===== CTA：闪电辉光（参考 btn-effect-7：#222 底 + #f1c40f 字/框，
+     hover 播放 lightning——box-shadow 辉光 5px → 20px → 30px+50px 脉动） ===== */
+  .yn-home-cta:hover,
+  .yn-home-cta:focus-visible { animation: lightning 1.5s infinite; }
+  @keyframes lightning {
+    0%, 50%, 100% { box-shadow: 0 0 5px #f1c40f; }
+    25% { box-shadow: 0 0 20px #f1c40f; }
+    75% { box-shadow: 0 0 30px #f1c40f, 0 0 50px #f1c40f; }
   }
 
   /* ===== 心念词云：纯 CSS 3D 文字球（参考 css-only-3d-tagcloud-v2） =====

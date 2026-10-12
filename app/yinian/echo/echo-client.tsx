@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { SERIF, anchorLabel } from '../../wenxin/shared';
 import { NPC_DISPLAY, CARE_REPLY } from '@/lib/yinian/npc-display';
 import { SKY_BG_CSS } from '../yinian-shared';
+import YinianHeader from '../yinian-header';
 
 /* ===== 一念 · 回观：随机并置两个念头及其点评，无分析无总结，只呈现 ===== */
 
@@ -54,14 +55,10 @@ export default function EchoClient() {
   return (
     <div style={S.page}>
       <style>{SKY_BG_CSS + CSS}</style>
+      <YinianHeader />
       <div className="yn-sky" aria-hidden />
 
       <div style={S.board}>
-        <header style={S.topbar}>
-          <Link href="/yinian" style={S.back}>← 一念</Link>
-          <span style={S.title}>回 观</span>
-        </header>
-
         {pair && pair.length >= 2 ? (
           <>
             <div className="yn-echo-grid" style={S.grid}>
@@ -111,9 +108,6 @@ export default function EchoClient() {
 const S: Record<string, React.CSSProperties> = {
   page: { minHeight: '100vh', background: '#0b0b0c', color: '#d6d3cd', fontFamily: SERIF },
   board: { position: 'relative', zIndex: 1, maxWidth: 960, margin: '0 auto', padding: '96px 24px 120px' },
-  topbar: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 4px', marginBottom: 48 },
-  back: { fontSize: 12, letterSpacing: '0.3em', color: '#d5d5d5', textDecoration: 'none' },
-  title: { fontSize: 13, letterSpacing: '0.5em', color: '#d5d5d5' },
   grid: { display: 'grid', gridTemplateColumns: '1fr', gap: 32 },
   side: { padding: '8px 4px' },
   anchor: { fontSize: 12, letterSpacing: '0.3em', color: '#d5d5d5', marginBottom: 18 },
