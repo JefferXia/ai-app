@@ -2,8 +2,6 @@ import { Metadata } from 'next';
 import { Toaster } from 'sonner';
 import { ThemeProvider } from '@/components/custom/theme-provider';
 import { Navbar } from '@/components/custom/navbar';
-import { PwaRegister } from '@/components/custom/pwa-register';
-import { PwaInstallPrompt } from '@/components/custom/pwa-install-prompt';
 import { GlobalContextProvider } from './globalContext';
 import { auth } from './(auth)/auth';
 import { cookies } from 'next/headers';
@@ -73,15 +71,7 @@ export default async function RootLayout({
   return (
     <html lang="zh-CN" suppressHydrationWarning>
       <head>
-        <link rel="manifest" href="/manifest.webmanifest" />
         <link rel="apple-touch-icon" href="/images/icon_192.png" />
-        <meta name="apple-mobile-web-app-capable" content="yes" />
-        <meta name="apple-mobile-web-app-title" content="一念" />
-        <meta
-          name="apple-mobile-web-app-status-bar-style"
-          content="black-translucent"
-        />
-        <meta name="mobile-web-app-capable" content="yes" />
         <script
           dangerouslySetInnerHTML={{
             __html: THEME_COLOR_SCRIPT,
@@ -114,8 +104,6 @@ export default async function RootLayout({
           <GlobalContextProvider user={session?.user}>
             <Navbar />
             {children}
-            <PwaRegister />
-            <PwaInstallPrompt />
           </GlobalContextProvider>
         </ThemeProvider>
       </body>
