@@ -188,7 +188,7 @@ export function Planet({
   );
 }
 
-/** 星体动画 CSS（与 SKY_BG_CSS 并列引入） */
+/** 星体动画 CSS */
 export const STAR_CSS = `
   .yn-starbody { animation: yn-body-in .6s cubic-bezier(.22,1,.36,1) both; }
   @keyframes yn-body-in { from { opacity: 0; transform: scale(.3) } to { opacity: 1; transform: scale(1) } }
@@ -283,38 +283,5 @@ const SPINNER_CSS = `
     .yn-spinner, .yn-spinner-dot1, .yn-spinner-dot2 { animation: none; }
     .yn-spinner-dot1 { transform: scale(.6); opacity: .5; }
     .yn-spinner-dot2 { transform: scale(.6); }
-  }
-`;
-
-/** 星空底 CSS（.yn-sky + 呼吸亮星）；各页 <style>{SKY_BG_CSS}</style> 引入 */
-export const SKY_BG_CSS = `
-  .yn-sky {
-    position: fixed; inset: 0; z-index: 0; pointer-events: none;
-    background:
-      radial-gradient(1px 1px at 12% 18%, rgba(255,255,255,.35) 50%, transparent 51%),
-      radial-gradient(1px 1px at 34% 8%, rgba(255,255,255,.22) 50%, transparent 51%),
-      radial-gradient(1.5px 1.5px at 58% 22%, rgba(214,211,205,.3) 50%, transparent 51%),
-      radial-gradient(1px 1px at 76% 12%, rgba(255,255,255,.18) 50%, transparent 51%),
-      radial-gradient(1px 1px at 89% 30%, rgba(201,168,106,.25) 50%, transparent 51%),
-      radial-gradient(1px 1px at 22% 42%, rgba(255,255,255,.12) 50%, transparent 51%),
-      radial-gradient(1.5px 1.5px at 45% 55%, rgba(255,255,255,.16) 50%, transparent 51%),
-      radial-gradient(1px 1px at 68% 48%, rgba(255,255,255,.2) 50%, transparent 51%),
-      radial-gradient(1px 1px at 8% 66%, rgba(255,255,255,.15) 50%, transparent 51%),
-      radial-gradient(1px 1px at 92% 72%, rgba(255,255,255,.12) 50%, transparent 51%),
-      radial-gradient(1.5px 1.5px at 30% 80%, rgba(214,211,205,.2) 50%, transparent 51%),
-      radial-gradient(1px 1px at 55% 88%, rgba(255,255,255,.14) 50%, transparent 51%),
-      radial-gradient(1px 1px at 80% 92%, rgba(201,168,106,.18) 50%, transparent 51%),
-      #0b0b0c;
-  }
-  .yn-sky::after {
-    content: ""; position: absolute; left: 70%; top: 26%;
-    width: 3px; height: 3px; border-radius: 50%;
-    background: rgba(230,225,215,.8);
-    box-shadow: 0 0 12px 2px rgba(230,225,215,.25);
-    animation: yn-breathe 3.6s ease-in-out infinite;
-  }
-  @keyframes yn-breathe { 0%,100% { opacity:.35 } 50% { opacity:.9 } }
-  @media (prefers-reduced-motion: reduce) {
-    .yn-sky::after { animation: none; }
   }
 `;

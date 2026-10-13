@@ -115,7 +115,7 @@ export default function SkyClient() {
   const load = useCallback(async () => {
     const res = await fetch('/api/yinian/sky');
     if (res.status === 401) {
-      router.push('/wenxin/login');
+      router.replace('/yinian/login?next=%2Fyinian%2Fsky');
       return;
     }
     const json = await res.json();

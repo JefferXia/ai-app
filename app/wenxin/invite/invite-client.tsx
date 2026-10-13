@@ -6,11 +6,13 @@ import { Copy, Home, PenLine, UserPlus } from 'lucide-react';
 import { SERIF, getTheme, THEME_KEY } from '../shared';
 import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard';
 import { useGlobalContext } from '@/app/globalContext';
+import YinianHeader from '@/app/yinian/yinian-header';
 
 /* 邀请码：分享自己的邀请链接（首页 / 问心书写页，均带 ?code= 邀请码），
  * 并看到通过链接到来的朋友人数与名单。
  * 仅注册账号可见——邀请码跟着账号走（菜单入口也只在注册后出现）。
- * 身份直接读全局 session（根布局注入 GlobalContext），不再额外调 /me。 */
+ * 身份直接读全局 session（根布局注入 GlobalContext），不再额外调 /me。
+ * chrome='yinian'：一念侧复用——强制暗色 + 星空底 + 一念顶栏，回链回一念。 */
 type InviteStats = {
   inviteCode?: string;
   inviteCount: number;
@@ -23,17 +25,23 @@ type Invitee = {
   invitee: { id: string; name: string | null; created_at: string };
 };
 
-export default function InviteClient() {
+export default function InviteClient({
+  chrome = 'wenxin',
+}: {
+  chrome?: 'wenxin' | 'yinian';
+} = {}) {
+  const isYinian = chrome === 'yinian';
   const { userInfo } = useGlobalContext();
   const userId: string | undefined = userInfo?.id;
-  const [dark, setDark] = useState(false);
+  const [dark, setDark] = useState(isYinian);
   const [hydrated, setHydrated] = useState(false);
   const [stats, setStats] = useState<InviteStats | null>(null);
   const [list, setList] = useState<Invitee[]>([]);
   const { copyToClipboard } = useCopyToClipboard({ timeout: 1500 });
 
   useEffect(() => {
-    setDark(localStorage.getItem(THEME_KEY) === 'dark');
+    // 一念侧恒为暗色（星空底），不读心镜主题
+    if (!isYinian) setDark(localStorage.getItem(THEME_KEY) === 'dark');
     // 未登录：stats/list 接口本身也会 401，直接不请求
     if (!userId) {
       setHydrated(true);
@@ -58,7 +66,10 @@ export default function InviteClient() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const theme = getTheme(dark);
+  // 一念星空底（#0b0b0c）上 faint 的 text-gray-700 对比不足：提亮一档
+  const theme = isYinian
+    ? { ...getTheme(dark), faint: 'text-gray-400' }
+    : getTheme(dark);
 
   const cardCls = `rounded-2xl border backdrop-blur-sm px-6 py-7 sm:px-8 sm:py-8 transition-all duration-500 ${
     dark
@@ -96,7 +107,8 @@ export default function InviteClient() {
       className={`min-h-screen flex items-center justify-center px-6 py-16 transition-colors duration-500 ${theme.page}`}
       style={{ fontFamily: SERIF }}
     >
-      <div className="w-full max-w-sm">
+      {isYinian && <YinianHeader />}
+      <div className={`w-full max-w-sm ${isYinian ? 'relative z-10' : ''}`}>
         <h1 className="text-xl md:text-2xl leading-loose mb-2">邀请码</h1>
         <p className={`text-sm leading-loose mb-10 ${theme.faint}`}>
           邀一位朋友，一起写下，一起照见。
@@ -108,14 +120,14 @@ export default function InviteClient() {
               邀请码跟着账号走，先回去写下第一条，再来。
             </p>
             <a
-              href="/wenxin"
+              href={isYinian ? '/yinian' : '/wenxin'}
               className={`inline-block px-5 py-3 rounded-full border text-sm tracking-[0.3em] transition-all duration-300 ${
                 dark
                   ? 'border-gray-700 text-gray-300 hover:text-white hover:border-gray-500'
                   : 'border-[#ddd3bf] text-[#6b5f47] hover:border-[#c4b9a4]'
               }`}
             >
-              回心镜
+              {isYinian ? '回一念' : '回心镜'}
             </a>
           </div>
         ) : (
@@ -152,15 +164,8 @@ export default function InviteClient() {
               </p>
               <button onClick={() => share(homeUrl, '写下，即照见——心镜')} className={shareBtnCls} disabled={!code}>
                 <Home size={14} className="shrink-0 opacity-70" />
-                分享首页
+                分享链接
               </button>
-              <button onClick={() => share(wenxinUrl, '写下，即照见——心镜')} className={shareBtnCls} disabled={!code}>
-                <PenLine size={14} className="shrink-0 opacity-70" />
-                分享书写页
-              </button>
-              <p className={`text-[10px] leading-relaxed tracking-[0.15em] ${theme.faint} opacity-80`}>
-                朋友点开链接、写下第一条，即算作你的邀请
-              </p>
             </div>
 
             {/* 邀请人数与名单 */}
@@ -186,7 +191,13 @@ export default function InviteClient() {
                     >
                       <UserPlus
                         size={13}
-                        className={`shrink-0 ${dark ? 'text-gray-600' : 'text-[#b8ad98]'}`}
+                        className={`shrink-0 ${
+                          isYinian
+                            ? 'text-gray-500'
+                            : dark
+                              ? 'text-gray-600'
+                              : 'text-[#b8ad98]'
+                        }`}
                       />
                       <span>{r.invitee.name || '无名行者'}</span>
                       <span className={`ml-auto text-[10px] tracking-[0.15em] ${theme.faint}`}>
@@ -199,8 +210,8 @@ export default function InviteClient() {
             </div>
 
             <p className="text-center">
-              <a href="/wenxin" className={`text-xs tracking-[0.2em] ${theme.faint} hover:opacity-70`}>
-                回心镜
+              <a href={isYinian ? '/yinian' : '/wenxin'} className={`text-xs tracking-[0.2em] ${theme.faint} hover:opacity-70`}>
+                {isYinian ? '回一念' : '回心镜'}
               </a>
             </p>
           </div>

@@ -77,7 +77,7 @@ export default function YinianClient() {
     // 心念宇宙数据源（与 /yinian/sky 同一接口）：全量星 + domain/attachment + 全状态点评
     const res = await fetch('/api/yinian/sky');
     if (res.status === 401) {
-      router.push('/wenxin/login');
+      router.replace('/yinian/login?next=%2Fyinian');
       return;
     }
     const json = await res.json();

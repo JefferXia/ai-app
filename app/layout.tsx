@@ -21,14 +21,14 @@ const instrumentSerif = Instrument_Serif({
 
 export const metadata: Metadata = {
   metadataBase: new URL('https://www.wenxinbiji.com'),
-  title: '心镜 - 用心照见，向内觉知',
+  title: '一念 - 用心照见，向内觉知',
   description:
     '一个无目的地自我观察的空间。打开，写，关掉。帮你更清楚地看到自己——而看到本身就是全部。向外求索，终究徒劳；向内觉知，方得圆满。',
   keywords:
     '认知觉醒,认知升维,情感树洞,自我观察,了解自己,照见自己,向内求,觉知,笔记,心镜',
   authors: [{ name: 'Jeffer Xia' }],
   openGraph: {
-    title: '心镜',
+    title: '一念',
     description:
       '一个无目的地自我观察的空间。打开，写，关掉。帮你更清楚地看到自己——而看到本身就是全部。向外求索，终究徒劳；向内觉知，方得圆满。',
     type: 'website',
@@ -76,7 +76,7 @@ export default async function RootLayout({
         <link rel="manifest" href="/manifest.webmanifest" />
         <link rel="apple-touch-icon" href="/images/icon_192.png" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
-        <meta name="apple-mobile-web-app-title" content="心镜" />
+        <meta name="apple-mobile-web-app-title" content="一念" />
         <meta
           name="apple-mobile-web-app-status-bar-style"
           content="black-translucent"

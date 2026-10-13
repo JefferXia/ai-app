@@ -4,9 +4,11 @@ import React, { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { SERIF, getTheme, THEME_KEY } from '../shared';
 import { MEMBER_PRICE_LABEL } from '@/lib/member-plan';
+import YinianHeader from '@/app/yinian/yinian-header';
 
 /* 心镜会员：月卡一档，支付宝扫码/跳转支付。
- * 流程：下单 → 展示二维码 → 用户付完点「已完成付款」查状态（服务端会向 ZPAY 查单自愈）→ 已开通 */
+ * 流程：下单 → 展示二维码 → 用户付完点「已完成付款」查状态（服务端会向 ZPAY 查单自愈）→ 已开通
+ * chrome='yinian'：一念侧复用——强制暗色 + 星空底 + 一念顶栏，回链回一念。 */
 type OrderState = {
   orderId: string;
   qrCode: string;
@@ -16,8 +18,13 @@ type OrderState = {
   planName: string;
 };
 
-export default function MemberClient() {
-  const [dark, setDark] = useState(false);
+export default function MemberClient({
+  chrome = 'wenxin',
+}: {
+  chrome?: 'wenxin' | 'yinian';
+} = {}) {
+  const isYinian = chrome === 'yinian';
+  const [dark, setDark] = useState(isYinian);
   const [hydrated, setHydrated] = useState(false);
   const [me, setMe] = useState<{
     userId: string;
@@ -32,7 +39,8 @@ export default function MemberClient() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    setDark(localStorage.getItem(THEME_KEY) === 'dark');
+    // 一念侧恒为暗色（星空底），不读心镜主题
+    if (!isYinian) setDark(localStorage.getItem(THEME_KEY) === 'dark');
     (async () => {
       try {
         const r = await fetch('/api/wenxin/me');
@@ -43,7 +51,10 @@ export default function MemberClient() {
     })();
   }, []);
 
-  const theme = getTheme(dark);
+  // 一念星空底（#0b0b0c）上 faint 的 text-gray-700 对比不足：提亮一档
+  const theme = isYinian
+    ? { ...getTheme(dark), faint: 'text-gray-400' }
+    : getTheme(dark);
 
   // 卡片：磨砂玻璃质感——半透明底 + 微模糊，悬停轻抬并落影
   const cardCls = `rounded-2xl border backdrop-blur-sm px-6 py-7 sm:px-8 sm:py-8 transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] hover:-translate-y-1 ${
@@ -85,7 +96,7 @@ export default function MemberClient() {
     const paidParam = sp.get('paid');
     if (!paidParam) return;
     const orderId = sp.get('orderId');
-    window.history.replaceState({}, '', '/wenxin/member');
+    window.history.replaceState({}, '', isYinian ? '/yinian/member' : '/wenxin/member');
     if (paidParam === '1') {
       toast.success('支付成功，正在确认到账');
       if (orderId && me) checkPaid(orderId);
@@ -128,7 +139,8 @@ export default function MemberClient() {
       className={`min-h-screen flex items-center justify-center px-6 py-16 transition-colors duration-500 ${theme.page}`}
       style={{ fontFamily: SERIF }}
     >
-      <div className="w-full max-w-sm">
+      {isYinian && <YinianHeader />}
+      <div className={`w-full max-w-sm ${isYinian ? 'relative z-10' : ''}`}>
         <h1 className="text-xl md:text-2xl leading-loose mb-2">会员</h1>
         <p className={`text-sm leading-loose mb-10 ${theme.faint}`}>
           照见深处的自己，需要一点陪伴。
@@ -140,14 +152,14 @@ export default function MemberClient() {
               会员跟着账号走，先回去写下第一条，再来。
             </p>
             <a
-              href="/wenxin"
+              href={isYinian ? '/yinian' : '/wenxin'}
               className={`inline-block px-5 py-3 rounded-full border text-sm tracking-[0.3em] transition-all duration-300 ${
                 dark
                   ? 'border-gray-700 text-gray-300 hover:text-white hover:border-gray-500'
                   : 'border-[#ddd3bf] text-[#6b5f47] hover:border-[#c4b9a4]'
               }`}
             >
-              回心镜
+              {isYinian ? '回一念' : '回心镜'}
             </a>
           </div>
         ) : paid || me.isMember ? (
@@ -166,8 +178,8 @@ export default function MemberClient() {
               引路的「整理成笔记」、翻书的完整书单，已经都是你的了。
             </p>
             <p className="text-center">
-              <a href="/wenxin" className={`text-xs tracking-[0.2em] ${theme.faint} hover:opacity-70`}>
-                回心镜
+              <a href={isYinian ? '/yinian' : '/wenxin'} className={`text-xs tracking-[0.2em] ${theme.faint} hover:opacity-70`}>
+                {isYinian ? '回一念' : '回心镜'}
               </a>
             </p>
           </div>
@@ -256,8 +268,8 @@ export default function MemberClient() {
               {busy ? '创建订单中…' : '支付宝支付'}
             </button>
             <p className="text-center">
-              <a href="/wenxin" className={`text-xs tracking-[0.2em] ${theme.faint} hover:opacity-70`}>
-                再想想，回心镜
+              <a href={isYinian ? '/yinian' : '/wenxin'} className={`text-xs tracking-[0.2em] ${theme.faint} hover:opacity-70`}>
+                再想想，{isYinian ? '回一念' : '回心镜'}
               </a>
             </p>
           </div>

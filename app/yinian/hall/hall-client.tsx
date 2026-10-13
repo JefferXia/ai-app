@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { SERIF } from '../../wenxin/shared';
-import { DOMAIN_LABEL, SKY_BG_CSS } from '../yinian-shared';
+import { DOMAIN_LABEL } from '../yinian-shared';
 import YinianHeader from '../yinian-header';
 
 /* ===== 一念 · 名人堂：一面印墙（常驻全亮 + 云游半暗），点击看详情 ===== */
@@ -36,9 +36,8 @@ export default function HallClient({ npcs }: { npcs: HallNpc[] }) {
 
   return (
     <div style={S.page}>
-      <style>{SKY_BG_CSS + CSS}</style>
+      <style>{CSS}</style>
       <YinianHeader />
-      <div className="yn-sky" aria-hidden />
 
       <div style={S.board}>
         <p style={S.intro}>

@@ -5,7 +5,6 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { SERIF, anchorLabel } from '../../wenxin/shared';
 import { NPC_DISPLAY, CARE_REPLY } from '@/lib/yinian/npc-display';
-import { SKY_BG_CSS } from '../yinian-shared';
 import YinianHeader from '../yinian-header';
 
 /* ===== 一念 · 回观：随机并置两个念头及其点评，无分析无总结，只呈现 ===== */
@@ -38,7 +37,7 @@ export default function EchoClient() {
     try {
       const res = await fetch('/api/yinian/echo');
       if (res.status === 401) {
-        router.push('/wenxin/login');
+        router.replace('/yinian/login?next=%2Fyinian%2Fecho');
         return;
       }
       const json = await res.json();
@@ -54,9 +53,8 @@ export default function EchoClient() {
 
   return (
     <div style={S.page}>
-      <style>{SKY_BG_CSS + CSS}</style>
+      <style>{CSS}</style>
       <YinianHeader />
-      <div className="yn-sky" aria-hidden />
 
       <div style={S.board}>
         {pair && pair.length >= 2 ? (

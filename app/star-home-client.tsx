@@ -57,12 +57,12 @@ const SECTIONS = [
 
 /* 心念词云：心念宇宙 / 认知体系 / 心智模型的词汇 */
 const CLOUD_WORDS = [
-  '本自具足', '向内求', '感恩日记', '能量层级', '认知体系', '自心是佛', '觉察记录', '觉知',
-  '正念', '执念', '贪嗔痴', '边界', '真诚', '被看见', '信念', '投射',
-  '精神内耗', '防御机制', '认知偏差', '思维定势', '对抗', '情绪粒度', '认知重构', '元认知',
-  '潜意识', '主体性', '如实观照', '静心', '接纳', '叩问本心', '疗愈', '求而不得',
-  '高敏感', '焦虑症', '人生失序', '玻璃心', '感知力', '不假外求', '松弛感', '创伤修复',
-  '认知觉醒', '当下转念', '心智模型', '着相', '因缘和合', '内观', '共情', '自我圆满',
+  '本自具足', '向内求', '感恩日记', '能量层级', '虚室生白', '自心是佛', '觉察记录', '觉知',
+  '正念', '他者之镜', '贪嗔痴', '边界', '起心动念', '被看见', '信念', '投射',
+  '精神内耗', '逝者如斯', '认知偏差', '万物流转', '二元对抗', '情绪粒度', '认知重构', '元认知',
+  '潜意识', '主体性', '如实观照', '散漫危机', '接纳', '叩问本心', '疗愈', '求而不得',
+  '高敏感', '虚妄', '人生失序', '执念', '感知力', '不假外求', '松弛感', '创伤修复',
+  '认知升维', '当下转念', '心智模型', '着相', '因缘和合', '内观', '共情', '自我圆满',
 ];
 
 export default function StarHomeClient() {
@@ -145,14 +145,11 @@ export default function StarHomeClient() {
             One Mind
           </h1>
           <h2 style={{ ...S.title, animationDelay: '0.2s' }} className="yn-home-fade">
-            心念合一
+            向内觉知 心念合一
           </h2>
-          <p style={{ ...S.tagline, animationDelay: '0.35s' }} className="yn-home-fade">
-            写下即照见——让传奇心智照见你的每一个念头
-          </p>
           {/* 心念词云：纯 CSS 3D 文字球（参考 css-only-3d-tagcloud-v2），
               斐波那契球面布点，rotateX 匀速旋转 + 每词反向自转保持朝上，hover 暂停 */}
-          <div className="yn-cloud yn-home-fade" style={{ animationDelay: '0.42s' }} aria-hidden>
+          <div className="yn-cloud yn-home-fade" style={{ animationDelay: '0.35s' }} aria-hidden>
             <div className="yn-cloud-tilt">
               <ul className="yn-cloud-sphere" style={{ ['--num' as string]: `${CLOUD_WORDS.length}` }}>
                 {CLOUD_WORDS.map((w, i) => (
@@ -174,6 +171,9 @@ export default function StarHomeClient() {
               记 录 心 念
             </Link>
           </div>
+          <p style={{ ...S.tagline, animationDelay: '0.6s' }} className="yn-home-fade">
+            写下即照见——让传奇心智照见你的每一个念头
+          </p>
           <p style={{ ...S.scrollHint, animationDelay: '0.8s' }} className="yn-home-fade">
             向下滚动，穿过这片星空
           </p>
@@ -229,7 +229,7 @@ const S: Record<string, React.CSSProperties> = {
     padding: '88px 24px 48px',
   },
   over: { fontSize: 48, fontWeight: 600, marginBottom: 28 },
-  title: { fontSize: 64, fontWeight: 400, letterSpacing: '0.35em', margin: 0, textIndent: '0.35em' },
+  title: { fontSize: 32, fontWeight: 400, letterSpacing: '0.35em', margin: 0 },
   tagline: { marginTop: 32, fontSize: 14, lineHeight: 2.6, letterSpacing: '0.2em', color: '#d5d5d5' },
   cta: {
     display: 'inline-block',
