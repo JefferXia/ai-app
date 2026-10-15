@@ -43,17 +43,17 @@ const SECTIONS = [
   {
     mark: '壹',
     title: '放出一念',
-    body: '一个念头落下，就亮成一颗星。不必宏大，不必完整——触动即是标准。',
+    body: '一个念头落下，就亮成一颗星。不必宏大，不必完整——触动即是标准',
   },
   {
     mark: '贰',
     title: '念有回复',
-    body: '传奇心智路过你的星，留下一条评论。被看见，本身就是一种回答。',
+    body: '传奇心智路过你的星，留下一条评论。被看见，本身就是一种回应',
   },
   {
     mark: '叁',
     title: '回观',
-    body: '重读那时的念与评论，隔着时间，看见当时的自己。',
+    body: '重读那时的念与评论，隔着时间，看见当时的自己',
   },
 ] as const;
 
@@ -208,7 +208,7 @@ export default function StarHomeClient() {
       <footer style={S.foot} className="yn-foot">
         <div className="yn-foot-backdrop" aria-hidden />
         <div style={S.footCol}>
-          <p style={S.footBrand}>One Mind</p>
+          <p style={S.footBrand}>一念 · One Mind</p>
           <p style={S.footTagline}>向内觉知 心念合一</p>
           {/* 联系方式：邮箱 / 微信 / 飞书，hover 弹出联系卡片 */}
           <div className="yn-foot-social">

@@ -141,13 +141,14 @@ export function panelPlacement(
  * 二期若迁 Three.js，本语法（色相/光晕/纹理带）直接映射为着色器参数。
  */
 
-/** 每情绪的表面纹理带（两个色阶）与自转周期（秒，越焦虑越快）——2D 星球与 3D 行星共用 */
-export const STAR_SURFACE: Record<string, { a: string; b: string; speed: number }> = {
-  calm: { a: 'rgba(255,253,247,.10)', b: 'rgba(143,138,126,.14)', speed: 26 },
-  hot: { a: 'rgba(255,240,200,.16)', b: 'rgba(120,85,30,.22)', speed: 9 },
-  low: { a: 'rgba(190,210,225,.10)', b: 'rgba(45,60,72,.20)', speed: 34 },
-  anxious: { a: 'rgba(215,205,230,.14)', b: 'rgba(50,42,66,.24)', speed: 6 },
-  numb: { a: 'rgba(170,167,158,.06)', b: 'rgba(10,10,10,.22)', speed: 60 },
+/** 每情绪的表面纹理带（两个色阶）、自转周期（秒，越焦虑越快）与大气环带色——2D 星球与 3D 行星共用。
+ *  大气为双层环带（参考 /Users/xia/ai/galaxy/radial.jpeg）：内环贴缘亮，外环更宽更暗 */
+export const STAR_SURFACE: Record<string, { a: string; b: string; speed: number; haloIn: string; haloOut: string }> = {
+  calm: { a: 'rgba(255,253,247,.10)', b: 'rgba(143,138,126,.14)', speed: 26, haloIn: 'rgba(232,228,218,.45)', haloOut: 'rgba(232,228,218,.16)' },
+  hot: { a: 'rgba(255,240,200,.16)', b: 'rgba(120,85,30,.22)', speed: 9, haloIn: 'rgba(201,168,106,.6)', haloOut: 'rgba(201,168,106,.2)' },
+  low: { a: 'rgba(190,210,225,.10)', b: 'rgba(45,60,72,.20)', speed: 34, haloIn: 'rgba(143,163,176,.42)', haloOut: 'rgba(143,163,176,.15)' },
+  anxious: { a: 'rgba(215,205,230,.14)', b: 'rgba(50,42,66,.24)', speed: 6, haloIn: 'rgba(154,143,168,.55)', haloOut: 'rgba(154,143,168,.18)' },
+  numb: { a: 'rgba(170,167,158,.06)', b: 'rgba(10,10,10,.22)', speed: 60, haloIn: 'rgba(119,117,110,.32)', haloOut: 'rgba(119,117,110,.1)' },
 };
 
 export function Planet({
@@ -164,26 +165,28 @@ export function Planet({
   const v = starVisualOf(emotion);
   const s = STAR_SURFACE[emotion ?? 'calm'] ?? STAR_SURFACE.calm;
   return (
-    <div
-      aria-hidden
-      className="yn-planet"
-      style={{
-        left: x,
-        top: y,
-        width: size,
-        height: size,
-        background: v.body,
-        boxShadow: `0 0 ${Math.round(size * 0.55)}px ${Math.round(size * 0.1)}px ${v.halo}`,
-      }}
-    >
+    <div aria-hidden className="yn-planet" style={{ left: x, top: y, width: size, height: size }}>
+      {/* 大气双层环带：halo 半径 = 1.25 × 星球半径，球缘落在梯度半径 40% 处——
+          内环贴缘亮（42–49%）、外环更宽更暗（53–58%）、65% 淡出（参考 radial.jpeg） */}
       <div
-        className="yn-planet-surface"
+        className="yn-planet-halo"
         style={{
-          background: `repeating-linear-gradient(95deg, ${s.a} 0 14%, ${s.b} 14% 28%)`,
-          animationDuration: `${s.speed}s`,
+          background: `radial-gradient(circle, transparent 39%, ${s.haloIn} 42%, ${s.haloIn} 49%, ${s.haloOut} 53%, ${s.haloOut} 58%, transparent 65%)`,
         }}
       />
-      <div className="yn-planet-shade" />
+      <div
+        className="yn-planet-body"
+        style={{ background: v.body, boxShadow: `0 0 ${Math.round(size * 0.15)}px 0 ${v.halo}` }}
+      >
+        <div
+          className="yn-planet-surface"
+          style={{
+            background: `repeating-linear-gradient(95deg, ${s.a} 0 14%, ${s.b} 14% 28%)`,
+            animationDuration: `${s.speed}s`,
+          }}
+        />
+        <div className="yn-planet-shade" />
+      </div>
     </div>
   );
 }
@@ -192,12 +195,24 @@ export function Planet({
 export const STAR_CSS = `
   .yn-starbody { animation: yn-body-in .6s cubic-bezier(.22,1,.36,1) both; }
   @keyframes yn-body-in { from { opacity: 0; transform: scale(.3) } to { opacity: 1; transform: scale(1) } }
-  /* 原地星球：从星点尺寸放大，纹理带横移模拟自转，明暗层静止 */
+  /* 原地星球：从星点尺寸放大，纹理带横移模拟自转，明暗层静止。
+     三层：.yn-planet 固定外壳（定位 + 入场动画）→ .yn-planet-halo 大气双层环带 → .yn-planet-body 星体（圆形裁剪） */
   .yn-planet {
-    position: fixed; z-index: 60; border-radius: 50%; overflow: hidden;
+    position: fixed; z-index: 60;
     pointer-events: none;
     transform: translate(-50%, -50%);
     animation: yn-planet-in .55s cubic-bezier(.22,1,.36,1) both;
+  }
+  /* 大气双层环带（参考 radial.jpeg）：梯度半径 = 1.25 × 星球半径，球缘落在 40% */
+  .yn-planet-halo {
+    position: absolute; left: 50%; top: 50%;
+    width: 250%; height: 250%;
+    transform: translate(-50%, -50%);
+    border-radius: 50%;
+  }
+  .yn-planet-body {
+    position: absolute; inset: 0;
+    border-radius: 50%; overflow: hidden;
   }
   @keyframes yn-planet-in {
     from { opacity: .7; transform: translate(-50%, -50%) scale(.04); }
@@ -229,13 +244,16 @@ export const STAR_CSS = `
     0%,100% { box-shadow: 0 0 60px 12px rgba(201,168,106,.4), inset -8px -12px 30px rgba(0,0,0,.55) }
     50% { box-shadow: 0 0 96px 26px rgba(201,168,106,.58), inset -8px -12px 30px rgba(0,0,0,.55) }
   }
-  /* NPC 痕迹：被点评的星多一圈印色光环（PRD §6.3），最多三圈 */
+  /* NPC 痕迹：被点评的星带一层印色光晕（PRD §6.3），最多三层，层层错相位呼吸 */
   .yn-trace {
-    position: absolute; border: 1px solid; border-radius: 50%;
+    position: absolute; border-radius: 50%;
     pointer-events: none;
+    background: radial-gradient(circle, transparent 52%, var(--halo) 70%, transparent 86%);
+    animation: yn-halo-breathe 3.6s ease-in-out infinite;
   }
+  @keyframes yn-halo-breathe { 0%,100% { opacity: .45 } 50% { opacity: 1 } }
   @media (prefers-reduced-motion: reduce) {
-    .yn-starbody, .yn-planet, .yn-planet-surface, .yn-pop, .yn-pop-side, .yn-pulse-hot, .yn-breathe-slow, .yn-flicker, .yn-corona { animation: none; }
+    .yn-starbody, .yn-planet, .yn-planet-surface, .yn-pop, .yn-pop-side, .yn-pulse-hot, .yn-breathe-slow, .yn-flicker, .yn-corona, .yn-trace { animation: none; }
   }
 `;
 

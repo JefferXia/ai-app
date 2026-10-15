@@ -6,19 +6,28 @@ import Link from 'next/link';
 import { SERIF, anchorLabel, seeded } from '../wenxin/shared';
 import { NPC_DISPLAY, CARE_REPLY } from '@/lib/yinian/npc-display';
 import { STAR_CSS, Planet, Spinner, panelPlacement, starVisualOf } from './yinian-shared';
-import { computeUniverse, type UniverseLayout } from './universe';
+import { computeUniverse, hash01, type UniverseLayout } from './universe';
 import YinianHeader from './yinian-header';
 
 /* ===== 一念 · 首页即星空（二期：心念宇宙） =====
  * 书写区在上，念头以星点散布于下方夜空；放出后光点升起没入星空；
  * 点击星点展开浮层：信笺点评（虚线印位 → 落印）+ 深念 + 焚毁。
  * 二期：星位由宇宙布局引擎决定——同领域聚成星座，同执念 ≥10 念显形引力漩涡；
- * 被 NPC 点评过的星带印色光环。
- * 设计依据：docs/design/yinian-phase1.html、PRD §6/§11
+ * 被 NPC 点评过的星带印色光晕；每个星团即一个 3D 星系——暖核星云盘透视倾斜成椭圆并
+ * 整体缓旋，成员星按黄金角向日葵排布匀称落进盘内（参考 universe + galaxy）。
+ * 设计依据：docs/design/yinian-phase1.html、docs/design/yinian-galaxy-layout.md、PRD §6/§11
  */
 
 const DRAFT_KEY = 'yinian:draft';
 const MAX_LEN = 500;
+
+/* 星盘统一倾角（参考 galaxy 的 .universe）：所有星系同一斜视椭圆。
+   压扁系数 = |cos(120°)| = 0.5——成员星纵坐标按此压成椭圆投影，与星云盘面重合 */
+const DISC_SQUASH = 0.5;
+/* 成员星落位（黄金角向日葵排布）：相邻落点角错开 ~137.5°，面积均匀、互不拥挤 */
+const GOLDEN_ANGLE = 2.399963229728653;
+/* 落点半径上限（盘半径分数）：压在星云渐变可见区（≤72%）内，绝不跑出盘外 */
+const DISC_CAP = 0.72;
 
 interface Reply {
   id: string;
@@ -39,9 +48,42 @@ interface Thought {
   replies: Reply[];
 }
 
+/* 成员星落位：盘面坐标架（.yn-starframe，直径=盘径）内的 % 坐标，50/50 = 盘心 */
+interface PlacedStar {
+  t: Thought;
+  x: number; // % of 架宽
+  y: number; // % of 架高（已含 DISC_SQUASH 椭圆投影）
+}
+
+interface ClusterGroup {
+  domain: string;
+  items: Thought[];
+  placed: PlacedStar[]; // 成员星落位（黄金角向日葵排布）
+  anchor: { x: number; y: number };
+  disc: number;       // 星盘直径（星野高的 %）
+  discDur: number;    // 盘面自转周期 s
+  discDir: 'normal' | 'reverse';
+  discDelay: number;  // 自转相位 s（负值=已转过）
+}
+
 function npcOf(key: string) {
   if (key === CARE_REPLY.key) return CARE_REPLY;
   return NPC_DISPLAY[key] ?? { key, name: key, seal: '·', inkColor: '#4a4a52' };
+}
+
+/* 等信提示：逐字波浪 shimmer（参考 shimmer-wave）。
+   每字一个 span，delay 按 i 递增内联写入（免去 nth-child 枚举，字数不限）；
+   文案放 aria-label，字符 span aria-hidden */
+function Wave({ text }: { text: string }) {
+  return (
+    <div className="yn-wave" aria-label={text}>
+      {[...text].map((ch, i) => (
+        <span key={i} aria-hidden style={{ animationDelay: `${(i * 0.06).toFixed(2)}s` }}>
+          {ch}
+        </span>
+      ))}
+    </div>
+  );
 }
 
 export default function YinianClient() {
@@ -150,6 +192,69 @@ export default function YinianClient() {
     return layoutCache.current.val;
   }, [thoughts]);
 
+  /* 自由星星位（布局未就绪时回退初始散布）；星团成员不在此定位，按黄金角落进盘内 */
+  const posOf = useCallback(
+    (t: Thought) =>
+      universe?.pos.get(t.id) ?? {
+        x: 4 + seeded(t.createdAt, 1) * 92,
+        y: 6 + seeded(t.createdAt, 2) * 82,
+      },
+    [universe]
+  );
+
+  /* ---------- 星团：同领域星分组；每团即一个 3D 星系（参考 universe + galaxy）。
+     盘径由星数决定，自转参数由 domain 哈希种出，倾角统一（见 .yn-galaxy3d）；
+     成员星按黄金角向日葵排布匀称落进盘内：面积均匀、互不拥挤，
+     落点半径 ≤ 盘半径 72%（星云可见区内，绝不跑出盘外） ---------- */
+  const groups = useMemo(() => {
+    const empty: { clusters: ClusterGroup[]; free: Thought[] } = { clusters: [], free: [] };
+    if (!thoughts) return empty;
+    const byDomain = new Map<string, Thought[]>();
+    const free: Thought[] = [];
+    for (const t of thoughts) {
+      if (t.domain) {
+        const arr = byDomain.get(t.domain);
+        if (arr) arr.push(t);
+        else byDomain.set(t.domain, [t]);
+      } else {
+        free.push(t);
+      }
+    }
+    const anchorOf = new Map((universe?.anchors ?? []).map((a) => [a.domain, a]));
+    return {
+      clusters: [...byDomain.entries()].map(([domain, items]): ClusterGroup => {
+        const anchor = anchorOf.get(domain) ?? { x: 50, y: 44 };
+        const disc = Math.min(50, Math.max(16, 10 + Math.sqrt(items.length) * 8));
+        const discDur = 240 + hash01(`${domain}:disc`) * 140;
+        // 黄金角向日葵排布（phyllotaxis）：按 createdAt 定序，确定性可复现；
+        // u/v 是盘半径分数（u²+v² ≤ DISC_CAP²），y 乘 DISC_SQUASH 压成与盘面一致的椭圆投影
+        const phase = hash01(`${domain}:ph`) * Math.PI * 2;
+        const placed = [...items]
+          .sort((a, b) => a.createdAt - b.createdAt)
+          .map((t, i, arr): PlacedStar => {
+            const rr = DISC_CAP * Math.sqrt((i + 0.5) / arr.length);
+            const ang = phase + i * GOLDEN_ANGLE;
+            return {
+              t,
+              x: 50 + rr * Math.cos(ang) * 50,
+              y: 50 + rr * Math.sin(ang) * 50 * DISC_SQUASH,
+            };
+          });
+        return {
+          domain,
+          items,
+          placed,
+          anchor,
+          disc,
+          discDur,
+          discDir: hash01(`${domain}:discdir`) > 0.5 ? 'reverse' : 'normal',
+          discDelay: -hash01(`${domain}:discph`) * discDur,
+        };
+      }),
+      free,
+    };
+  }, [thoughts, universe]);
+
   /* ---------- 发布 ---------- */
   async function publish() {
     const text = draft.trim();
@@ -214,7 +319,61 @@ export default function YinianClient() {
     setThoughts((prev) => (prev ?? []).filter((x) => x.id !== t.id));
   }
 
-  /* ---------- 渲染 ---------- */
+  /* ---------- 渲染 ----------
+     星团成员传入盘面坐标架内的落位 s（groups 黄金角排布算好）；
+     自由星不传，用全局星野坐标（百分比空间的星座形状与 sky 页一致）。
+     星元素本体不做 3D/缩放变换——不变形、热区完整、好点 */
+  const renderStar = (t: Thought, s?: PlacedStar) => {
+    const v = starVisualOf(t.emotion);
+    const size = t.isDeep ? 8 : 5;
+    const p = s ?? posOf(t);
+    // NPC 痕迹：被几位 NPC 点评过，就带几圈印色光晕（最多三层）
+    const tracers = [...new Set(t.replies.filter((r) => r.status === 'done').map((r) => r.npcKey))].slice(0, 3);
+    const cls = [
+      'yn-star',
+      t.isDeep ? 'yn-star-deep' : '',
+      bornId === t.id ? 'yn-star-born' : '',
+      v.dotAnim ?? '',
+    ]
+      .filter(Boolean)
+      .join(' ');
+    return (
+      <button
+        key={t.id}
+        data-tid={t.id}
+        className={cls}
+        style={{
+          left: `${p.x}%`,
+          top: `${p.y}%`,
+          width: size,
+          height: size,
+          background: v.dot,
+          // 双层环带光晕（参考 radial.jpeg）：内环贴缘亮（glow），外环更宽更暗（halo）
+          boxShadow: t.isDeep
+            ? `0 0 5px 1px ${v.glow}, 0 0 20px 4px ${v.halo}`
+            : `0 0 3px .5px ${v.glow}, 0 0 12px 2px ${v.halo}`,
+          animationDelay: `${seeded(t.createdAt, 5) * 4}s`,
+        }}
+        title={anchorLabel(t.createdAt)}
+        aria-label={`念头：${t.text.slice(0, 20)}`}
+        onClick={(e) => openStar(t, e)}
+      >
+        {tracers.map((k, i) => (
+          <span
+            key={k}
+            className="yn-trace"
+            aria-hidden
+            style={{
+              inset: -(4 + i * 4),
+              ['--halo' as string]: `${npcOf(k).inkColor}66`,
+              animationDelay: `${i * -1.2}s`,
+            }}
+          />
+        ))}
+      </button>
+    );
+  };
+
   return (
     <div style={S.page}>
       <style>{STAR_CSS + CSS}</style>
@@ -243,61 +402,55 @@ export default function YinianClient() {
               style={{ ...S.btnRelease, opacity: draft.trim() ? 1 : 0.4 }}
               disabled={!draft.trim() || publishing}
               onClick={publish}
-              aria-label="放出这一念"
+              aria-label="释念"
             >
-              {publishing ? '放出中…' : '放 出 这 一 念'}
+              {publishing ? '释念中…' : '释 念'}
             </button>
           </div>
         </section>
 
-        {/* 星野：宇宙布局——同领域聚星座；打标未完成时按初始散布 */}
+        {/* 星野：宇宙布局——同领域聚星座；打标未完成时按初始散布。
+            每个星团即一个 3D 星系（参考 universe+galaxy）：外层透视倾斜，
+            盘面（星云+暖核）整体缓旋；成员星按黄金角匀称落进盘内（不倾斜不旋转） */}
         <main style={S.field}>
           {thoughts === null && (
             <div style={S.loadingWrap}><Spinner /></div>
           )}
-          {thoughts?.map((t) => {
-            const v = starVisualOf(t.emotion);
-            const size = t.isDeep ? 8 : 5;
-            const p = universe?.pos.get(t.id) ?? { x: 4 + seeded(t.createdAt, 1) * 92, y: 6 + seeded(t.createdAt, 2) * 82 };
-            // NPC 痕迹：被几位 NPC 点评过，就带几圈印色光环（最多三圈）
-            const tracers = [...new Set(t.replies.filter((r) => r.status === 'done').map((r) => r.npcKey))].slice(0, 3);
-            const cls = [
-              'yn-star',
-              t.isDeep ? 'yn-star-deep' : '',
-              bornId === t.id ? 'yn-star-born' : '',
-              v.dotAnim ?? '',
-            ]
-              .filter(Boolean)
-              .join(' ');
-            return (
-              <button
-                key={t.id}
-                data-tid={t.id}
-                className={cls}
-                style={{
-                  left: `${p.x}%`,
-                  top: `${p.y}%`,
-                  width: size,
-                  height: size,
-                  background: v.dot,
-                  boxShadow: `0 0 ${t.isDeep ? 14 : 8}px ${t.isDeep ? 3 : 1}px ${v.glow}`,
-                  animationDelay: `${seeded(t.createdAt, 5) * 4}s`,
-                }}
-                title={anchorLabel(t.createdAt)}
-                aria-label={`念头：${t.text.slice(0, 20)}`}
-                onClick={(e) => openStar(t, e)}
+          {groups.clusters.map((c) => (
+            <div key={c.domain} className="yn-cluster">
+              {/* 透视倾斜层：统一倾角（见 .yn-galaxy3d），transform-origin 定在锚点，
+                  盘面绕锚点压成斜视椭圆，盘心始终钉在锚点上 */}
+              <div
+                className="yn-galaxy3d"
+                style={{ transformOrigin: `${c.anchor.x}% ${c.anchor.y}%` }}
               >
-                {tracers.map((k, i) => (
-                  <span
-                    key={k}
-                    className="yn-trace"
-                    aria-hidden
-                    style={{ inset: -(4 + i * 4), borderColor: `${npcOf(k).inkColor}55` }}
-                  />
-                ))}
-              </button>
-            );
-          })}
+                {/* 盘面：星云渐变 + 暖核，整体匀速自转 */}
+                <div
+                  className="yn-galaxy-plane"
+                  style={{
+                    left: `${c.anchor.x}%`,
+                    top: `${c.anchor.y}%`,
+                    height: `${c.disc.toFixed(1)}%`,
+                    ['--spin-dur' as string]: `${c.discDur.toFixed(0)}s`,
+                    ['--spin-dir' as string]: c.discDir,
+                    ['--spin-delay' as string]: `${c.discDelay.toFixed(1)}s`,
+                  }}
+                >
+                  <div className="yn-galaxy-core" aria-hidden />
+                </div>
+              </div>
+              {/* 星点坐标架：与盘面同心同径的平坦方框——成员星按 groups 算好的
+                  黄金角向日葵排布 % 落位（纵坐标含椭圆投影），绝不跑出盘外；
+                  不倾斜不旋转，星点不变形、热区完整、好点 */}
+              <div
+                className="yn-starframe"
+                style={{ left: `${c.anchor.x}%`, top: `${c.anchor.y}%`, height: `${c.disc.toFixed(1)}%` }}
+              >
+                {c.placed.map((s) => renderStar(s.t, s))}
+              </div>
+            </div>
+          ))}
+          {groups.free.map((t) => renderStar(t))}
           {thoughts !== null && thoughts.length === 0 && (
             <p style={S.empty}>夜空还没有星。写下第一个念头。</p>
           )}
@@ -370,10 +523,10 @@ export default function YinianClient() {
                 );
               })}
             {selected.replies.some((r) => r.status === 'pending') && (
-              <div style={S.waiting}>有信在来……</div>
+              <Wave text="有信在来……" />
             )}
             {selected.replies.length === 0 && Date.now() - selected.createdAt < 3 * 60 * 1000 && (
-              <div style={S.waiting}>有人在看见这一念……</div>
+              <Wave text="有人在看见这一念……" />
             )}
 
             <div style={S.detailOps}>
@@ -406,7 +559,7 @@ export default function YinianClient() {
 const S: Record<string, React.CSSProperties> = {
   page: { height: '100vh', display: 'flex', flexDirection: 'column', background: '#0b0b0c', color: '#d6d3cd', fontFamily: SERIF, overflow: 'hidden' },
   board: { position: 'relative', zIndex: 1, flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', maxWidth: 720, width: '100%', margin: '0 auto', padding: '96px 24px 0' },
-  composer: { flexShrink: 0, marginBottom: 16 },
+    composer: { position: 'relative', zIndex: 2, flexShrink: 0, marginBottom: 16 },
   textarea: {
     width: '100%', minHeight: 96, resize: 'none', background: 'transparent',
     border: 'none', outline: 'none', fontFamily: SERIF, fontSize: 17,
@@ -448,7 +601,6 @@ const S: Record<string, React.CSSProperties> = {
   letterMeta: { fontSize: 12, letterSpacing: '0.2em', color: '#d5d5d5', marginBottom: 4 },
   letterAnchorInline: { color: '#d5d5d5' },
   letterBody: { fontSize: 14, lineHeight: 1.9, letterSpacing: '0.02em', whiteSpace: 'pre-wrap' },
-  waiting: { fontSize: 12, letterSpacing: '0.3em', color: '#d5d5d5', margin: '18px 0 4px' },
   skyBtn: {
     position: 'fixed', right: 28, bottom: 28, zIndex: 5,
     width: 40, height: 40, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -500,7 +652,89 @@ const CSS = `
   .yn-fade { animation: yn-fade .4s ease-out; }
   .yn-skybtn:hover { background: #ffffff !important; border-color: #ffffff !important; color: #0b0b0c !important; }
   @keyframes yn-fade { from { opacity: 0; transform: translateY(12px) } to { opacity: 1; transform: none } }
+
+  /* ===== 星团 = 一个 3D 星系（参考 universe + galaxy） =====
+     .yn-galaxy3d：铺满星野的倾斜层，transform-origin 定在星团锚点，
+     统一倾角 perspective(50em) rotateX(-120deg) rotateY(20deg)（参考 .universe）；
+     .yn-galaxy-plane：正圆盘面（height=盘径%，aspect-ratio 1），星云渐变 + 暖核打底，
+     240–380s 匀速自转（参考 .galaxy 的 rotateZ 300s）；
+     成员星不进倾斜层：在 .yn-starframe（与盘面同心同径的平坦坐标架）内按黄金角
+     向日葵排布匀称落位，纵坐标乘 DISC_SQUASH 压成椭圆投影（不变形、热区完整、好点） */
+  .yn-cluster { position: absolute; inset: 0; pointer-events: none; }
+  /* 统一倾角（参考 .universe）：所有星系同一斜视椭圆，盘面足够大承载成员星；
+     压扁系数 |cos(120°)| = 0.5 = DISC_SQUASH，星点椭圆投影与盘面星云一致 */
+  .yn-galaxy3d {
+    position: absolute; inset: 0; pointer-events: none;
+    transform: perspective(50em) rotateX(-120deg) rotateY(20deg);
+  }
+  .yn-galaxy-plane {
+    position: absolute;
+    aspect-ratio: 1;
+    border-radius: 50%;
+    transform: translate(-50%, -50%);
+    background-image: radial-gradient(
+      circle,
+      rgba(240, 222, 192, .2) 6%,
+      rgba(70, 105, 215, .26) 30%,
+      rgba(30, 52, 140, .14) 55%,
+      transparent 72%
+    );
+    animation: yn-plane-rotate var(--spin-dur, 300s) linear infinite;
+    animation-direction: var(--spin-dir, normal);
+    animation-delay: var(--spin-delay, 0s);
+    will-change: transform;
+  }
+  @keyframes yn-plane-rotate {
+    from { transform: translate(-50%, -50%) rotateZ(0deg) }
+    to { transform: translate(-50%, -50%) rotateZ(360deg) }
+  }
+  /* 星点坐标架：与盘面同心同径的平坦方框（不倾斜不旋转），只作 % 落位参考系；
+     父层 pointer-events:none，成员星自行恢复，热区完整 */
+  .yn-starframe {
+    position: absolute;
+    aspect-ratio: 1;
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+  }
+  .yn-starframe > .yn-star { pointer-events: auto; }
+
+  /* 亮暖核：盘心最亮处（参考截图的 peachpuff 光斑） */
+  .yn-galaxy-core {
+    position: absolute;
+    left: 50%; top: 50%;
+    width: 34%; aspect-ratio: 1;
+    transform: translate(-50%, -50%);
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(246, 231, 205, .55), rgba(238, 201, 138, .18) 45%, transparent 70%);
+  }
+
+  /* ===== 等信 shimmer：逐字波浪（参考 shimmer-wave） =====
+     容器 perspective 提供纵深；波峰处字符上浮 + 变白 + 微辉光；
+     12px/0.3em 字距与原 waiting 一致，配色沿用参考的青蓝亮色 */
+  .yn-wave {
+    margin: 18px 0 4px;
+    font-size: 12px;
+    letter-spacing: 0.3em;
+    color: #46afc8;
+    perspective: 80px;
+    transform-style: preserve-3d;
+  }
+  .yn-wave span {
+    position: relative;
+    display: inline-block;
+    transform-origin: 100% 50%;
+    transform-style: preserve-3d;
+    animation: yn-wave 2.4s ease infinite;
+  }
+  @keyframes yn-wave {
+    0% { transform: translate3d(0, 0, 0) scale(1) rotateY(0); color: #46afc8; text-shadow: 0 0 0 rgba(70, 175, 200, 0); }
+    12% { transform: translate3d(1px, -1px, 2px) scale(1.18) rotateY(6deg); color: #fff; }
+    15% { text-shadow: 0 0 1px #bce2eb; }
+    24% { transform: translate3d(0, 0, 0) scale(1) rotateY(0); color: #6dc0d4; opacity: 1; }
+    36% { transform: scale(1); }
+    100% { transform: scale(1); opacity: .8; }
+  }
   @media (prefers-reduced-motion: reduce) {
-    .yn-star, .yn-star-deep, .yn-star-born, .yn-seal-slot, .yn-seal, .yn-fade { animation: none; transition: none; }
+    .yn-star, .yn-star-deep, .yn-star-born, .yn-seal-slot, .yn-seal, .yn-fade, .yn-wave span, .yn-galaxy-plane { animation: none; transition: none; }
   }
 `;

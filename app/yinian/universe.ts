@@ -61,12 +61,26 @@ function clamp(v: number, lo: number, hi: number) {
 export function computeUniverse(stars: UniverseStar[]): UniverseLayout {
   const pos = new Map<string, StarPos>();
 
-  /* ---------- 星座锚点：每个在场 domain 一个，绕中心椭圆排布（3D 场景里即恒星位置） ---------- */
+  /* ---------- 星座锚点：扇区坐标体系（错落有致，防星盘交叉） ----------
+   * domain 按星数降序确定性排序 → 均分圆周扇区，每团独占一扇（扇区内 ±30% 抖动，绝不越界）；
+   * 半径三环轮转（大团优先外环，留更多空间），相邻扇区径向天然错开一档；
+   * 全部输入确定 → 同一份数据永远算出同一片宇宙（3D 场景里这些锚点即恒星位置） */
   const domains = [...new Set(stars.map((s) => s.domain).filter((d): d is string => !!d))];
+  const countOf = new Map<string, number>();
+  for (const s of stars) if (s.domain) countOf.set(s.domain, (countOf.get(s.domain) ?? 0) + 1);
+  const sorted = domains.sort((a, b) => {
+    const ca = countOf.get(a) ?? 0;
+    const cb = countOf.get(b) ?? 0;
+    return cb - ca || (a < b ? -1 : a > b ? 1 : 0);
+  });
+  const n = Math.max(sorted.length, 1);
+  const sector = (Math.PI * 2) / n;
   const anchor = new Map<string, { x: number; y: number }>();
-  const anchors = domains.map((d) => {
-    const a = hash01(`${d}:ca`) * Math.PI * 2;
-    const pos2d = { x: 50 + 30 * Math.cos(a), y: 44 + 25 * Math.sin(a) };
+  const anchors = sorted.map((d, i) => {
+    const a = i * sector + sector * 0.5 + (hash01(`${d}:cj`) - 0.5) * sector * 0.6;
+    const ring = 2 - (i % 3); // 大团外环：32 / 26 / 20 轮转
+    const rad = 20 + ring * 6 + (hash01(`${d}:cr`) - 0.5) * 4;
+    const pos2d = { x: 50 + rad * Math.cos(a), y: 44 + rad * 0.78 * Math.sin(a) };
     anchor.set(d, pos2d);
     return { domain: d, ...pos2d, z: hash01(`${d}:cz`) - 0.5 };
   });
