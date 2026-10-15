@@ -8,8 +8,9 @@
  *   星团整体再叠一层领域固有倾角轴的刚性慢转，星尘随转。
  * - 星团外罩 BackSide 星野球壳（参考作的 sky sphere，"球体构图"读感来源），
  *   加内外两层星尘粒子（Additive 辉光点），随星团同转，强化"小星系"体感。
- * - 行星 = 真 3D 球体：定向光打出明暗面，情绪纬度条纹贴图，自转周期 = 情绪能量
- *   （复用 STAR_SURFACE：焦虑 6s 急促 → 麻木 60s 近乎停滞）。
+ * - 行星 = 真 3D 球体：定向光打出明暗面，霍金斯能量层级 7 档纬度条纹贴图
+ *   （颜色沿图表色带，复用 STAR_SURFACE），自转周期 = 唤醒度（焦虑 6s 急促 → 麻木 60s
+ *   近乎停滞），自发光强度 = 意识层级（爱最亮，愤怒响而不亮）。
  * - 交互分层：点中星团背景球 → 相机居中放大聚焦该星团（FocusRig 过渡，到位后交还操控），
  *   此时其行星才可点；再点背景球或 ESC 回全景。自由星在无聚焦时可点。
  * - 全局背景：页面级 CSS 星野图（sky1.jpg cover + brightness 40%，参考作的 body 背景写法）。
@@ -214,28 +215,35 @@ const PLANET_R = 0.8;
 const PLANET_R_DEEP = 1.2;
 const FREE_R = 0.55; // 自由星小行星
 
-/* 行星表面基色（与 STAR_VISUAL body 渐变同源的中段色） */
+/* 行星表面基色（与 STAR_VISUAL body 渐变同源的中段色）——霍金斯能量层级 7 档，
+ * 颜色沿图表色带自低到高：黑灰 → 蓝灰 → 棕 → 深红 → 金 → 象牙 → 青白（2026-10-15 校准） */
 const PLANET_BASE: Record<string, string> = {
-  calm: '#cfcabd',
-  hot: '#d9b372',
+  numb: '#3a3a40',
   low: '#77909f',
-  anxious: '#7f7492',
-  numb: '#45443f',
+  anxious: '#6e5a45',
+  hot: '#8a3227',
+  courage: '#c98f45',
+  calm: '#d3cec2',
+  love: '#8ecfc0',
 };
 const HALO_COLOR: Record<string, string> = {
-  calm: '#e8e4da',
-  hot: '#eec98a',
+  numb: '#56545e',
   low: '#8fa3b0',
-  anxious: '#9a8fa8',
-  numb: '#77756e',
+  anxious: '#9c8260',
+  hot: '#c25a3f',
+  courage: '#eccb87',
+  calm: '#e8e4da',
+  love: '#dff5ec',
 };
-/* 自发光强度：hot 恒星般微发光，numb 几乎熄灭 */
+/* 自发光强度 = 意识层级：沿霍金斯量表单调上升（爱最亮；愤怒响而不亮，响度走转速/闪烁通道） */
 const EMISSIVE: Record<string, number> = {
-  calm: 0.22,
-  hot: 0.55,
-  low: 0.14,
-  anxious: 0.3,
   numb: 0.03,
+  low: 0.14,
+  anxious: 0.2,
+  hot: 0.32,
+  courage: 0.38,
+  calm: 0.42,
+  love: 0.55,
 };
 
 /** 行星贴图：基色 + 纬度条纹（STAR_SURFACE 色阶）+ 两极压暗；equirect 裹上球面 */
@@ -730,19 +738,29 @@ function FrameDriver({ metaRef }: { metaRef: React.MutableRefObject<PlanetMeta[]
       }
       // 自转（自转轴已由父级 tilt 组固定倾角）
       m.mesh.rotation.y = m.phase + t * m.selfSpeed;
-      // 能量通道在辉光上延续：hot 呼吸、low 缓慢明灭、anxious 微闪、numb 半熄
+      // 能量通道在辉光上延续：亮度 = 霍金斯层级（love 最亮），节奏 = 唤醒度
+      //（hot 急促红焰 / low 缓慢明灭 / anxious 不规则微闪 / numb 半熄 / courage 稳定炉火 / calm 清透微光 / love 安静而亮）
       switch (m.emotion) {
         case 'hot':
-          m.halo.opacity = 0.28 + 0.14 * Math.sin(t * 3.5 + m.phase);
+          m.halo.opacity = 0.26 + 0.14 * Math.sin(t * 3.5 + m.phase);
           break;
         case 'low':
           m.halo.opacity = 0.16 + 0.12 * (0.5 + 0.5 * Math.sin((t * Math.PI) / 3 + m.phase));
           break;
         case 'anxious':
-          m.halo.opacity = Math.sin(t * 7.3 + m.phase) * Math.sin(t * 2.1 + m.phase * 2) > 0.2 ? 0.32 : 0.16;
+          m.halo.opacity = Math.sin(t * 7.3 + m.phase) * Math.sin(t * 2.1 + m.phase * 2) > 0.2 ? 0.3 : 0.15;
           break;
         case 'numb':
           m.halo.opacity = 0.1;
+          break;
+        case 'courage':
+          m.halo.opacity = 0.32 + 0.08 * Math.sin(t * 2.2 + m.phase);
+          break;
+        case 'calm':
+          m.halo.opacity = 0.3 + 0.07 * Math.sin(t * 1.1 + m.phase);
+          break;
+        case 'love':
+          m.halo.opacity = 0.4 + 0.14 * Math.sin(t * 0.8 + m.phase);
           break;
       }
     }

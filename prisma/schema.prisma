@@ -458,7 +458,7 @@ model YnThought {
   text       String   @db.Text
   // 打标结果（docs/yinian-npc-spec.md §4）
   domain     String?  @db.VarChar(20) // career/relationship/family/self/meaning/money/health/creation/loss/other
-  emotion    String?  @db.VarChar(20) // calm/hot/low/anxious/numb
+  emotion    String?  @db.VarChar(20) // 霍金斯 7 档：numb/low/anxious/hot/courage/calm/love（2026-10-15 前的旧 5 值仍有效）
   attachment String?  @db.VarChar(20) // result/recognition/control/relation/certainty/past/none
   safety     String   @default("ok") @db.VarChar(10) // ok/watch/crisis
   isDeep     Boolean  @default(false) // 深念标记（长按），影响点评数量上限

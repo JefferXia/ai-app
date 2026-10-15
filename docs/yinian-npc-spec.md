@@ -47,7 +47,7 @@
 ```json
 {
   "domain": "career | relationship | family | self | meaning | money | health | creation | loss | other",
-  "emotion": "calm | hot | low | anxious | numb",
+  "emotion": "numb | low | anxious | hot | courage | calm | love",
   "attachment": "result | recognition | control | relation | certainty | past | none",
   "safety": "ok | watch | crisis"
 }
@@ -55,7 +55,9 @@
 
 - `safety: watch` → 匹配时优先心理学系 NPC，点评语气整体调柔
 - `safety: crisis` → 不走 NPC 流程，直接触发 §3 红线路径
-- `emotion` 同时驱动视觉：念头光点色（calm 暖白 / hot 琥珀 / low 青灰 / anxious 灰紫 / numb 暗灰）
+- `emotion` 同时驱动视觉（霍金斯能量层级 7 档，2026-10-15 起，详见 docs/design/yinian-star-visual.md §3）：
+  念头光点/行星颜色（numb 近黑 / low 蓝灰 / anxious 棕土 / hot 深红 / courage 琥珀金 / calm 象牙 / love 青白），
+  亮度沿量表单调上升；2026-10-15 前的旧 5 值仍有效，渲染层同表映射
 
 ### 4.1 watch 触发清单（宁严勿宽，任一命中即至少 watch）
 
@@ -73,10 +75,13 @@
 - recognition vs result：在意「被看见、被认可」（没回音、没人看、反复斟酌）是 recognition；在意「数字、名次、回报本身」是 result
 - relation vs past：揪住「这段关系还能不能好」是 relation；揪住「回不去的从前」是 past
 - emotion hot vs low：当场爆发的愤怒/不甘是 hot；事后反复咀嚼的懊恼是 low
+- emotion hot vs courage：火向外烧、带着对抗是 hot；劲向前走、想开始想改变是 courage
+- emotion courage vs calm：想动起来、跃跃欲试是 courage；沉淀下来、想通了安定是 calm
+- emotion calm vs love：安静、清晰、不波动是 calm；温暖、丰盈、被触动是 love
 
 ### 4.3 打标工程参数（打样验证值）
 
-`temperature 0.1`；few-shot 6 条覆盖边界案例；`response_format: json_object`；`max_tokens ≥1500`（推理模型的 reasoning 消耗 completion tokens，300 会被烧光导致空响应；非推理模型下是宽松上限，无害）；解析失败重试一次。
+`temperature 0.1`；few-shot 8 条覆盖边界案例（2026-10-15 补 courage/love 两例）；`response_format: json_object`；`max_tokens ≥1500`（推理模型的 reasoning 消耗 completion tokens，300 会被烧光导致空响应；非推理模型下是宽松上限，无害）；解析失败重试一次。
 
 **Provider（2026-09-27 起）**：默认直连 DeepSeek 官方 API（`DEEPSEEK_API_KEY`，模型 `deepseek-chat`），OpenRouter 作兜底（未配 DEEPSEEK key 时自动回落）。实测对比（同一念头）：OpenRouter 推理模型打标 ~11.4s / 点评 ~11.6s；DeepSeek 直连 `deepseek-chat` 打标 ~0.7s / 点评 ~0.9s，`deepseek-reasoner` 打标 ~1.1s / 点评 ~4.3s。直连网络握手也快 6.6 倍（62ms vs 412ms）。
 
@@ -92,6 +97,8 @@
 历史基准（OpenRouter deepseek-v4-flash 推理模型）：domain 96.2% / safety 88.5% / emotion 80.8% / attachment 76.9%——deepseek-chat 全面持平或更优，且快约 16 倍。
 
 打样脚本 `scripts/yinian-tag-sample.mjs`（双 provider，随 env 自动切换），报告 `docs/yinian-tag-sample-v1.md` / `v3.md`（v2 因 max_tokens 问题作废；v3 现为 deepseek-chat 结果）。调 prompt 或换模型后重跑脚本即可回归。
+
+> **2026-10-15 扩档**：emotion 由 5 档扩为霍金斯 7 档（新增 courage/love），上表准确率为 5 档时期基准；需重跑打样脚本重建基线（人工标注样本需先补 courage/love 正例）。
 
 ## 5. 匹配规则
 

@@ -8,6 +8,10 @@ import { hasCrisisSignal, type SafetyLevel } from './safety';
  * prompt 与判定规则来自 docs/yinian-npc-spec.md §4（打样验证版 v3）。
  * 工程参数：temperature 0.1 / json_object / max_tokens 1500 / 解析失败由 llm.chat 重试。
  *
+ * 2026-10-15：emotion 按霍金斯意识层级校准为 7 档（新增 courage/love，calm 锚定宽恕·理智），
+ * 驱动星体颜色（docs/design/yinian-star-visual.md §3）。旧数据 5 值仍有效，渲染层同表映射；
+ * 扩档后需重跑 scripts/yinian-tag-sample.mjs 重建准确率基线。
+ *
  * 失败兜底：打标不可用时降级为默认标签（safety 走关键词扫描，宁严勿宽），
  * 念头照常发布、点评照常匹配——打标是增强，不是门槛。
  */
@@ -20,7 +24,9 @@ export interface ThoughtTag {
 }
 
 const DOMAINS = ['career', 'relationship', 'family', 'self', 'meaning', 'money', 'health', 'creation', 'loss', 'other'];
-const EMOTIONS = ['calm', 'hot', 'low', 'anxious', 'numb'];
+/* 7 档按霍金斯量表自低到高排列：numb(20-75) → low(75) → anxious(100-125) → hot(150-175)
+ * → courage(200-310) → calm(350-500) → love(500-1000)；视觉层（STAR_VISUAL/PLANET_BASE）同序 */
+const EMOTIONS = ['numb', 'low', 'anxious', 'hot', 'courage', 'calm', 'love'];
 const ATTACHMENTS = ['result', 'recognition', 'control', 'relation', 'certainty', 'past', 'none'];
 
 const TAG_PROMPT = `你是「一念」产品的念头打标器。用户写下一个心念（念头），你输出一个 JSON 对象，仅用于内部分类，绝不展示给用户。
@@ -45,12 +51,14 @@ const TAG_PROMPT = `你是「一念」产品的念头打标器。用户写下一
 - loss：失去、死亡、离别、告别（人、物、阶段）
 - other：以上皆非（如纯景物、无事件）
 
-【emotion · 情绪底色】念头的整体情绪色调，五选一：
-- calm：平静、释然、清晰、安定
-- hot：激动、愤怒、不甘、委屈、炽热
-- low：低落、悲伤、沮丧、无力
-- anxious：焦虑、不安、担忧、慌乱
-- numb：麻木、空虚、无感、茫然
+【emotion · 能量层级】念头的整体能量层级（按霍金斯意识层级自低到高校准），七选一，取整体色调而非局部措辞：
+- numb：麻木、空虚、无感、茫然、羞愧、想消失（羞愧/内疚/冷淡）
+- low：低落、悲伤、沮丧、无力、失去后的沉（悲伤）
+- anxious：焦虑、不安、担忧、慌乱、怕、停不下来的想要（恐惧/欲望）
+- hot：激动、愤怒、不甘、委屈、不服、憋着一股火（愤怒/骄傲）
+- courage：下决心、想开始、想改变、有干劲、觉得自己可以（勇气/主动）
+- calm：释然、想通了、放下了、看清了、安定、清晰（宽恕/理智）
+- love：感恩、爱、被触动、心里很满、美、暖、很静但发光（爱/喜悦/平静）
 
 【attachment · 执念类型】念头背后揪住不放的东西，七选一：
 - result：对结果的执着（输赢、成败、回报）
@@ -80,6 +88,9 @@ const TAG_PROMPT = `你是「一念」产品的念头打标器。用户写下一
 - recognition vs result：在意「被看见、被认可」（没回音、没人看、反复斟酌）是 recognition；在意「数字、名次、回报本身」的是 result
 - relation vs past：揪住「这段关系还能不能好」是 relation；揪住「回不去的从前」是 past
 - emotion hot vs low：当场爆发的愤怒/不甘是 hot；事后反复咀嚼的懊恼、无力的自责是 low
+- emotion hot vs courage：火向外烧、带着对抗是 hot；劲向前走、想开始想改变是 courage
+- emotion courage vs calm：想动起来、跃跃欲试是 courage；沉淀下来、想通了安定是 calm
+- emotion calm vs love：安静、清晰、不波动是 calm；温暖、丰盈、被触动是 love
 
 【safety watch 触发清单】以下任一出现，至少标 watch（宁严勿宽）：
 - 近期丧亲且处于哀伤早期（数月内）
@@ -89,7 +100,7 @@ const TAG_PROMPT = `你是「一念」产品的念头打标器。用户写下一
 - 强烈的自我否定或自我厌恶
 - 任何消失、解脱、告别字眼（此类直接判 crisis）`;
 
-// few-shot 示例（覆盖易混淆边界，打样 v3 验证）
+// few-shot 示例（覆盖易混淆边界，打样 v3 验证；2026-10-15 补 courage/love 两例）
 const FEWSHOT: Array<{ user: string; json: ThoughtTag }> = [
   { user: '把前任的东西打包寄走的那一刻，我以为我会哭，结果只是很轻地舒了口气。', json: { domain: 'loss', emotion: 'calm', attachment: 'past', safety: 'ok' } },
   { user: '奶奶生前说，她这辈子最庆幸的是没跟谁红过脸。我当时不懂，现在好像有点懂了。', json: { domain: 'meaning', emotion: 'calm', attachment: 'none', safety: 'ok' } },
@@ -97,6 +108,8 @@ const FEWSHOT: Array<{ user: string; json: ThoughtTag }> = [
   { user: '母亲走后第七天。屋子很静，静得能听见冰箱的声音。', json: { domain: 'loss', emotion: 'low', attachment: 'past', safety: 'watch' } },
   { user: '什么都不缺，但每天醒来都觉得没意思。才三十岁，怎么就把日子过成了复印件。', json: { domain: 'meaning', emotion: 'numb', attachment: 'certainty', safety: 'watch' } },
   { user: '写了三年的小说，发给十个编辑都没回音。还要继续吗？', json: { domain: 'creation', emotion: 'low', attachment: 'recognition', safety: 'ok' } },
+  { user: '拖了半年的体检预约，今天终于打完电话了。约上那一刻，好像也没那么难。', json: { domain: 'health', emotion: 'courage', attachment: 'certainty', safety: 'ok' } },
+  { user: '傍晚走到江边，晚霞把整条江染成金红色，站了很久没说话。心里很满。', json: { domain: 'other', emotion: 'love', attachment: 'none', safety: 'ok' } },
 ];
 
 function normalize(raw: Partial<ThoughtTag>, text: string): ThoughtTag {

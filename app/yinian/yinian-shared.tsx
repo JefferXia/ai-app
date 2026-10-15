@@ -1,11 +1,15 @@
 /* ===== 一念 · 跨页共享：星空底、情绪色、领域中文名、星体视觉 ===== */
 
+/* 霍金斯能量层级 7 档色（2026-10-15 校准，详见 docs/design/yinian-star-visual.md §3）：
+ * 自低到高 numb 羞愧·冷淡 → low 悲伤 → anxious 恐惧 → hot 愤怒 → courage 勇气 → calm 理智 → love 爱 */
 export const EMOTION_DOT: Record<string, string> = {
-  calm: '#e8e4da',
-  hot: '#c9a86a',
+  numb: '#4a4a4f',
   low: '#8fa3b0',
-  anxious: '#9a8fa8',
-  numb: '#77756e',
+  anxious: '#6e5a45',
+  hot: '#8a3227',
+  courage: '#c98f45',
+  calm: '#e8e4da',
+  love: '#8ecfc0',
 };
 
 export const DOMAIN_LABEL: Record<string, string> = {
@@ -25,8 +29,9 @@ export const DOMAIN_LABEL: Record<string, string> = {
  * 字段仍由打标器入库，将来重做执念可视化时再恢复命名。 ===== */
 
 /* ===== 星体视觉语法（docs/design/yinian-star-visual.md） =====
- * 三通道：色相族（valence）× 能量（arousal：光晕强度/脉动节奏）× 质感（表面渐变）。
- * 打标维持 5 底色（准确率已回归）；27 细腻情绪未来用同一语法组合扩展。
+ * 三通道：色相族（霍金斯层级——颜色沿图表色带自低到高）× 能量（层级定亮度，
+ * 唤醒度定脉动节奏/自转周期）× 质感（表面多层渐变）。
+ * 2026-10-15 起 7 档（原 5 档 + courage/love）；旧数据 5 值同表渲染，无需迁移。
  */
 
 export interface StarVisual {
@@ -39,23 +44,14 @@ export interface StarVisual {
 }
 
 export const STAR_VISUAL: Record<string, StarVisual> = {
-  // 平静：月球——稳定柔光，无脉动
-  calm: {
-    dot: 'radial-gradient(circle at 35% 30%, #fffdf7, #e8e4da 60%, #9b968b)',
-    glow: 'rgba(232,228,218,.55)',
-    body: 'radial-gradient(circle at 34% 28%, #fffdf7 0%, #ece7db 30%, #cfcabd 55%, #8f8a7e 82%, #4a473f 100%)',
-    halo: 'rgba(232,228,218,.28)',
+  // 羞愧·内疚·冷淡（20-75）：黑矮星——几乎熄灭，只剩暗轮廓
+  numb: {
+    dot: 'radial-gradient(circle at 35% 30%, #9c9a91, #5a5952 55%, #2c2c30)',
+    glow: 'rgba(92,90,96,.35)',
+    body: 'radial-gradient(circle at 34% 28%, #6e6d66 0%, #4a4944 30%, #34343a 58%, #1e1e22 84%, #0e0e10 100%)',
+    halo: 'rgba(92,90,96,.14)',
   },
-  // 炽热/激动：恒星——亮核 + 日冕呼吸
-  hot: {
-    dot: 'radial-gradient(circle at 40% 35%, #fff3d6, #eec98a 55%, #c9a86a)',
-    glow: 'rgba(201,168,106,.8)',
-    dotAnim: 'yn-pulse-hot',
-    body: 'radial-gradient(circle at 38% 30%, #fff8e3 0%, #f2d9a4 28%, #d9b372 52%, #8a6a3a 78%, #3d2c14 100%)',
-    halo: 'rgba(201,168,106,.45)',
-    bodyAnim: 'yn-corona',
-  },
-  // 低落：海王星——弥散冷蓝，缓慢下沉式呼吸
+  // 悲伤（75）：海王星——弥散冷蓝，缓慢下沉式呼吸
   low: {
     dot: 'radial-gradient(circle at 35% 30%, #cfdae3, #8fa3b0 60%, #5b6a76)',
     glow: 'rgba(143,163,176,.5)',
@@ -64,21 +60,47 @@ export const STAR_VISUAL: Record<string, StarVisual> = {
     halo: 'rgba(143,163,176,.22)',
     bodyAnim: 'yn-breathe-slow',
   },
-  // 焦虑：电离层——不规则闪烁，光晕收紧
+  // 恐惧·欲望（100-125）：尘暴星——棕土尘雾，不规则闪烁，光晕收紧
   anxious: {
-    dot: 'radial-gradient(circle at 35% 30%, #ded9e6, #9a8fa8 55%, #5d5468)',
-    glow: 'rgba(154,143,168,.7)',
+    dot: 'radial-gradient(circle at 35% 30%, #c4ac8a, #6e5a45 55%, #3a2e22)',
+    glow: 'rgba(156,130,96,.6)',
     dotAnim: 'yn-flicker',
-    body: 'radial-gradient(circle at 36% 28%, #e2dcea 0%, #b3a8c2 30%, #7f7492 56%, #453d53 82%, #211c29 100%)',
-    halo: 'rgba(154,143,168,.35)',
+    body: 'radial-gradient(circle at 36% 28%, #c9b28f 0%, #9a7f5f 30%, #6e5a45 56%, #3d3023 82%, #1c1610 100%)',
+    halo: 'rgba(156,130,96,.32)',
     bodyAnim: 'yn-flicker',
   },
-  // 麻木：黑矮星——几乎熄灭，只剩暗轮廓
-  numb: {
-    dot: 'radial-gradient(circle at 35% 30%, #b0ada5, #77756e 55%, #45443f)',
-    glow: 'rgba(119,117,110,.35)',
-    body: 'radial-gradient(circle at 34% 28%, #b8b5ac 0%, #8a887f 30%, #5c5a53 58%, #2e2d29 84%, #141312 100%)',
-    halo: 'rgba(119,117,110,.15)',
+  // 愤怒·骄傲（150-175）：赤矮星——暗红怒焰，亮核 + 日冕呼吸
+  hot: {
+    dot: 'radial-gradient(circle at 40% 35%, #ffb59a, #c25a3f 55%, #8a3227)',
+    glow: 'rgba(194,90,63,.75)',
+    dotAnim: 'yn-pulse-hot',
+    body: 'radial-gradient(circle at 38% 30%, #ffc9b0 0%, #e08a6a 28%, #8a3227 52%, #4a1a12 78%, #1c0a06 100%)',
+    halo: 'rgba(194,90,63,.42)',
+    bodyAnim: 'yn-corona',
+  },
+  // 勇气·满意·主动（200-310，勇气是正负转折点）：熔金星——炉火般稳定的金光，有力而不灼人
+  courage: {
+    dot: 'radial-gradient(circle at 38% 32%, #ffe9b8, #e0b163 55%, #c98f45)',
+    glow: 'rgba(236,203,135,.75)',
+    dotAnim: 'yn-ember',
+    body: 'radial-gradient(circle at 36% 30%, #fff3d6 0%, #eccb87 28%, #c98f45 52%, #7a5426 78%, #33210e 100%)',
+    halo: 'rgba(236,203,135,.4)',
+  },
+  // 宽恕·理智（350-500）：月球——清透象牙，稳定柔光，无脉动
+  calm: {
+    dot: 'radial-gradient(circle at 35% 30%, #fffdf7, #e8e4da 60%, #9b968b)',
+    glow: 'rgba(232,228,218,.55)',
+    body: 'radial-gradient(circle at 34% 28%, #fffdf7 0%, #ece7db 30%, #cfcabd 55%, #8f8a7e 82%, #4a473f 100%)',
+    halo: 'rgba(232,228,218,.28)',
+  },
+  // 爱·喜悦·平静·开悟（500-1000）：晨星——青白辉光，安静地亮着，层次最高
+  love: {
+    dot: 'radial-gradient(circle at 36% 30%, #f2fffa, #b5e6d8 55%, #8ecfc0)',
+    glow: 'rgba(190,240,222,.8)',
+    dotAnim: 'yn-dawn',
+    body: 'radial-gradient(circle at 34% 28%, #f4fffb 0%, #c9eee2 30%, #8ecfc0 58%, #4a8578 84%, #1e3a33 100%)',
+    halo: 'rgba(190,240,222,.38)',
+    bodyAnim: 'yn-dawn',
   },
 };
 
@@ -141,14 +163,17 @@ export function panelPlacement(
  * 二期若迁 Three.js，本语法（色相/光晕/纹理带）直接映射为着色器参数。
  */
 
-/** 每情绪的表面纹理带（两个色阶）、自转周期（秒，越焦虑越快）与大气环带色——2D 星球与 3D 行星共用。
+/** 每层级的表面纹理带（两个色阶）、自转周期（秒 = 唤醒度：越焦灼越快）与大气环带色——
+ *  2D 星球与 3D 行星共用。色阶沿霍金斯图表色带自低到高（黑灰 → 蓝灰 → 棕 → 深红 → 金 → 象牙·淡紫 → 青白）。
  *  大气为双层环带（参考 /Users/xia/ai/galaxy/radial.jpeg）：内环贴缘亮，外环更宽更暗 */
 export const STAR_SURFACE: Record<string, { a: string; b: string; speed: number; haloIn: string; haloOut: string }> = {
-  calm: { a: 'rgba(255,253,247,.10)', b: 'rgba(143,138,126,.14)', speed: 26, haloIn: 'rgba(232,228,218,.45)', haloOut: 'rgba(232,228,218,.16)' },
-  hot: { a: 'rgba(255,240,200,.16)', b: 'rgba(120,85,30,.22)', speed: 9, haloIn: 'rgba(201,168,106,.6)', haloOut: 'rgba(201,168,106,.2)' },
+  numb: { a: 'rgba(150,148,140,.06)', b: 'rgba(8,8,10,.24)', speed: 60, haloIn: 'rgba(92,90,96,.3)', haloOut: 'rgba(92,90,96,.1)' },
   low: { a: 'rgba(190,210,225,.10)', b: 'rgba(45,60,72,.20)', speed: 34, haloIn: 'rgba(143,163,176,.42)', haloOut: 'rgba(143,163,176,.15)' },
-  anxious: { a: 'rgba(215,205,230,.14)', b: 'rgba(50,42,66,.24)', speed: 6, haloIn: 'rgba(154,143,168,.55)', haloOut: 'rgba(154,143,168,.18)' },
-  numb: { a: 'rgba(170,167,158,.06)', b: 'rgba(10,10,10,.22)', speed: 60, haloIn: 'rgba(119,117,110,.32)', haloOut: 'rgba(119,117,110,.1)' },
+  anxious: { a: 'rgba(210,190,160,.13)', b: 'rgba(40,30,20,.26)', speed: 6, haloIn: 'rgba(156,130,96,.5)', haloOut: 'rgba(156,130,96,.16)' },
+  hot: { a: 'rgba(255,180,150,.14)', b: 'rgba(60,15,10,.26)', speed: 9, haloIn: 'rgba(194,90,63,.55)', haloOut: 'rgba(194,90,63,.18)' },
+  courage: { a: 'rgba(255,240,200,.14)', b: 'rgba(110,70,20,.2)', speed: 12, haloIn: 'rgba(236,203,135,.55)', haloOut: 'rgba(236,203,135,.18)' },
+  calm: { a: 'rgba(255,253,247,.10)', b: 'rgba(150,146,180,.12)', speed: 26, haloIn: 'rgba(232,228,218,.45)', haloOut: 'rgba(232,228,218,.16)' },
+  love: { a: 'rgba(230,255,246,.14)', b: 'rgba(30,90,76,.2)', speed: 44, haloIn: 'rgba(223,245,236,.55)', haloOut: 'rgba(223,245,236,.2)' },
 };
 
 export function Planet({
@@ -243,10 +268,14 @@ export const STAR_CSS = `
   @keyframes yn-breathe-slow { 0%,100% { opacity: .55 } 50% { opacity: 1 } }
   .yn-flicker { animation: yn-flicker 2.4s linear infinite; }
   @keyframes yn-flicker { 0%,100% { opacity: 1 } 42% { opacity: .55 } 48% { opacity: .95 } 71% { opacity: .6 } }
+  .yn-ember { animation: yn-ember 2.6s ease-in-out infinite; }
+  @keyframes yn-ember { 0%,100% { transform: scale(1) } 50% { transform: scale(1.16) } }
+  .yn-dawn { animation: yn-dawn 5s ease-in-out infinite; }
+  @keyframes yn-dawn { 0%,100% { opacity: .72 } 50% { opacity: 1 } }
   .yn-corona { animation: yn-corona 3.2s ease-in-out infinite; }
   @keyframes yn-corona {
-    0%,100% { box-shadow: 0 0 60px 12px rgba(201,168,106,.4), inset -8px -12px 30px rgba(0,0,0,.55) }
-    50% { box-shadow: 0 0 96px 26px rgba(201,168,106,.58), inset -8px -12px 30px rgba(0,0,0,.55) }
+    0%,100% { box-shadow: 0 0 60px 12px rgba(194,90,63,.42), inset -8px -12px 30px rgba(0,0,0,.55) }
+    50% { box-shadow: 0 0 96px 26px rgba(194,90,63,.6), inset -8px -12px 30px rgba(0,0,0,.55) }
   }
   /* NPC 痕迹：被点评的星带一层印色光晕（PRD §6.3），最多三层，层层错相位呼吸 */
   .yn-trace {
@@ -257,7 +286,7 @@ export const STAR_CSS = `
   }
   @keyframes yn-halo-breathe { 0%,100% { opacity: .45 } 50% { opacity: 1 } }
   @media (prefers-reduced-motion: reduce) {
-    .yn-starbody, .yn-planet, .yn-planet-surface, .yn-pop, .yn-pop-side, .yn-pulse-hot, .yn-breathe-slow, .yn-flicker, .yn-corona, .yn-trace { animation: none; }
+    .yn-starbody, .yn-planet, .yn-planet-surface, .yn-pop, .yn-pop-side, .yn-pulse-hot, .yn-breathe-slow, .yn-flicker, .yn-ember, .yn-dawn, .yn-corona, .yn-trace { animation: none; }
   }
 `;
 
