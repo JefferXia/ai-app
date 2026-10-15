@@ -75,6 +75,7 @@ export default function EchoClient() {
                         <div style={S.letterHead}>
                           <span style={{ ...S.letterSeal, background: npc.inkColor }}>{npc.seal}</span>
                           <span style={S.letterName}>{npc.name}</span>
+                          <span style={S.letterAnchor}> · 于{anchorLabel(r.createdAt).split('的')[1] ?? ''}</span>
                         </div>
                         <p style={S.letterBody}>{r.content}</p>
                       </div>
@@ -118,6 +119,7 @@ const S: Record<string, React.CSSProperties> = {
     alignItems: 'center', justifyContent: 'center', fontSize: 12, color: '#f3ece2',
   },
   letterName: { fontSize: 12, letterSpacing: '0.3em', color: '#d5d5d5' },
+  letterAnchor: { fontSize: 12, letterSpacing: '0.2em', color: '#d5d5d5' },
   letterBody: { fontSize: 13.5, lineHeight: 2.1, letterSpacing: '0.03em', whiteSpace: 'pre-wrap' },
   againBtn: {
     border: '1px solid #d5d5d5', borderRadius: 999, background: '#d5d5d5',

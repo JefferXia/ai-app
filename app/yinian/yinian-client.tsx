@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { AudioLines } from 'lucide-react';
 import { SERIF, anchorLabel, seeded } from '../wenxin/shared';
 import { NPC_DISPLAY, CARE_REPLY } from '@/lib/yinian/npc-display';
 import { STAR_CSS, Planet, Spinner, panelPlacement, starVisualOf } from './yinian-shared';
@@ -10,8 +11,8 @@ import { computeUniverse, hash01, type UniverseLayout } from './universe';
 import YinianHeader from './yinian-header';
 
 /* ===== 一念 · 首页即星空（二期：心念宇宙） =====
- * 书写区在上，念头以星点散布于下方夜空；放出后光点升起没入星空；
- * 点击星点展开浮层：信笺点评（虚线印位 → 落印）+ 深念 + 焚毁。
+ * 书写区在上，念头以星点散布于下方夜空；放出后星先隐身等打标 domain（~11s），
+ * 星进星盘后从释念钮飞往所属星盘落位；到位再弹浮层：信笺点评（虚线印位 → 落印）+ 深念 + 焚毁。
  * 二期：星位由宇宙布局引擎决定——同领域聚成星座，同执念 ≥10 念显形引力漩涡；
  * 被 NPC 点评过的星带印色光晕；每个星团即一个 3D 星系——暖核星云盘透视倾斜成椭圆并
  * 整体缓旋，成员星按黄金角向日葵排布匀称落进盘内（参考 universe + galaxy）。
@@ -94,9 +95,18 @@ export default function YinianClient() {
   const [error, setError] = useState('');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [planetPos, setPlanetPos] = useState<{ x: number; y: number } | null>(null); // 星球原地放大的锚点（视口坐标）
-  const [bornId, setBornId] = useState<string | null>(null); // 刚放出的星，播升起动效
+  // 发布飞行：打标异步（~11s，POST 秒回），星先隐身等 domain——轮询带回 domain、星进星盘落位
+  // 后量到落点坐标（to）起飞，到位再弹星球与浮层；久等未打标（>30s）按自由星兜底起飞
+  const [flight, setFlight] = useState<{
+    id: string;
+    from: { x: number; y: number };
+    to?: { x: number; y: number };
+  } | null>(null);
   const [confirmBurn, setConfirmBurn] = useState<string | null>(null);
   const burnTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // 背景音乐（放大镜上方圆钮）：默认静默，点击切换播放；离开页面随组件卸载自然停止
+  const [musicOn, setMusicOn] = useState(false);
+  const musicRef = useRef<HTMLAudioElement | null>(null);
 
   const selected = thoughts?.find((t) => t.id === selectedId) ?? null;
 
@@ -112,6 +122,18 @@ export default function YinianClient() {
   function closeStar() {
     setSelectedId(null);
     setPlanetPos(null);
+  }
+
+  /* ---------- 背景音乐 ---------- */
+  function toggleMusic() {
+    const el = musicRef.current;
+    if (!el) return;
+    if (el.paused) {
+      el.play().then(() => setMusicOn(true)).catch(() => setMusicOn(false));
+    } else {
+      el.pause();
+      setMusicOn(false);
+    }
   }
 
   /* ---------- 数据 ---------- */
@@ -179,6 +201,46 @@ export default function YinianClient() {
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, []);
+
+  // 飞行一段（等落位）：打标异步完成前 domain 为空，新星只会在自由星列表——量到的坐标不是星盘落位。
+  // 所以先按兵不动（星保持 yn-star-await 隐身），轮询带回 domain → groups 重算、星进星盘，
+  // 再 rAF 量到落点坐标、补上起跑偏移起飞（--fx/--fy）；30s 仍未打标则按自由星兜底起飞
+  useEffect(() => {
+    if (!flight || flight.to) return;
+    const t = thoughts?.find((x) => x.id === flight.id);
+    if (!t) return;
+    if (!t.domain && Date.now() - t.createdAt < 30_000) return;
+    const raf = requestAnimationFrame(() => {
+      const el = document.querySelector<HTMLButtonElement>(`[data-tid="${flight.id}"]`);
+      if (!el) {
+        setFlight(null);
+        return;
+      }
+      const rect = el.getBoundingClientRect();
+      setFlight((f) =>
+        f?.id === flight.id
+          ? { ...f, to: { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 } }
+          : f
+      );
+    });
+    return () => cancelAnimationFrame(raf);
+  }, [flight, thoughts]);
+
+  // 飞行二段（到位收场）：起飞 1.25s 后（与 1.2s 飞行动画对齐）星球在落点原地放大、展开浮层
+  // （星球位置沿用上半屏钳制）；deps 只挂 flight——后续 thoughts 轮询更新不会重置定时器
+  useEffect(() => {
+    if (!flight?.to) return;
+    const timer = setTimeout(() => {
+      const to = flight.to!;
+      setPlanetPos({
+        x: Math.min(Math.max(to.x, 90), window.innerWidth - 90),
+        y: Math.min(Math.max(to.y, 110), window.innerHeight * 0.42),
+      });
+      setSelectedId(flight.id);
+      setFlight(null);
+    }, 1250);
+    return () => clearTimeout(timer);
+  }, [flight]);
 
   /* ---------- 宇宙布局：同一份数据永远算出同一片宇宙。
    * 键只含布局输入（id/domain），点评轮询更新不触发重算 ---------- */
@@ -256,9 +318,12 @@ export default function YinianClient() {
   }, [thoughts, universe]);
 
   /* ---------- 发布 ---------- */
-  async function publish() {
+  async function publish(e: React.MouseEvent<HTMLButtonElement>) {
     const text = draft.trim();
     if (!text || publishing) return;
+    // 先记下释念钮中心：它是这颗星的飞行起点
+    const btn = e.currentTarget.getBoundingClientRect();
+    const from = { x: btn.left + btn.width / 2, y: btn.top + btn.height / 2 };
     setPublishing(true);
     setError('');
     try {
@@ -276,19 +341,8 @@ export default function YinianClient() {
       setThoughts((prev) => [thought, ...(prev ?? [])]);
       setDraft('');
       localStorage.removeItem(DRAFT_KEY);
-      // 光点升起没入星空；落定后星球原地放大展开浮层，看印落下
-      setBornId(thought.id);
-      setTimeout(() => setBornId(null), 900);
-      setTimeout(() => {
-        const el = document.querySelector<HTMLButtonElement>(`[data-tid="${thought.id}"]`);
-        if (el) {
-          const rect = el.getBoundingClientRect();
-          const x = Math.min(Math.max(rect.left + rect.width / 2, 90), window.innerWidth - 90);
-          const y = Math.min(Math.max(rect.top + rect.height / 2, 110), window.innerHeight * 0.42);
-          setPlanetPos({ x, y });
-        }
-        setSelectedId(thought.id);
-      }, 850);
+      // 星先隐身等打标：domain 由轮询带回后星进星盘落位，再从释念钮飞往落位；到位后星球原地放大展开浮层
+      setFlight({ id: thought.id, from });
     } finally {
       setPublishing(false);
     }
@@ -329,10 +383,12 @@ export default function YinianClient() {
     const p = s ?? posOf(t);
     // NPC 痕迹：被几位 NPC 点评过，就带几圈印色光晕（最多三层）
     const tracers = [...new Set(t.replies.filter((r) => r.status === 'done').map((r) => r.npcKey))].slice(0, 3);
+    // 发布飞行：await=星隐在落位待量坐标；fly=从释念钮飞来（--fx/--fy 为起跑偏移）
+    const flying = flight && flight.id === t.id ? flight : null;
     const cls = [
       'yn-star',
       t.isDeep ? 'yn-star-deep' : '',
-      bornId === t.id ? 'yn-star-born' : '',
+      flying ? (flying.to ? 'yn-star-fly' : 'yn-star-await') : '',
       v.dotAnim ?? '',
     ]
       .filter(Boolean)
@@ -352,7 +408,13 @@ export default function YinianClient() {
           boxShadow: t.isDeep
             ? `0 0 5px 1px ${v.glow}, 0 0 20px 4px ${v.halo}`
             : `0 0 3px .5px ${v.glow}, 0 0 12px 2px ${v.halo}`,
-          animationDelay: `${seeded(t.createdAt, 5) * 4}s`,
+          animationDelay: flying ? '0s' : `${seeded(t.createdAt, 5) * 4}s`,
+          ...(flying?.to
+            ? {
+                ['--fx' as string]: `${(flying.from.x - flying.to.x).toFixed(1)}px`,
+                ['--fy' as string]: `${(flying.from.y - flying.to.y).toFixed(1)}px`,
+              }
+            : {}),
         }}
         title={anchorLabel(t.createdAt)}
         aria-label={`念头：${t.text.slice(0, 20)}`}
@@ -416,6 +478,10 @@ export default function YinianClient() {
           {thoughts === null && (
             <div style={S.loadingWrap}><Spinner /></div>
           )}
+          {/* 等打标归位：星隐身等 domain 期间给一句 shimmer 提示，起飞即消失 */}
+          {flight && !flight.to && (
+            <div style={S.loadingWrap}><Wave text="此念正在归位…" /></div>
+          )}
           {groups.clusters.map((c) => (
             <div key={c.domain} className="yn-cluster">
               {/* 透视倾斜层：统一倾角（见 .yn-galaxy3d），transform-origin 定在锚点，
@@ -456,6 +522,19 @@ export default function YinianClient() {
           )}
         </main>
       </div>
+
+      {/* 背景音乐：放大镜（进入心念宇宙）上方的圆钮，透明底细环，点击切换播放 */}
+      <button
+        className={`yn-musicbtn${musicOn ? ' yn-music-on' : ''}`}
+        style={{ ...S.musicBtn, opacity: musicOn ? 1 : 0.5 }}
+        onClick={toggleMusic}
+        aria-pressed={musicOn}
+        aria-label={musicOn ? '暂停背景音乐' : '播放背景音乐'}
+        title={musicOn ? '暂停背景音乐' : '播放背景音乐'}
+      >
+        <AudioLines size={16} strokeWidth={1.4} aria-hidden />
+      </button>
+      <audio ref={musicRef} src="/yinian/music/cosmic_dreams.mp3" loop preload="none" />
 
       {/* 抬头看：进入 3D 心念宇宙（/yinian/sky） */}
       <Link href="/yinian/sky" className="yn-skybtn" style={S.skyBtn} title="心念宇宙" aria-label="进入心念宇宙">
@@ -523,10 +602,10 @@ export default function YinianClient() {
                 );
               })}
             {selected.replies.some((r) => r.status === 'pending') && (
-              <Wave text="有信在来……" />
+              <Wave text="有信在来…" />
             )}
             {selected.replies.length === 0 && Date.now() - selected.createdAt < 3 * 60 * 1000 && (
-              <Wave text="有人在看见这一念……" />
+              <Wave text="有人在看见这一念…" />
             )}
 
             <div style={S.detailOps}>
@@ -601,11 +680,18 @@ const S: Record<string, React.CSSProperties> = {
   letterMeta: { fontSize: 12, letterSpacing: '0.2em', color: '#d5d5d5', marginBottom: 4 },
   letterAnchorInline: { color: '#d5d5d5' },
   letterBody: { fontSize: 14, lineHeight: 1.9, letterSpacing: '0.02em', whiteSpace: 'pre-wrap' },
+  musicBtn: {
+    position: 'fixed', right: 28, bottom: 80, zIndex: 5,
+    width: 40, height: 40, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
+    border: '1px solid #d5d5d5', color: '#d5d5d5', background: 'transparent',
+    cursor: 'pointer', padding: 0, transition: 'opacity .3s ease, border-color .3s ease, color .3s ease',
+  },
   skyBtn: {
     position: 'fixed', right: 28, bottom: 28, zIndex: 5,
     width: 40, height: 40, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
-    border: '1px solid #d5d5d5', color: '#141416', background: '#d5d5d5',
-    transition: 'all .3s',
+    border: '1px solid #d5d5d5', color: '#d5d5d5', background: 'transparent',
+    opacity: 0.5, cursor: 'pointer',
+    transition: 'opacity .3s ease, border-color .3s ease, color .3s ease',
   },
   detailOps: { display: 'flex', justifyContent: 'flex-end', gap: 12, marginTop: 18, paddingTop: 14, borderTop: '1px solid #26262b' },
   deepBtn: {
@@ -629,11 +715,14 @@ const CSS = `
   .yn-star::after { content: ""; position: absolute; inset: -10px; }
   .yn-star:hover { transform: scale(1.8); }
   .yn-star-deep { animation: yn-breathe 4s ease-in-out infinite; }
-  /* 放出一念：光点自下方升起，带一瞬辉光，然后落定 */
-  .yn-star-born { animation: yn-born .8s cubic-bezier(.22,1,.36,1) both !important; }
-  @keyframes yn-born {
-    0% { opacity: 0; transform: translateY(120px) scale(.5); }
-    55% { opacity: 1; transform: translateY(-6px) scale(2.2); }
+  /* 放出一念：星先隐身等打标 domain（await，通常 ~11s）——domain 回来星进星盘落位，
+     量到坐标后从释念钮起飞（--fx/--fy 为起跑偏移），1.2s 与飞行收场定时对齐；
+     到位后星球原地放大展开浮层 */
+  .yn-star-await { visibility: hidden; }
+  .yn-star-fly { animation: yn-fly 1.2s cubic-bezier(.22,1,.36,1) both !important; }
+  @keyframes yn-fly {
+    0% { opacity: 0; transform: translate(var(--fx, 0px), var(--fy, 0px)) scale(.4); }
+    60% { opacity: 1; }
     100% { opacity: 1; transform: none; }
   }
   .yn-seal-slot {
@@ -650,7 +739,11 @@ const CSS = `
   }
   @keyframes yn-stamp { 0% { transform: scale(1.4); opacity: 0 } 100% { transform: scale(1); opacity: 1 } }
   .yn-fade { animation: yn-fade .4s ease-out; }
-  .yn-skybtn:hover { background: #ffffff !important; border-color: #ffffff !important; color: #0b0b0c !important; }
+  .yn-skybtn:hover { opacity: 1 !important; border-color: #ffffff !important; color: #ffffff !important; }
+  /* 背景音乐钮：静默半透、悬停点亮；播放中图标轻缓脉动示「正在响」 */
+  .yn-musicbtn:hover { opacity: 1 !important; border-color: #ffffff !important; color: #ffffff !important; }
+  .yn-music-on svg { animation: yn-music-pulse 2.4s ease-in-out infinite; }
+  @keyframes yn-music-pulse { 0%, 100% { transform: scale(1) } 50% { transform: scale(1.12) } }
   @keyframes yn-fade { from { opacity: 0; transform: translateY(12px) } to { opacity: 1; transform: none } }
 
   /* ===== 星团 = 一个 3D 星系（参考 universe + galaxy） =====
@@ -735,6 +828,6 @@ const CSS = `
     100% { transform: scale(1); opacity: .8; }
   }
   @media (prefers-reduced-motion: reduce) {
-    .yn-star, .yn-star-deep, .yn-star-born, .yn-seal-slot, .yn-seal, .yn-fade, .yn-wave span, .yn-galaxy-plane { animation: none; transition: none; }
+    .yn-star, .yn-star-deep, .yn-star-fly, .yn-seal-slot, .yn-seal, .yn-fade, .yn-wave span, .yn-galaxy-plane, .yn-music-on svg { animation: none; transition: none; }
   }
 `;

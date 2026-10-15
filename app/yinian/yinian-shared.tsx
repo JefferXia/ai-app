@@ -164,16 +164,12 @@ export function Planet({
 }) {
   const v = starVisualOf(emotion);
   const s = STAR_SURFACE[emotion ?? 'calm'] ?? STAR_SURFACE.calm;
+  // 星环：双层环带（参考 radial.jpeg），整体 rotateX 倾斜成斜视椭圆——
+  // 远半环藏星球身后（两侧只露翼尖）、近半环叠在星球前面横越下弧（土星式 3D）
+  const ring = `radial-gradient(circle, transparent 36%, ${s.haloIn} 40%, ${s.haloIn} 50%, ${s.haloOut} 55%, ${s.haloOut} 62%, transparent 70%)`;
   return (
     <div aria-hidden className="yn-planet" style={{ left: x, top: y, width: size, height: size }}>
-      {/* 大气双层环带：halo 半径 = 1.25 × 星球半径，球缘落在梯度半径 40% 处——
-          内环贴缘亮（42–49%）、外环更宽更暗（53–58%）、65% 淡出（参考 radial.jpeg） */}
-      <div
-        className="yn-planet-halo"
-        style={{
-          background: `radial-gradient(circle, transparent 39%, ${s.haloIn} 42%, ${s.haloIn} 49%, ${s.haloOut} 53%, ${s.haloOut} 58%, transparent 65%)`,
-        }}
-      />
+      <div className="yn-planet-halo yn-planet-halo-far" style={{ background: ring }} />
       <div
         className="yn-planet-body"
         style={{ background: v.body, boxShadow: `0 0 ${Math.round(size * 0.15)}px 0 ${v.halo}` }}
@@ -187,6 +183,7 @@ export function Planet({
         />
         <div className="yn-planet-shade" />
       </div>
+      <div className="yn-planet-halo yn-planet-halo-near" style={{ background: ring }} />
     </div>
   );
 }
@@ -196,20 +193,27 @@ export const STAR_CSS = `
   .yn-starbody { animation: yn-body-in .6s cubic-bezier(.22,1,.36,1) both; }
   @keyframes yn-body-in { from { opacity: 0; transform: scale(.3) } to { opacity: 1; transform: scale(1) } }
   /* 原地星球：从星点尺寸放大，纹理带横移模拟自转，明暗层静止。
-     三层：.yn-planet 固定外壳（定位 + 入场动画）→ .yn-planet-halo 大气双层环带 → .yn-planet-body 星体（圆形裁剪） */
+     四层：.yn-planet 固定外壳（定位 + 入场动画 + perspective）→
+     .yn-planet-halo-far 星环远半（球后）→ .yn-planet-body 星体（圆形裁剪）→ .yn-planet-halo-near 星环近半（球前） */
   .yn-planet {
     position: fixed; z-index: 60;
     pointer-events: none;
     transform: translate(-50%, -50%);
+    perspective: 700px;
     animation: yn-planet-in .55s cubic-bezier(.22,1,.36,1) both;
   }
-  /* 大气双层环带（参考 radial.jpeg）：梯度半径 = 1.25 × 星球半径，球缘落在 40% */
+  /* 星环（双层环带参考 radial.jpeg，几何按倾斜后观感放宽）：梯度半径 = 1.25 × 星球半径，
+     球缘落在 40%；整体 rotateX(60deg) 压成斜视椭圆，外壳 perspective 供近大远小纵深。
+     远/近半环用 clip-path 沿本地中线切开再各自倾斜——切缝正好落在椭圆长轴两端
+     （中线各点旋转后 z=0，透视投影不变），两半严丝合缝 */
   .yn-planet-halo {
     position: absolute; left: 50%; top: 50%;
     width: 250%; height: 250%;
-    transform: translate(-50%, -50%);
+    transform: translate(-50%, -50%) rotateX(60deg);
     border-radius: 50%;
   }
+  .yn-planet-halo-far { clip-path: inset(0 0 50% 0); }
+  .yn-planet-halo-near { clip-path: inset(50% 0 0 0); }
   .yn-planet-body {
     position: absolute; inset: 0;
     border-radius: 50%; overflow: hidden;

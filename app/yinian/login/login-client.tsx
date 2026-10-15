@@ -64,7 +64,7 @@ export default function YinianLoginClient() {
             回来
           </h1>
           <p className="text-sm leading-loose text-gray-500 mb-10">
-           昵称加密码，。
+           昵称加密码，开启心念宇宙。
           </p>
 
           <div className="space-y-4">

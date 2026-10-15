@@ -89,7 +89,7 @@
 - 星体纯 CSS（多层 `radial-gradient` + `box-shadow` + 纹理带平移），无图片资源，无 Canvas/WebGL 依赖
 - 星球锚点为被点星点的视口坐标，做边界钳制（压在上半屏，给信笺浮层留位）
 - 星点点击热区用 `::after { inset: -10px }` 扩至 ~25px（触屏可用）
-- 发布新念头时：光点升起没入星空（0.8s）→ 落定后星球在其位置原地展开浮层
+- 发布新念头时：打标异步（~11s，POST 秒回），星先隐身等 domain（「此念正在归位……」shimmer 提示；30s 仍未打标按自由星兜底起飞）→ 轮询带回 domain、星进星盘落位，从释念钮飞往落位（约 1.2s，`yn-star-fly` 配 `--fx/--fy` 起跑偏移）→ 到位后星球原地展开浮层
 - 星团星系布局（盘面统一倾角、成员星黄金角向日葵落位、盘径公式）另见 `docs/design/yinian-galaxy-layout.md`
-- 光晕为双层环带大气（参考 `/Users/xia/ai/galaxy/radial.jpeg`）：内环贴缘亮、外环更宽更暗——星点用 box-shadow 双环（内 `glow` + 外 `halo`），星球（原地放大）用 `radial-gradient` 环带（球缘 40% / 内环 42–49% / 外环 53–58% / 65% 淡出），环色按情绪配置在 `STAR_SURFACE.haloIn/haloOut`（`yinian-shared.tsx`）
+- 星球光晕为双层环带星环（参考 `/Users/xia/ai/galaxy/radial.jpeg`）：内环贴缘亮、外环更宽更暗——星点用 box-shadow 双环（内 `glow` + 外 `halo`）；星球（原地放大）的星环整体 `rotateX(60deg)`（外壳 `perspective: 700px` 供纵深）压成斜视椭圆，并用 clip-path 沿本地中线切成两半：远半环藏星球身后只露两侧翼尖、近半环叠在星球前面横越下弧（土星式 3D），环色按情绪配置在 `STAR_SURFACE.haloIn/haloOut`（`yinian-shared.tsx`）
 - 二期接入（2026-10-08 已落地 U1/U2/U3）：NPC 痕迹实现为**星点周围的印色同心光环**（`.yn-trace`，每位点评 NPC 一圈、最多三圈，挂在星点 button 内），非星球 box-shadow 第三层；星座/漩涡不改星球本身，由布局引擎（`app/yinian/universe.ts`）决定星位——漩涡成员沿黄金角螺旋臂钉住，自由星力导向成簇；漩涡视觉为暗核 + 双臂锥形渐变缓转（`.yn-vortex`）
