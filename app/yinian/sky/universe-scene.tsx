@@ -53,10 +53,16 @@ export interface SceneApi {
 }
 
 /* ===== 中央球体构图（参考 Space Globe）：宇宙收拢为一个球形体积，相机环绕唯一主体 =====
- * 恒星按哈希散布在球面上（最小角距分离防重叠），自由星在球体积内散布。
+ * 恒星（星团中心）按哈希散布在球面上，再做外壳感知的斥力分离；自由星在球体积内散布。
  * 同一把 key 永远落在同一位置——宇宙对同一个人恒定。
  */
-const SUN_ORBIT_R = 30; // 恒星球面半径
+const SUN_ORBIT_R_MIN = 30; // 恒星球面半径下限（小宇宙不缩水，外壳装不下时自适应放大）
+const SUN_SHELL_GAP = 3; // 星团外壳之间的最小间隙（世界单位），防黏连
+const FREE_SHELL_MARGIN = 1.2; // 自由星离星团外壳的余量
+/* 球面排布力参数：软斥力负责均匀铺开，硬斥力负责外壳不穿插 */
+const SPREAD_K = 6; // 软斥力强度（∝ 1/d²，按双方外壳加权 → 大团占更宽间隔）
+const PUSH_K = 0.3; // 硬斥力每轮强度
+const FORCE_MAX = 0.8; // 单对单轮位移上限（防振荡）
 
 function globePoint(key: string, radius: number): [number, number, number] {
   const u = hash01(`${key}:gu`) * 2 - 1;
@@ -65,36 +71,129 @@ function globePoint(key: string, radius: number): [number, number, number] {
   return [radius * s * Math.cos(phi), radius * u, radius * s * Math.sin(phi)];
 }
 
-/** 多主体球面排布：按 key 顺序放，与已放主体角距 < 0.55rad 时换盐重试 */
-function globeLayout(entries: { key: string; radius: number }[]): Map<string, [number, number, number]> {
-  const placed: [number, number, number][] = [];
+/* 星团球面排布（2026-10-15 二次修正）：
+ * 1) 软斥力：所有星团两两互斥（Thomson 式 ∝ 1/d²，按双方外壳加权）→ 均匀铺满球面，
+ *    不再扎堆在一个半球；大星团斥力更强，自然占据更宽的间隔；
+ * 2) 硬斥力：外壳（shellA+shellB+GAP）接触时额外强推 → 外壳绝不穿插（防黏连）。
+ * 与 2D 布局引擎（universe.ts）同一套力模拟思路；哈希初值 + 固定迭代 → 全程确定性，
+ * 同一份数据永远算出同一片宇宙。 */
+function globeLayout(
+  entries: { key: string; shell: number }[],
+  radius: number
+): Map<string, [number, number, number]> {
+  const n = entries.length;
   const out = new Map<string, [number, number, number]>();
-  for (const e of entries) {
-    let pos = globePoint(e.key, e.radius);
-    for (let attempt = 1; attempt <= 8; attempt++) {
-      const tooClose = placed.some((q) => {
-        const dot = (pos[0] * q[0] + pos[1] * q[1] + pos[2] * q[2]) / (e.radius * e.radius);
-        return dot > 0.85; // cos(0.55)
-      });
-      if (!tooClose) break;
-      pos = globePoint(`${e.key}#${attempt}`, e.radius);
+  if (n === 0) return out;
+  const p = entries.map((e) => {
+    const v = globePoint(e.key, radius);
+    return { x: v[0], y: v[1], z: v[2] };
+  });
+  const need = entries.map((a) => entries.map((b) => a.shell + b.shell + SUN_SHELL_GAP));
+  for (let tick = 0; tick < 400; tick++) {
+    const fx = new Array<number>(n).fill(0);
+    const fy = new Array<number>(n).fill(0);
+    const fz = new Array<number>(n).fill(0);
+    for (let i = 0; i < n; i++) {
+      for (let j = i + 1; j < n; j++) {
+        const dx = p[i].x - p[j].x;
+        const dy = p[i].y - p[j].y;
+        const dz = p[i].z - p[j].z;
+        const d2 = dx * dx + dy * dy + dz * dz;
+        if (d2 < 1e-8) {
+          // 哈希初值完全重合（极小概率）：沿 +x 掰开再交给斥力
+          fx[i] += 0.5;
+          fx[j] -= 0.5;
+          continue;
+        }
+        const d = Math.sqrt(d2);
+        // 软斥力（均匀铺开）+ 硬斥力（防外壳穿插）
+        let f = (SPREAD_K * (entries[i].shell + entries[j].shell)) / Math.max(d2, 4);
+        if (d < need[i][j]) f += ((need[i][j] - d) / d) * PUSH_K;
+        f = Math.min(f, FORCE_MAX);
+        const s = f / d;
+        fx[i] += dx * s;
+        fy[i] += dy * s;
+        fz[i] += dz * s;
+        fx[j] -= dx * s;
+        fy[j] -= dy * s;
+        fz[j] -= dz * s;
+      }
     }
-    placed.push(pos);
-    out.set(e.key, pos);
+    for (let i = 0; i < n; i++) {
+      const x = p[i].x + fx[i];
+      const y = p[i].y + fy[i];
+      const z = p[i].z + fz[i];
+      const k = radius / (Math.hypot(x, y, z) || 1); // 落回球面
+      p[i].x = x * k;
+      p[i].y = y * k;
+      p[i].z = z * k;
+    }
   }
+  entries.forEach((e, i) => out.set(e.key, [p[i].x, p[i].y, p[i].z]));
   return out;
 }
 
-/** 自由星：球体积内均匀散布（cbrt 修正径向密度） */
-function freePoint(id: string): [number, number, number] {
-  const dir = globePoint(id, 1);
-  const r = 8 + Math.cbrt(hash01(`${id}:fr`)) * 26;
-  return [dir[0] * r, dir[1] * r, dir[2] * r];
+/* 恒星球面半径：外壳总面积装不下时按面积判据放大（球帽面积 ≈ π·shell²，与 R 无关；
+ * 占比 ≤ 0.3 的宽松密度，给均匀铺开留呼吸空间）。R 放大时全景相机距离同比放大，构图尺度不变。 */
+function sunOrbitRadius(shells: number[]): number {
+  const sumSq = shells.reduce((acc, s) => acc + s * s, 0);
+  return Math.max(SUN_ORBIT_R_MIN, Math.sqrt(sumSq / 1.2));
 }
 
-/** 星团半径随成员数扩张（平方根律，防大领域过挤） */
+/** 自由星：球体积内均匀散布（cbrt 修正径向密度）；落进星团外壳则沿径向推出壳外（防混入星团、被外壳挡住点击） */
+function freePoint(
+  id: string,
+  radius: number,
+  shells: { pos: [number, number, number]; r: number }[]
+): [number, number, number] {
+  const dir = globePoint(id, 1);
+  const r = 8 + Math.cbrt(hash01(`${id}:fr`)) * (radius - 4);
+  let x = dir[0] * r;
+  let y = dir[1] * r;
+  let z = dir[2] * r;
+  for (let pass = 0; pass < 4; pass++) {
+    let hit: { pos: [number, number, number]; r: number } | null = null;
+    let best = Infinity;
+    for (const s of shells) {
+      const d = Math.hypot(x - s.pos[0], y - s.pos[1], z - s.pos[2]);
+      if (d < s.r + FREE_SHELL_MARGIN && d < best) {
+        best = d;
+        hit = s;
+      }
+    }
+    if (!hit) break;
+    let ux = x - hit.pos[0];
+    let uy = y - hit.pos[1];
+    let uz = z - hit.pos[2];
+    let ul = Math.hypot(ux, uy, uz);
+    if (ul < 1e-4) {
+      ux = dir[0];
+      uy = dir[1];
+      uz = dir[2];
+      ul = Math.hypot(ux, uy, uz) || 1;
+    }
+    const target = hit.r + FREE_SHELL_MARGIN + 0.4 + hash01(`${id}:fj`) * 1.6;
+    x = hit.pos[0] + (ux / ul) * target;
+    y = hit.pos[1] + (uy / ul) * target;
+    z = hit.pos[2] + (uz / ul) * target;
+  }
+  return [x, y, z];
+}
+
+/** 星团半径随成员数扩张（平方根律，防大领域过挤；基数压低：一两个行星的小团不再虚胖） */
 function clusterRadius(planetCount: number): number {
-  return 3.6 + Math.min(8.5, 1.7 * Math.sqrt(planetCount));
+  return 1.6 + Math.min(8.6, 1.8 * Math.sqrt(planetCount));
+}
+
+/** 执念核心半径：随星团尺寸缩放（小团配小核，防核心辉光把小星团撑成一坨光球） */
+function nucleusRadius(clusterR: number): number {
+  return 1.15 + 0.115 * clusterR;
+}
+
+/** 星团可视外壳半径（背景球）：罩住最外行星（orbitBase + clusterR）再留一圈；排布/聚焦/自由星避让共用 */
+function shellRadius(planetCount: number): number {
+  const clusterR = clusterRadius(planetCount);
+  return nucleusRadius(clusterR) + clusterR + 2.6;
 }
 
 /* 执念团状物的位移源：simplex 噪声（参考作同款，noise2D 采样方式与参考作一致）。
@@ -114,7 +213,6 @@ const noise2D = createNoise2D(mulberry32(20261009));
 const PLANET_R = 0.8;
 const PLANET_R_DEEP = 1.2;
 const FREE_R = 0.55; // 自由星小行星
-const SUN_R = 2.4;
 
 /* 行星表面基色（与 STAR_VISUAL body 渐变同源的中段色） */
 const PLANET_BASE: Record<string, string> = {
@@ -333,16 +431,19 @@ function getNucleusTexture(): THREE.Texture {
 /* ---------- 恒星 → 执念团状物（严格复刻 Space Globe 2 的 nucleus）----------
  * IcosahedronGeometry 高细分 + 顶点沿法线 simplex 位移（±14%，noise2D 同参考作采样），
  * MeshPhongMaterial + star.jpg（默认白底高光），每帧 computeVertexNormals 平滑法线。
- * 参考作 detail=28 是因半径 20 占满屏幕；我们半径 2.4，detail=16 足够平滑且 7 颗同屏不卡。
+ * 参考作 detail=28 是因半径 20 占满屏幕；我们半径 ~1.5–2.4（随星团缩放），
+ * detail=16 足够平滑且多颗同屏不卡。
  */
 
 function Sun({
   sun,
   position,
+  radius,
   onSunClick,
 }: {
   sun: SceneSun;
   position: [number, number, number];
+  radius: number; // 核心半径（随星团尺寸缩放）
   onSunClick: (domain: string, x: number, y: number) => void;
 }) {
   const halo = useRef<THREE.Sprite>(null);
@@ -352,10 +453,10 @@ function Sun({
   const oy = hash01(`${sun.domain}:ny`) * 40;
 
   const geo = useMemo(() => {
-    const g = new THREE.IcosahedronGeometry(SUN_R, 16);
+    const g = new THREE.IcosahedronGeometry(radius, 16);
     g.userData.base = new Float32Array(g.attributes.position.array);
     return g;
-  }, []);
+  }, [radius]);
   useEffect(() => () => geo.dispose(), [geo]);
 
   const scratch = useMemo(() => new THREE.Vector3(), []);
@@ -368,14 +469,14 @@ function Sun({
     for (let i = 0; i < pos.count; i++) {
       scratch.set(base[i * 3], base[i * 3 + 1], base[i * 3 + 2]).normalize();
       const n = noise2D(scratch.x + ox + tt, scratch.y + oy + tt);
-      const r = SUN_R + n * SUN_R * 0.14;
+      const r = radius + n * radius * 0.14;
       pos.setXYZ(i, scratch.x * r, scratch.y * r, scratch.z * r);
     }
     pos.needsUpdate = true;
     geo.computeVertexNormals();
     // 辉光呼吸（保留原恒星的节奏）
     const s = 1 + 0.06 * Math.sin(t * 0.8 + phase);
-    halo.current?.scale.set(SUN_R * 5.2 * s, SUN_R * 5.2 * s, 1);
+    halo.current?.scale.set(radius * 5.2 * s, radius * 5.2 * s, 1);
   });
 
   return (
@@ -392,7 +493,7 @@ function Sun({
       >
         <meshPhongMaterial map={getNucleusTexture()} />
       </mesh>
-      <sprite ref={halo} scale={[SUN_R * 5.2, SUN_R * 5.2, 1]}>
+      <sprite ref={halo} scale={[radius * 5.2, radius * 5.2, 1]}>
         <spriteMaterial
           map={getGlowTexture()}
           color="#f0e2bd"
@@ -440,6 +541,9 @@ function System({
   const omega = 0.05 + hash01(`${sun.domain}:om`) * 0.06; // rad/s，周期 70–130s（只驱动星尘层）
 
   const clusterR = clusterRadius(planets.length);
+  const nucleusR = nucleusRadius(clusterR);
+  // 行星轨道从核心表面外一圈起排（小星团里不再被大核心占满）
+  const orbitBase = nucleusR + 1.7;
 
   /* 每颗行星的轨道参数（确定性）：球体积内初始方向 + 半径（cbrt 修正），
    * 逐行星轨道面倾角（法线偏离星团主轴最多 ~30°）+ 角速度 ∝ r^-1.5 × 0.55–1.6 抖动。
@@ -448,7 +552,7 @@ function System({
     () =>
       planets.map((p) => {
         const d = globePoint(`${p.id}:cd`, 1);
-        const r = 2.8 + Math.cbrt(hash01(`${p.id}:cr`)) * clusterR;
+        const r = orbitBase + Math.cbrt(hash01(`${p.id}:cr`)) * clusterR;
         const dir = new THREE.Vector3(d[0], d[1], d[2]);
         const axis = new THREE.Vector3(
           (hash01(`${p.id}:ax`) - 0.5) * 1.1,
@@ -459,7 +563,7 @@ function System({
         const phase = hash01(`${p.id}:op`) * Math.PI * 2;
         return { id: p.id, orbit: { dir, axis, r, omega, phase } as OrbitMeta };
       }),
-    [planets, clusterR]
+    [planets, clusterR, orbitBase]
   );
 
   // 星尘粒子：内层弥散带 0.5R–1.25R + 外层亮星壳 1.3R–1.6R（Additive 辉光点，随星团同转）
@@ -493,8 +597,8 @@ function System({
     if (spinRef.current) spinRef.current.rotation.y += delta * omega;
   });
 
-  // 背景球半径：罩住最外行星（2.8 + clusterR）再留一圈
-  const shellR = clusterR * 1.15 + 3.4;
+  // 背景球半径（与球面排布/聚焦共用的外壳定义）
+  const shellR = shellRadius(planets.length);
 
   return (
     <group position={position} rotation={[tiltX, 0, tiltZ]}>
@@ -520,7 +624,7 @@ function System({
           depthWrite={false}
         />
       </mesh>
-      <Sun sun={sun} position={[0, 0, 0]} onSunClick={onSunClick} />
+      <Sun sun={sun} position={[0, 0, 0]} radius={nucleusR} onSunClick={onSunClick} />
       {/* 星尘层：随星团刚性慢转（行星不在此组内——刚性旋转量纲和单星公转接近，
           会把所有行星"带着同速走"，公转必须完全由各自轨道参数决定） */}
       <group ref={spinRef}>
@@ -649,14 +753,14 @@ function FrameDriver({ metaRef }: { metaRef: React.MutableRefObject<PlanetMeta[]
 /* ---------- 聚焦驱动：点中星团 → 相机以它为中心居中放大；到位后交还用户操控 ---------- */
 
 const ORIGIN = new THREE.Vector3(0, 0, 0);
-const OVERVIEW_DIST = 88;
+const OVERVIEW_DIST_BASE = 88; // 球面半径 30 时的全景相机距离（R 放大时同比缩放）
 
 interface FocusTarget {
   pos: THREE.Vector3;
   dist: number;
 }
 
-function FocusRig({ focus }: { focus: FocusTarget | null }) {
+function FocusRig({ focus, overviewDist }: { focus: FocusTarget | null; overviewDist: number }) {
   const camera = useThree((s) => s.camera);
   const controls = useThree((s) => s.controls) as { target: THREE.Vector3 } | null;
   const arrived = useRef(false);
@@ -670,7 +774,7 @@ function FocusRig({ focus }: { focus: FocusTarget | null }) {
     if (!controls || arrived.current) return;
     const k = 1 - Math.exp(-delta * 2.8);
     const tp = focus ? focus.pos : ORIGIN;
-    const desired = focus ? focus.dist : OVERVIEW_DIST;
+    const desired = focus ? focus.dist : overviewDist;
     controls.target.lerp(tp, k);
     tmp.copy(camera.position).sub(controls.target);
     const len = tmp.length();
@@ -725,22 +829,43 @@ export default function UniverseScene({
     return { map, free };
   }, [stars, suns]);
 
-  /* 中央球体构图：恒星在半径 30 球面壳层上做角距分离排布 */
+  /* 中央球体构图：恒星在球面上做外壳感知排布（防星团黏连）；球面半径随外壳总量自适应放大 */
+  const shellByKey = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const s of suns) {
+      m.set(`sun:${s.domain}`, shellRadius(bySystem.map.get(s.domain)?.length ?? 0));
+    }
+    return m;
+  }, [suns, bySystem]);
+  const sunR = useMemo(() => sunOrbitRadius([...shellByKey.values()]), [shellByKey]);
   const globe = useMemo(
-    () => globeLayout(suns.map((s) => ({ key: `sun:${s.domain}`, radius: SUN_ORBIT_R }))),
-    [suns]
+    () => globeLayout([...shellByKey.entries()].map(([key, shell]) => ({ key, shell })), sunR),
+    [shellByKey, sunR]
   );
+  /* 全景构图尺度恒定：R 放大多少，全景相机距离同比例放大 */
+  const globeScale = sunR / SUN_ORBIT_R_MIN;
+  const overviewDist = OVERVIEW_DIST_BASE * globeScale;
 
   /* 聚焦目标表：星团中心 + 合适的观察距离（罩住背景球再留余量） */
   const focusMap = useMemo(() => {
     const m = new Map<string, FocusTarget>();
     for (const sun of suns) {
       const p = globe.get(`sun:${sun.domain}`)!;
-      const shellR = clusterRadius(bySystem.map.get(sun.domain)?.length ?? 0) * 1.15 + 3.4;
+      const shellR = shellByKey.get(`sun:${sun.domain}`)!;
       m.set(sun.domain, { pos: new THREE.Vector3(p[0], p[1], p[2]), dist: Math.max(20, shellR * 2.3) });
     }
     return m;
-  }, [suns, globe, bySystem]);
+  }, [suns, globe, shellByKey]);
+
+  /* 自由星避让用的外壳表（中心 + 半径） */
+  const shellCenters = useMemo(
+    () =>
+      suns.map((s) => ({
+        pos: globe.get(`sun:${s.domain}`)!,
+        r: shellByKey.get(`sun:${s.domain}`)!,
+      })),
+    [suns, globe, shellByKey]
+  );
 
   const toggleFocus = (domain: string) =>
     setFocusedDomain((d) => (d === domain ? null : domain));
@@ -755,13 +880,13 @@ export default function UniverseScene({
   return (
     <Canvas
       dpr={[1, 2]}
-      camera={{ position: [0, 8, 88], fov: 50, near: 1, far: 1200 }}
+      camera={{ position: [0, 8 * globeScale, overviewDist], fov: 50, near: 1, far: 1200 }}
       gl={{ antialias: true, alpha: true }}
       style={{ position: 'absolute', inset: 0 }}
     >
       <SceneApiBridge apiRef={apiRef} objectsRef={objectsRef} onUnfocus={unfocus} />
       <FrameDriver metaRef={metaRef} />
-      <FocusRig focus={focus} />
+      <FocusRig focus={focus} overviewDist={overviewDist} />
       {/* 光照（同参考作）：强定向光打出团块高光与行星明暗面 + 环境光托住夜面 */}
       <directionalLight position={[80, 60, 100]} intensity={1.6} />
       <ambientLight intensity={0.32} />
@@ -782,13 +907,13 @@ export default function UniverseScene({
         />
       ))}
 
-      {/* 自由星：球体积内散布的小行星，不公转；聚焦星团时让位（不可点） */}
+      {/* 自由星：球体积内散布的小行星（避开星团外壳），不公转；聚焦星团时让位（不可点） */}
       {bySystem.free.map((s) => (
         <Planet
           key={s.id}
           star={s}
           radius={FREE_R}
-          position={freePoint(s.id)}
+          position={freePoint(s.id, sunR, shellCenters)}
           userData={{ sid: s.id }}
           interactive={!focusedDomain}
           metaRef={metaRef}
