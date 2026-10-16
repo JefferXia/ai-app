@@ -12,7 +12,8 @@
 > sky 3D 贴图取同色板纬度近似（salmon 朝北 → 红朝南）。
 > **2026-10-17 按霍金斯层级图原图核对**：值域收窄——numb **20–50**（冷淡 50，悲伤 75 独立成档）、
 > calm **350–400**（理智 400，500 起归爱）；能量图例（TIER_INFO）与打标提示词括注同步对齐
-> （courage = 勇气·满意·主动，love = 爱·喜悦·平静·开悟）。
+> （courage = 勇气·满意·主动，love = 爱·喜悦·平静·开悟）；同日按各能级释义充实打标触发词
+> 与边界规则（`lib/yinian/tag.ts`，规则级变更，需重跑打样基线）。
 > 实现：`app/yinian/yinian-shared.tsx`（`STAR_VISUAL` / `Planet` / `STAR_CSS`）
 
 ## 1. 设计判断
@@ -72,8 +73,9 @@ calm 重新锚定为宽恕·理智——**旧数据 5 值原地有效，零迁�
 
 三通道语义随之细化：**色相 = 霍金斯层级位置**（沿图表色带）、**亮度 = 层级**
 （单调上升：爱最亮；愤怒响而不亮）、**节奏 = 唤醒度**（自转周期/闪烁，anxious 最急促）。
-打标边界规则与 few-shot 见 `lib/yinian/tag.ts`（hot vs courage / courage vs calm / calm vs love）；
-扩档后需重跑 `scripts/yinian-tag-sample.mjs` 重建准确率基线。
+打标边界规则与 few-shot 见 `lib/yinian/tag.ts`（numb vs low / 委屈 / 嫉妒 /
+hot vs courage / courage vs calm / calm vs love）；触发词与边界规则 2026-10-17 按各能级
+释义校准（规则级变更），需重跑 `scripts/yinian-tag-sample.mjs` 重建准确率基线。
 
 `prefers-reduced-motion` 下全部动画降级为静态。
 
