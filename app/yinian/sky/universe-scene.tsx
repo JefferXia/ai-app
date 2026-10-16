@@ -8,9 +8,12 @@
  *   星团整体再叠一层领域固有倾角轴的刚性慢转，星尘随转。
  * - 星团外罩 BackSide 星野球壳（参考作的 sky sphere，"球体构图"读感来源），
  *   加内外两层星尘粒子（Additive 辉光点），随星团同转，强化"小星系"体感。
- * - 行星 = 真 3D 球体：定向光打出明暗面，霍金斯能量层级 7 档纬度条纹贴图
- *   （颜色沿图表色带，复用 STAR_SURFACE），自转周期 = 唤醒度（焦虑 6s 急促 → 麻木 60s
- *   近乎停滞），自发光强度 = 意识层级（爱最亮，愤怒响而不亮）。
+ * - 行星 = 真 3D 球体 + 无光照材质（meshBasic，toneMapped 关）：贴图沿纬度采样
+ *   STAR_VISUAL.stops，与 2D 星球（经典太阳系 CSS 线性渐变）同一渐变单源、所见即所得
+ *   （2026-10-16，木星的橙乳横纹因此天然成为纬度带）；亮度层级由色板本身承载
+ *   （爱最亮，愤怒响而不亮——响度走辉光闪烁通道），自转周期 = 唤醒度（焦虑 6s 急促 →
+ *   麻木 60s 近乎停滞，复用 STAR_SPIN）。场景光照仅供恒星核（Phong）塑形；
+ *   另加极淡的视角相关边缘暗化（fresnel，见 applyLimbDark）找回球体感。
  * - 交互分层：点中星团背景球 → 相机居中放大聚焦该星团（FocusRig 过渡，到位后交还操控），
  *   此时其行星才可点；再点背景球或 ESC 回全景。自由星在无聚焦时可点。
  * - 全局背景：页面级 CSS 星野图（sky1.jpg cover + brightness 40%，参考作的 body 背景写法）。
@@ -25,7 +28,7 @@ import { Canvas, useFrame, useThree, type ThreeEvent } from '@react-three/fiber'
 import { OrbitControls } from '@react-three/drei';
 import { createNoise2D } from 'simplex-noise';
 import * as THREE from 'three';
-import { STAR_SURFACE } from '../yinian-shared';
+import { STAR_SPIN, STAR_VISUAL } from '../yinian-shared';
 import { hash01 } from '../universe';
 
 export interface SceneStar {
@@ -36,7 +39,6 @@ export interface SceneStar {
   x: number; // 布局百分比（预留，3D 场景不直接用）
   y: number;
   z: number; // 深度 -1…1
-  tracers: { key: string; inkColor: string }[]; // NPC 痕迹（≤3）
 }
 
 export interface SceneSun {
@@ -215,69 +217,71 @@ const PLANET_R = 0.8;
 const PLANET_R_DEEP = 1.2;
 const FREE_R = 0.55; // 自由星小行星
 
-/* 行星表面基色（与 STAR_VISUAL body 渐变同源的中段色）——霍金斯能量层级 7 档，
- * 颜色沿图表色带自低到高：黑灰 → 蓝灰 → 棕 → 深红 → 金 → 象牙 → 青白（2026-10-15 校准） */
-const PLANET_BASE: Record<string, string> = {
-  numb: '#3a3a40',
-  low: '#77909f',
-  anxious: '#6e5a45',
-  hot: '#8a3227',
-  courage: '#c98f45',
-  calm: '#d3cec2',
-  love: '#8ecfc0',
-};
+/* 行星大气辉光色（与 STAR_VISUAL.halo 同源的 3D 提亮版）——霍金斯能量层级 7 档，
+ * 2026-10-16 与经典太阳系 CSS 色板对齐；表面色不再单独设表，由 planetTexture
+ * 沿纬度采样 STAR_VISUAL.stops（与 2D 星球 body 同一渐变）。行星为无光照材质
+ * （meshBasic，不受场景光照影响），亮度层级由色板本身承载，与 2D 同源。 */
 const HALO_COLOR: Record<string, string> = {
   numb: '#56545e',
-  low: '#8fa3b0',
-  anxious: '#9c8260',
-  hot: '#c25a3f',
+  low: '#7cc4dd',
+  anxious: '#e8a06a',
+  hot: '#c96a4a',
   courage: '#eccb87',
-  calm: '#e8e4da',
-  love: '#dff5ec',
-};
-/* 自发光强度 = 意识层级：沿霍金斯量表单调上升（爱最亮；愤怒响而不亮，响度走转速/闪烁通道） */
-const EMISSIVE: Record<string, number> = {
-  numb: 0.03,
-  low: 0.14,
-  anxious: 0.2,
-  hot: 0.32,
-  courage: 0.38,
-  calm: 0.42,
-  love: 0.55,
+  calm: '#e6e6dc',
+  love: '#ccf7f7',
 };
 
-/** 行星贴图：基色 + 纬度条纹（STAR_SURFACE 色阶）+ 两极压暗；equirect 裹上球面 */
+/** 行星贴图：沿纬度采样 STAR_VISUAL.stops——与 2D 星球 body 同一条线性渐变（单源同步，
+ *  stops 的 0→1 按贴图纵轴铺开，即北纬→南纬重现 2D 渐变的色序；木星 anxious 的
+ *  橙乳横纹因此天然成为纬度带）。改 body 渐变须同步改 stops（见 yinian-shared.tsx）。
+ *  equirect 裹上球面。 */
 const textureCache = new Map<string, THREE.CanvasTexture>();
 function planetTexture(emotion: string | null): THREE.CanvasTexture {
   const key = emotion ?? 'calm';
   const hit = textureCache.get(key);
   if (hit) return hit;
-  const s = STAR_SURFACE[key] ?? STAR_SURFACE.calm;
+  const v = STAR_VISUAL[key] ?? STAR_VISUAL.calm;
   const c = document.createElement('canvas');
   c.width = 256;
   c.height = 128;
   const ctx = c.getContext('2d')!;
-  ctx.fillStyle = PLANET_BASE[key] ?? PLANET_BASE.calm;
-  ctx.fillRect(0, 0, 256, 128);
-  // 纬度条纹（木星式），两色阶交替、边缘柔化
-  for (let i = 0; i < 14; i++) {
-    const y = (i / 14) * 128 + hash01(`${key}:band${i}`) * 6;
-    const h = 3 + hash01(`${key}:bh${i}`) * 7;
-    ctx.fillStyle = i % 2 ? s.a : s.b;
-    ctx.fillRect(0, y, 256, h);
-  }
-  // 两极压暗
-  const pole = ctx.createLinearGradient(0, 0, 0, 128);
-  pole.addColorStop(0, 'rgba(0,0,0,.4)');
-  pole.addColorStop(0.25, 'rgba(0,0,0,0)');
-  pole.addColorStop(0.75, 'rgba(0,0,0,0)');
-  pole.addColorStop(1, 'rgba(0,0,0,.4)');
-  ctx.fillStyle = pole;
+  const grad = ctx.createLinearGradient(0, 0, 0, 128);
+  for (const [t, color] of v.stops) grad.addColorStop(t, color);
+  ctx.fillStyle = grad;
   ctx.fillRect(0, 0, 256, 128);
   const tex = new THREE.CanvasTexture(c);
   tex.colorSpace = THREE.SRGBColorSpace;
   textureCache.set(key, tex);
   return tex;
+}
+
+/* 边缘暗化（limb darkening）：2D CSS 星球是平面渐变、没有球体感，3D 球面在轮廓处
+ * 按视角 fresnel 曲线压暗一层找回体积——中心与主色完全不动，也不响应光照。
+ * 通过 onBeforeCompile 注入 meshBasicMaterial：贴图解码/输出编码仍走 three 标准管线
+ * （sRGB ↔ 线性），压暗发生在线性空间，与 2D 的逐色一致不受影响。 */
+const LIMB_DARK_AMOUNT = 0.22; // 轮廓处最大变暗比例（极淡）
+const LIMB_DARK_POWER = 1.8; // fresnel 指数：越大暗边越收拢向轮廓
+
+function applyLimbDark(mat: THREE.MeshBasicMaterial): void {
+  mat.onBeforeCompile = (shader) => {
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', '#include <common>\nvarying vec3 ynN;\nvarying vec3 ynV;')
+      .replace(
+        '#include <begin_vertex>',
+        `#include <begin_vertex>
+	ynN = normalize( normalMatrix * normal );
+	ynV = -( modelViewMatrix * vec4( transformed, 1.0 ) ).xyz;`
+      );
+    shader.fragmentShader = shader.fragmentShader
+      .replace('#include <common>', '#include <common>\nvarying vec3 ynN;\nvarying vec3 ynV;')
+      .replace(
+        '#include <opaque_fragment>',
+        (inc) => `float ynRim = pow( 1.0 - abs( dot( normalize( ynN ), normalize( ynV ) ) ), ${LIMB_DARK_POWER.toFixed(1)} );
+	outgoingLight *= 1.0 - ${LIMB_DARK_AMOUNT.toFixed(2)} * ynRim;
+	${inc}`
+      );
+  };
+  mat.customProgramCacheKey = () => 'yn-planet-limb'; // 所有行星共用同一注入程序
 }
 
 /** 共享辉光纹理（亮核 → 透明），由材质 color 染色 */
@@ -355,11 +359,21 @@ function Planet({
   const emotion = star.emotion ?? 'calm';
   // 自转：情绪决定基准周期，逐行星 ×0.6–1.5 抖动，不会同步
   const selfSpeed =
-    ((Math.PI * 2) / (STAR_SURFACE[emotion]?.speed ?? 26)) * (0.6 + hash01(`${star.id}:ss`) * 0.9);
+    ((Math.PI * 2) / (STAR_SPIN[emotion]?.period ?? 26)) * (0.6 + hash01(`${star.id}:ss`) * 0.9);
   const phase = hash01(`${star.id}:ph`) * Math.PI * 2;
   // 自转轴倾角：逐行星不同
   const tiltX = (hash01(`${star.id}:stx`) - 0.5) * 0.9;
   const tiltZ = (hash01(`${star.id}:stz`) - 0.5) * 0.9;
+  // 星体材质：无光照直出（toneMapped 关）+ 极淡边缘暗化；贴图按情绪取全局缓存
+  const bodyMaterial = useMemo(() => {
+    const m = new THREE.MeshBasicMaterial({
+      map: planetTexture(star.emotion),
+      toneMapped: false,
+    });
+    applyLimbDark(m);
+    return m;
+  }, [star.emotion]);
+  useEffect(() => () => bodyMaterial.dispose(), [bodyMaterial]);
   return (
     <group
       position={position}
@@ -389,6 +403,7 @@ function Planet({
         <mesh
           name="body"
           geometry={sphereGeo}
+          material={bodyMaterial}
           scale={radius}
           onClick={
             interactive
@@ -401,15 +416,7 @@ function Planet({
           }
           onPointerOver={interactive ? () => (document.body.style.cursor = 'pointer') : undefined}
           onPointerOut={interactive ? () => (document.body.style.cursor = '') : undefined}
-        >
-          <meshStandardMaterial
-            map={planetTexture(star.emotion)}
-            emissive={HALO_COLOR[emotion] ?? HALO_COLOR.calm}
-            emissiveIntensity={EMISSIVE[emotion] ?? 0.2}
-            roughness={0.92}
-            metalness={0}
-          />
-        </mesh>
+        />
       </group>
       {/* 大气辉光 */}
       <sprite scale={[radius * 3.4, radius * 3.4, 1]}>
@@ -905,7 +912,7 @@ export default function UniverseScene({
       <SceneApiBridge apiRef={apiRef} objectsRef={objectsRef} onUnfocus={unfocus} />
       <FrameDriver metaRef={metaRef} />
       <FocusRig focus={focus} overviewDist={overviewDist} />
-      {/* 光照（同参考作）：强定向光打出团块高光与行星明暗面 + 环境光托住夜面 */}
+      {/* 光照（同参考作）：仅供恒星核团块（Phong）塑形；行星为无光照材质，不受影响 */}
       <directionalLight position={[80, 60, 100]} intensity={1.6} />
       <ambientLight intensity={0.32} />
 

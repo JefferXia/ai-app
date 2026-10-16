@@ -140,14 +140,11 @@ export default function SkyClient() {
   /* 宇宙布局：与首页同一引擎，同一份数据同一片宇宙 */
   const universe = useMemo(() => (stars ? computeUniverse(stars) : null), [stars]);
 
-  /* 场景数据：布局坐标 + 情绪 + 领域归属 + NPC 痕迹 */
+  /* 场景数据：布局坐标 + 情绪 + 领域归属 */
   const sceneStars: SceneStar[] = useMemo(() => {
     if (!stars || !universe) return [];
     return stars.map((s) => {
       const p = universe.pos.get(s.id);
-      const tracers = [...new Set(s.replies.filter((r) => r.status === 'done').map((r) => r.npcKey))]
-        .slice(0, 3)
-        .map((key) => ({ key, inkColor: npcOf(key).inkColor }));
       return {
         id: s.id,
         emotion: s.emotion,
@@ -156,7 +153,6 @@ export default function SkyClient() {
         x: p?.x ?? 50,
         y: p?.y ?? 44,
         z: p?.z ?? 0,
-        tracers,
       };
     });
   }, [stars, universe]);

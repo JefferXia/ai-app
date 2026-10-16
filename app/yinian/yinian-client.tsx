@@ -13,9 +13,9 @@ import YinianHeader from './yinian-header';
 /* ===== 一念 · 首页即星空（二期：心念宇宙） =====
  * 书写区在上，念头以星点散布于下方夜空；放出后星先隐身等打标 domain（~11s），
  * 星进星盘后从释念钮飞往所属星盘落位；到位再弹浮层：信笺点评（虚线印位 → 落印）+ 深念 + 焚毁。
- * 二期：星位由宇宙布局引擎决定——同领域聚成星座，同执念 ≥10 念显形引力漩涡；
- * 被 NPC 点评过的星带印色光晕；每个星团即一个 3D 星系——暖核星云盘透视倾斜成椭圆并
- * 整体缓旋，成员星按黄金角向日葵排布匀称落进盘内（参考 universe + galaxy）。
+ * 二期：星位由宇宙布局引擎决定——同领域聚成星座（同执念 ≥10 念的引力漩涡、被点评星的
+ * NPC 印色痕迹光圈均已下线，见 docs/design/yinian-star-visual.md §5）；每个星团即一个 3D 星系——
+ * 暖核星云盘透视倾斜成椭圆并整体缓旋，成员星按黄金角向日葵排布匀称落进盘内（参考 universe + galaxy）。
  * 设计依据：docs/design/yinian-phase1.html、docs/design/yinian-galaxy-layout.md、PRD §6/§11
  */
 
@@ -381,8 +381,6 @@ export default function YinianClient() {
     const v = starVisualOf(t.emotion);
     const size = t.isDeep ? 8 : 5;
     const p = s ?? posOf(t);
-    // NPC 痕迹：被几位 NPC 点评过，就带几圈印色光晕（最多三层）
-    const tracers = [...new Set(t.replies.filter((r) => r.status === 'done').map((r) => r.npcKey))].slice(0, 3);
     // 发布飞行：await=星隐在落位待量坐标；fly=从释念钮飞来（--fx/--fy 为起跑偏移）
     const flying = flight && flight.id === t.id ? flight : null;
     const cls = [
@@ -419,20 +417,7 @@ export default function YinianClient() {
         title={anchorLabel(t.createdAt)}
         aria-label={`念头：${t.text.slice(0, 20)}`}
         onClick={(e) => openStar(t, e)}
-      >
-        {tracers.map((k, i) => (
-          <span
-            key={k}
-            className="yn-trace"
-            aria-hidden
-            style={{
-              inset: -(4 + i * 4),
-              ['--halo' as string]: `${npcOf(k).inkColor}66`,
-              animationDelay: `${i * -1.2}s`,
-            }}
-          />
-        ))}
-      </button>
+      />
     );
   };
 
