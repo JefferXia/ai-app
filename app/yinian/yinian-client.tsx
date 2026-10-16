@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { AudioLines } from 'lucide-react';
 import { SERIF, anchorLabel, seeded } from '../wenxin/shared';
 import { NPC_DISPLAY, CARE_REPLY } from '@/lib/yinian/npc-display';
-import { STAR_CSS, Planet, Spinner, panelPlacement, starVisualOf } from './yinian-shared';
+import { EMOTION_DOT, STAR_CSS, Planet, Spinner, panelPlacement, starVisualOf } from './yinian-shared';
 import { computeUniverse, hash01, type UniverseLayout } from './universe';
 import YinianHeader from './yinian-header';
 
@@ -84,6 +84,49 @@ function Wave({ text }: { text: string }) {
         </span>
       ))}
     </div>
+  );
+}
+
+/* ===== 能量层级图例（右侧按钮区正上方竖 bar，参考 .progress 竖翻：横渐变转竖） =====
+ * 底 → 顶 = 能量自低到高（numb → love，霍金斯带自下而上，200 勇气为正负转折点）；
+ * bar 为一条连续色带（色由 EMOTION_DOT 单源生成），7 段等分仅作热区，
+ * 鼠标悬停 / 键盘聚焦弹出该层级说明 */
+const TIER_INFO = [
+  { key: 'numb', label: '羞愧 · 内疚 · 冷淡', range: '20–50', tone: '低能量 / 负面' },
+  { key: 'low', label: '悲伤', range: '75', tone: '低能量 / 负面' },
+  { key: 'anxious', label: '恐惧 · 欲望', range: '100–125', tone: '低能量 / 负面' },
+  { key: 'hot', label: '愤怒 · 骄傲', range: '150–175', tone: '低能量 / 负面' },
+  { key: 'courage', label: '勇气 · 满意 · 主动', range: '200–310', tone: '正向' },
+  { key: 'calm', label: '宽恕 · 理智', range: '350–400', tone: '正向' },
+  { key: 'love', label: '爱 · 喜悦 · 平静 · 开悟', range: '500–1000', tone: '正向' },
+] as const;
+
+function EnergyScale() {
+  const n = TIER_INFO.length;
+  // 每档色落在自身七等分段的中点，相邻档自然过渡（同 .progress 的连续渐变观感）
+  const grad = `linear-gradient(to top, ${TIER_INFO.map(
+    (t, i) => `${EMOTION_DOT[t.key]} ${(((i + 0.5) / n) * 100).toFixed(1)}%`
+  ).join(', ')})`;
+  return (
+    <aside className="yn-scale" aria-label="能量层级图例">
+      <div className="yn-scale-bar" style={{ ['--yn-scale-grad' as string]: grad }}>
+        {TIER_INFO.map((t) => (
+          <button
+            key={t.key}
+            className="yn-scale-seg"
+            aria-label={`${t.label} · 能量层级 ${t.range} · ${t.tone}`}
+          >
+            <span className="yn-scale-tip" aria-hidden>
+              <span className="yn-scale-tip-title">
+                <span className="yn-scale-dot" style={{ background: EMOTION_DOT[t.key] }} />
+                {t.label}
+              </span>
+              <span className="yn-scale-tip-meta">能量层级 {t.range} · {t.tone}</span>
+            </span>
+          </button>
+        ))}
+      </div>
+    </aside>
   );
 }
 
@@ -502,6 +545,7 @@ export default function YinianClient() {
             </div>
           ))}
           {groups.free.map((t) => renderStar(t))}
+          <EnergyScale />
           {thoughts !== null && thoughts.length === 0 && (
             <p style={S.empty}>夜空还没有星。写下第一个念头。</p>
           )}
@@ -817,7 +861,47 @@ const CSS = `
     36% { transform: scale(1); }
     100% { transform: scale(1); opacity: .8; }
   }
+  /* ===== 能量层级图例（右侧按钮区正上方竖 bar，参考 .progress 竖翻） =====
+     色带由 EnergyScale 以 EMOTION_DOT 生成（--yn-scale-grad），分段仅作热区；
+     tooltip 指向左侧，不拦截星点点击 */
+  /* 固定在按钮列（right 28 + 40px 宽，中心线 48）正上方：bar 中心线同 48 → right 43；
+     底 132 = 音乐钮顶（80+40）+ 12px 间距 */
+  .yn-scale {
+    position: fixed; right: 43px; bottom: 132px;
+    height: min(40vh, 320px);
+    display: flex; align-items: stretch;
+    z-index: 3;
+  }
+  .yn-scale-bar {
+    width: 10px; border-radius: 999px;
+    background: var(--yn-scale-grad);
+    box-shadow: 0 0 0 1px rgba(255,255,255,.08); /* 细环勾边：底部 numb 近黑不没入夜空 */
+    /* DOM 序 numb→love，渐变 to top 把 numb 画在底——column-reverse 让段落与色带对齐 */
+    display: flex; flex-direction: column-reverse;
+    animation: yn-scale-rise 1.1s cubic-bezier(.22,1,.36,1) both; /* 参考 .progress 的填入动画，竖翻成自底升起 */
+  }
+  @keyframes yn-scale-rise { from { height: 0; } }
+  .yn-scale-seg {
+    flex: 1; position: relative;
+    background: none; border: none; padding: 0; cursor: pointer;
+  }
+  /* 分段热区横向加宽（bar 仅 10px 宽，鼠标好碰） */
+  .yn-scale-seg::after { content: ""; position: absolute; inset: 0 -7px; }
+  .yn-scale-tip {
+    position: absolute; right: calc(100% + 14px); top: 50%;
+    transform: translateY(-50%);
+    display: block; white-space: nowrap;
+    background: #141416; border: 1px solid #26262b; border-radius: 8px;
+    padding: 9px 12px;
+    opacity: 0; pointer-events: none;
+    transition: opacity .25s ease;
+  }
+  .yn-scale-seg:hover .yn-scale-tip,
+  .yn-scale-seg:focus-visible .yn-scale-tip { opacity: 1; }
+  .yn-scale-tip-title { display: flex; align-items: center; gap: 7px; font-size: 12px; letter-spacing: .12em; color: #f3ece2; }
+  .yn-scale-dot { width: 8px; height: 8px; border-radius: 50%; box-shadow: 0 0 0 1px rgba(255,255,255,.14); flex-shrink: 0; }
+  .yn-scale-tip-meta { display: block; margin-top: 4px; font-size: 11px; letter-spacing: .08em; color: #d5d5d5; }
   @media (prefers-reduced-motion: reduce) {
-    .yn-star, .yn-star-deep, .yn-star-fly, .yn-seal-slot, .yn-seal, .yn-fade, .yn-wave span, .yn-galaxy-plane, .yn-music-on svg { animation: none; transition: none; }
+    .yn-star, .yn-star-deep, .yn-star-fly, .yn-seal-slot, .yn-seal, .yn-fade, .yn-wave span, .yn-galaxy-plane, .yn-music-on svg, .yn-scale-bar { animation: none; transition: none; }
   }
 `;

@@ -49,7 +49,7 @@ export interface StarVisual {
 }
 
 export const STAR_VISUAL: Record<string, StarVisual> = {
-  // 羞愧·内疚·冷淡（20-75）：黑矮星——几乎熄灭，inset 阴影压出暗月牙与残光
+  // 羞愧·内疚·冷淡（20-50）：黑矮星——几乎熄灭，inset 阴影压出暗月牙与残光
   numb: {
     dot: 'radial-gradient(circle at 35% 30%, #9c9a91, #5a5952 55%, #2c2c30)',
     glow: 'rgba(92,90,96,.35)',
@@ -122,7 +122,7 @@ export const STAR_VISUAL: Record<string, StarVisual> = {
     halo: 'rgba(255,228,150,.5)',
     shadow: '0 0 18px #ffc, 0 0 50px #ffb',
   },
-  // 宽恕·理智（350-500）：月球——象牙映着深空蓝
+  // 宽恕·理智（350-400）：月球——象牙映着深空蓝
   calm: {
     dot: 'radial-gradient(circle at 35% 30%, #fffdf7, #e8e4da 60%, #9b968b)',
     glow: 'rgba(232,228,218,.55)',

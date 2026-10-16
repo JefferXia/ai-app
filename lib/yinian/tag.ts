@@ -11,6 +11,8 @@ import { hasCrisisSignal, type SafetyLevel } from './safety';
  * 2026-10-15：emotion 按霍金斯意识层级校准为 7 档（新增 courage/love，calm 锚定宽恕·理智），
  * 驱动星体颜色（docs/design/yinian-star-visual.md §3）。旧数据 5 值仍有效，渲染层同表映射；
  * 扩档后需重跑 scripts/yinian-tag-sample.mjs 重建准确率基线。
+ * 2026-10-17：按霍金斯层级图原图核对值域（numb 20-50 / calm 350-400），并把层级括注补齐
+ * （courage 补「满意」、love 补「开悟」）；仅措辞级调整，建议重跑打样脚本确认无回退。
  *
  * 失败兜底：打标不可用时降级为默认标签（safety 走关键词扫描，宁严勿宽），
  * 念头照常发布、点评照常匹配——打标是增强，不是门槛。
@@ -24,8 +26,8 @@ export interface ThoughtTag {
 }
 
 const DOMAINS = ['career', 'relationship', 'family', 'self', 'meaning', 'money', 'health', 'creation', 'loss', 'other'];
-/* 7 档按霍金斯量表自低到高排列：numb(20-75) → low(75) → anxious(100-125) → hot(150-175)
- * → courage(200-310) → calm(350-500) → love(500-1000)；视觉层（STAR_VISUAL/PLANET_BASE）同序 */
+/* 7 档按霍金斯量表自低到高排列：numb(20-50) → low(75) → anxious(100-125) → hot(150-175)
+ * → courage(200-310) → calm(350-400) → love(500-1000)；视觉层（STAR_VISUAL）同序 */
 const EMOTIONS = ['numb', 'low', 'anxious', 'hot', 'courage', 'calm', 'love'];
 const ATTACHMENTS = ['result', 'recognition', 'control', 'relation', 'certainty', 'past', 'none'];
 
@@ -56,9 +58,9 @@ const TAG_PROMPT = `你是「一念」产品的念头打标器。用户写下一
 - low：低落、悲伤、沮丧、无力、失去后的沉（悲伤）
 - anxious：焦虑、不安、担忧、慌乱、怕、停不下来的想要（恐惧/欲望）
 - hot：激动、愤怒、不甘、委屈、不服、憋着一股火（愤怒/骄傲）
-- courage：下决心、想开始、想改变、有干劲、觉得自己可以（勇气/主动）
+- courage：下决心、想开始、想改变、有干劲、觉得自己可以（勇气/满意/主动）
 - calm：释然、想通了、放下了、看清了、安定、清晰（宽恕/理智）
-- love：感恩、爱、被触动、心里很满、美、暖、很静但发光（爱/喜悦/平静）
+- love：感恩、爱、被触动、心里很满、美、暖、很静但发光（爱/喜悦/平静/开悟）
 
 【attachment · 执念类型】念头背后揪住不放的东西，七选一：
 - result：对结果的执着（输赢、成败、回报）
