@@ -6,7 +6,7 @@ export const EMOTION_DOT: Record<string, string> = {
   numb: '#2a2a38',
   low: '#2296b4',
   anxious: '#d07f45',
-  hot: '#c93a1e',
+  hot: '#e21a35',
   courage: '#c98f45',
   calm: '#c8c8c0',
   love: '#8fd8dc',
@@ -33,14 +33,16 @@ export const DOMAIN_LABEL: Record<string, string> = {
  * 唤醒度定脉动节奏/自转周期）× 质感（线性渐变球面 + 辉光/内阴影）。
  * 2026-10-15 起 7 档（原 5 档 + courage/love）；旧数据 5 值同表渲染，无需迁移。
  * 2026-10-16 星球样式严格参考经典太阳系 CSS：去星环、去纹理带与明暗层，
- * 渐变方向与 box-shadow 逐档照搬参考值（numb 的 inset 月牙 / sun 的双层金光等）。 */
+ * 渐变方向与 box-shadow 逐档照搬参考值（numb 的 inset 月牙 / sun 的双层金光等）。
+ * 2026-10-16 hot 改参考 circle 径向渐变：白辉高光 + salmon→红基球 + 右下 inset 月牙
+ * （径向无纬度等价，sky 3D 贴图取同色板纬度近似）。 */
 
 export interface StarVisual {
   dot: string;       // 星点表面（小尺寸渐变）
   glow: string;      // 星点光晕色（rgba）
   dotAnim?: string;  // 星点动画类（能量通道）
   body: string;      // 星体表面（线性渐变，严格参考经典太阳系 CSS）
-  stops: ReadonlyArray<readonly [number, string]>; // body 同一渐变的结构化停点（0–1），sky 3D 贴图沿纬度采样——与 body 须同步改
+  stops: ReadonlyArray<readonly [number, string]>; // body 同一渐变的结构化停点（0–1），sky 3D 贴图沿纬度采样——与 body 须同步改（径向渐变无纬度等价：hot 取同色板纬度近似，见该档注释）
   halo: string;      // 星点外圈光晕色（rgba）
   shadow?: string;   // 星体 box-shadow（辉光/内阴影，严格参考值；缺省则无）
   bodyAnim?: string; // 星体动画类
@@ -91,18 +93,20 @@ export const STAR_VISUAL: Record<string, StarVisual> = {
     halo: 'rgba(232,145,80,.35)',
     bodyAnim: 'yn-flicker',
   },
-  // 愤怒·骄傲（150-175）：赤矮星——火砖烧到橙红
+  // 愤怒·骄傲（150-175）：绯红星——circle 参考：白辉高光叠 salmon→红基球，右下 inset 黑月牙
   hot: {
-    dot: 'radial-gradient(circle at 40% 35%, #ffb59a, #c25a3f 55%, #8a3227)',
-    glow: 'rgba(194,90,63,.75)',
+    dot: 'radial-gradient(circle at 35% 25%, #fcd9de, #f07787 55%, #e21a35)',
+    glow: 'rgba(226,26,53,.7)',
     dotAnim: 'yn-pulse-hot',
-    body: 'linear-gradient(to bottom, firebrick, orangered)',
+    body: 'radial-gradient(circle at 35% 25%, #ffffff75, #ffffff00 40%), radial-gradient(circle at 25% 25%, #f07787, #e21a35)',
+    // 径向渐变无纬度等价：3D 贴图取同色板纬度近似（光侧朝北）
     stops: [
-      [0, 'firebrick'],
-      [1, 'orangered'],
+      [0, '#f07787'],
+      [1, '#e21a35'],
     ],
-    halo: 'rgba(178,69,44,.45)',
-    shadow: '0 0 5px brown',
+    halo: 'rgba(240,119,135,.45)',
+    // circle 参考 inset -1vmin -3vmin 8vmin -3vmin，按 150px 星球折算（32vmin 原型）
+    shadow: 'inset -5px -14px 38px -14px #000',
     bodyAnim: 'yn-corona',
   },
   // 勇气·满意·主动（200-310，勇气是正负转折点）：熔金太阳——日冕式双层金光，有力而不灼人
@@ -255,9 +259,11 @@ export const STAR_CSS = `
   .yn-dawn { animation: yn-dawn 5s ease-in-out infinite; }
   @keyframes yn-dawn { 0%,100% { opacity: .72 } 50% { opacity: 1 } }
   .yn-corona { animation: yn-corona 3.2s ease-in-out infinite; }
+  /* 日冕呼吸：外圈辉光在 circle 参考的右下 inset 黑月牙上叠加（动画覆盖 inline shadow，
+     月牙必须进 keyframes；色随 hot 换绯红 #e21a35） */
   @keyframes yn-corona {
-    0%,100% { box-shadow: 0 0 60px 12px rgba(194,90,63,.42), inset -8px -12px 30px rgba(0,0,0,.55) }
-    50% { box-shadow: 0 0 96px 26px rgba(194,90,63,.6), inset -8px -12px 30px rgba(0,0,0,.55) }
+    0%,100% { box-shadow: 0 0 60px 12px rgba(226,26,53,.42), inset -5px -14px 38px -14px #000 }
+    50% { box-shadow: 0 0 96px 26px rgba(226,26,53,.6), inset -5px -14px 38px -14px #000 }
   }
   @media (prefers-reduced-motion: reduce) {
     .yn-planet, .yn-pop, .yn-pop-side, .yn-pulse-hot, .yn-breathe-slow, .yn-flicker, .yn-ember, .yn-dawn, .yn-corona { animation: none; }

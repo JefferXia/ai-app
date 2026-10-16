@@ -696,8 +696,13 @@ const CSS = `
     position: absolute; border: none; border-radius: 50%; cursor: pointer; padding: 0;
     transition: transform .25s ease, left 1.1s cubic-bezier(.4,0,.2,1), top 1.1s cubic-bezier(.4,0,.2,1);
   }
-  /* 扩大触屏点击热区（5px 星点 → ~25px） */
-  .yn-star::after { content: ""; position: absolute; inset: -10px; }
+  /* 星点点击热区：桌面精确指针贴球（5px 星 → ~13px，8px 深念 → ~16px）——
+     星团内邻星间距可近至 ~25px，原 25px 热区互相重叠、点空隙会误开邻星；
+     触屏（coarse 指针）保留外扩 10px 的大热区保可点性 */
+  .yn-star::after { content: ""; position: absolute; inset: -4px; }
+  @media (pointer: coarse) {
+    .yn-star::after { inset: -10px; }
+  }
   .yn-star:hover { transform: scale(1.8); }
   .yn-star-deep { animation: yn-breathe 4s ease-in-out infinite; }
   /* 放出一念：星先隐身等打标 domain（await，通常 ~11s）——domain 回来星进星盘落位，

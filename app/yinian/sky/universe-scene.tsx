@@ -225,7 +225,7 @@ const HALO_COLOR: Record<string, string> = {
   numb: '#56545e',
   low: '#7cc4dd',
   anxious: '#e8a06a',
-  hot: '#c96a4a',
+  hot: '#ef8b97',
   courage: '#eccb87',
   calm: '#e6e6dc',
   love: '#ccf7f7',
