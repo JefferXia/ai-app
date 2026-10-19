@@ -4,7 +4,7 @@ import HallClient, { type HallNpc } from './hall-client';
 
 export const metadata: Metadata = {
   title: '名人堂 · 一念',
-  description: '一面印墙——十五位传奇心智，常驻与云游',
+  description: '一面印墙——二十八位传奇心智，常驻与云游',
 };
 
 export default function HallPage() {
@@ -15,6 +15,7 @@ export default function HallPage() {
     seal: n.seal,
     inkColor: n.inkColor,
     status: n.status,
+    field: n.field,
     tagline: n.tagline,
     persona: n.persona,
     mindModel: n.mindModel,

@@ -1,8 +1,11 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
+import { Lock } from 'lucide-react';
 import { SERIF } from '../../wenxin/shared';
 import { DOMAIN_LABEL } from '../yinian-shared';
+import { FIELD_LABEL, type NpcField } from '@/lib/yinian/npc-display';
 import YinianHeader from '../yinian-header';
 
 /* ===== 一念 · 名人堂：一面印墙（常驻全亮 + 云游半暗），点击看详情 ===== */
@@ -13,6 +16,7 @@ export interface HallNpc {
   seal: string;
   inkColor: string;
   status: 'resident' | 'roaming';
+  field: NpcField;
   tagline: string;
   persona: string;
   mindModel: string;
@@ -21,6 +25,8 @@ export interface HallNpc {
 
 export default function HallClient({ npcs }: { npcs: HallNpc[] }) {
   const [open, setOpen] = useState<string | null>(null);
+  const [fieldSel, setFieldSel] = useState<NpcField | 'all'>('all');
+  const [isMember, setIsMember] = useState(false);
   const current = npcs.find((n) => n.key === open) ?? null;
 
   useEffect(() => {
@@ -31,8 +37,24 @@ export default function HallClient({ npcs }: { npcs: HallNpc[] }) {
     return () => window.removeEventListener('keydown', onKey);
   }, []);
 
-  const residents = npcs.filter((n) => n.status === 'resident');
-  const roamings = npcs.filter((n) => n.status === 'roaming');
+  // 会员状态：决定云游位是否「出山」（与回复生成侧的服务端门控同源 /api/wenxin/me）
+  useEffect(() => {
+    let alive = true;
+    fetch('/api/wenxin/me')
+      .then(async (r) => {
+        const j = await r.json().catch(() => null);
+        if (alive && r.ok && j?.success) setIsMember(!!j.data?.isMember);
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  const visible = fieldSel === 'all' ? npcs : npcs.filter((n) => n.field === fieldSel);
+  const residents = visible.filter((n) => n.status === 'resident');
+  const roamings = visible.filter((n) => n.status === 'roaming');
+  const residentCount = npcs.filter((n) => n.status === 'resident').length;
 
   return (
     <div style={S.page}>
@@ -41,41 +63,82 @@ export default function HallClient({ npcs }: { npcs: HallNpc[] }) {
 
       <div style={S.board}>
         <p style={S.intro}>
-          十五位心智，八位常驻，七位云游。
+          {npcs.length} 位心智，{residentCount} 位常驻，{npcs.length - residentCount} 位云游。
           <br />
           他们不讲道理，只给你看他们看世界的方式。
         </p>
 
-        <section>
-          <h2 style={S.groupTitle}>常 驻</h2>
-          <div style={S.wall}>
-            {residents.map((n) => (
-              <SealTile key={n.key} npc={n} onOpen={() => setOpen(n.key)} />
-            ))}
-          </div>
-        </section>
+        <div style={S.filterRow}>
+          <button
+            style={fieldSel === 'all' ? { ...S.chip, ...S.chipOn } : S.chip}
+            onClick={() => setFieldSel('all')}
+            aria-pressed={fieldSel === 'all'}
+          >
+            全部
+          </button>
+          {(Object.keys(FIELD_LABEL) as NpcField[]).map((f) => (
+            <button
+              key={f}
+              style={fieldSel === f ? { ...S.chip, ...S.chipOn } : S.chip}
+              onClick={() => setFieldSel(fieldSel === f ? 'all' : f)}
+              aria-pressed={fieldSel === f}
+            >
+              {FIELD_LABEL[f]}
+            </button>
+          ))}
+        </div>
 
-        <section style={{ marginTop: 48 }}>
-          <h2 style={S.groupTitle}>云 游</h2>
-          <div style={S.wall}>
-            {roamings.map((n) => (
-              <SealTile key={n.key} npc={n} onOpen={() => setOpen(n.key)} />
-            ))}
-          </div>
-          <p style={S.roamNote}>云游者不定期出山。他们来时，自会落在你的念头旁。</p>
-        </section>
+        {residents.length > 0 && (
+          <section>
+            <h2 style={S.groupTitle}>常 驻</h2>
+            <div style={S.wall}>
+              {residents.map((n) => (
+                <SealTile key={n.key} npc={n} locked={false} onOpen={() => setOpen(n.key)} />
+              ))}
+            </div>
+          </section>
+        )}
+
+        {roamings.length > 0 && (
+          <section style={residents.length > 0 ? { marginTop: 48 } : undefined}>
+            <div style={S.groupTitleRow}>
+              <h2 style={{ ...S.groupTitle, marginBottom: 0 }}>云 游</h2>
+              {!isMember && (
+                <Link href="/yinian/member" className="yn-lock-hint">
+                  <Lock size={11} strokeWidth={1.8} />
+                  <span>开通会员解锁更多传奇心智</span>
+                </Link>
+              )}
+            </div>
+            <div style={S.wall}>
+              {roamings.map((n) => (
+                <SealTile key={n.key} npc={n} locked={!isMember} onOpen={() => setOpen(n.key)} />
+              ))}
+            </div>
+            {isMember && (
+              <p style={S.roamNote}>云游者不定期出山。他们来时，自会落在你的念头旁。</p>
+            )}
+          </section>
+        )}
       </div>
 
       {/* NPC 详情 */}
       {current && (
         <div style={S.overlay} onClick={() => setOpen(null)}>
           <div className="yn-fade" style={S.detail} onClick={(e) => e.stopPropagation()}>
+            {current.status === 'roaming' && !isMember && (
+              <div style={S.lockBar}>
+                <span style={S.lockText}>开通会员后，解锁云游者。</span>
+                <Link href="/yinian/member" style={S.lockCta}>开通会员</Link>
+              </div>
+            )}
             <div style={S.detailHead}>
               <span style={{ ...S.detailSeal, background: current.inkColor }}>{current.seal}</span>
               <div>
                 <div style={S.detailName}>
                   {current.name}
                   <span style={S.detailStatus}>{current.status === 'resident' ? '常驻' : '云游'}</span>
+                  <span style={S.detailStatus}>{FIELD_LABEL[current.field]}</span>
                 </div>
                 <div style={S.detailPersona}>{current.persona}</div>
               </div>
@@ -99,16 +162,18 @@ export default function HallClient({ npcs }: { npcs: HallNpc[] }) {
   );
 }
 
-function SealTile({ npc, onOpen }: { npc: HallNpc; onOpen: () => void }) {
+function SealTile({ npc, locked, onOpen }: { npc: HallNpc; locked: boolean; onOpen: () => void }) {
   const roaming = npc.status === 'roaming';
+  const dim = roaming && locked;
   return (
     <button
-      style={{ ...S.tile, opacity: roaming ? 0.55 : 1 }}
+      style={{ ...S.tile, opacity: roaming ? (locked ? 0.4 : 0.55) : 1 }}
       onClick={onOpen}
       aria-label={`查看${npc.name}`}
     >
-      <span style={{ ...S.tileSeal, background: npc.inkColor }}>{npc.seal}</span>
+      <span style={{ ...S.tileSeal, background: npc.inkColor, filter: dim ? 'grayscale(1)' : undefined }}>{npc.seal}</span>
       <span style={S.tileName}>{npc.name}</span>
+      {dim && <span style={S.tileLock}>未出山</span>}
     </button>
   );
 }
@@ -116,8 +181,16 @@ function SealTile({ npc, onOpen }: { npc: HallNpc; onOpen: () => void }) {
 const S: Record<string, React.CSSProperties> = {
   page: { minHeight: '100vh', background: '#0b0b0c', color: '#d6d3cd', fontFamily: SERIF },
   board: { position: 'relative', zIndex: 1, maxWidth: 720, margin: '0 auto', padding: '96px 24px 120px' },
-  intro: { fontSize: 13, lineHeight: 2.4, letterSpacing: '0.15em', color: '#d5d5d5', textAlign: 'center', marginBottom: 56 },
+  intro: { fontSize: 13, lineHeight: 2.4, letterSpacing: '0.15em', color: '#d5d5d5', textAlign: 'center', marginBottom: 32 },
+  filterRow: { display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: 8, marginBottom: 44 },
+  chip: { fontSize: 12, letterSpacing: '0.2em', color: '#d5d5d5', background: 'none', borderWidth: 1, borderStyle: 'solid', borderColor: '#3a3a40', borderRadius: 999, padding: '5px 14px', cursor: 'pointer', fontFamily: SERIF, transition: 'color .2s, border-color .2s' },
+  chipOn: { color: '#c9a86a', borderColor: '#c9a86a' },
+  tileLock: { fontSize: 10, letterSpacing: '0.3em', color: '#8f8f95' },
+  lockBar: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 14, background: 'rgba(201,168,106,.08)', border: '1px solid rgba(201,168,106,.35)', borderRadius: 8, padding: '10px 14px', marginBottom: 20 },
+  lockText: { fontSize: 12, letterSpacing: '0.1em', color: '#c9a86a', lineHeight: 1.8 },
+  lockCta: { flexShrink: 0, fontSize: 12, letterSpacing: '0.2em', color: '#141416', background: '#c9a86a', borderRadius: 999, padding: '6px 14px', textDecoration: 'none' },
   groupTitle: { fontSize: 12, letterSpacing: '0.6em', color: '#d5d5d5', fontWeight: 400, marginBottom: 24 },
+  groupTitleRow: { display: 'flex', alignItems: 'center', gap: 14, marginBottom: 24 },
   wall: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(96px, 1fr))', gap: '28px 12px' },
   tile: { background: 'none', border: 'none', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, padding: 8, transition: 'opacity .3s' },
   tileSeal: {
@@ -153,5 +226,7 @@ const S: Record<string, React.CSSProperties> = {
 const CSS = `
   .yn-fade { animation: yn-fade .4s ease-out; }
   @keyframes yn-fade { from { opacity: 0; transform: translateY(8px) } to { opacity: 1; transform: none } }
+  .yn-lock-hint { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; letter-spacing: .15em; color: #c9a86a; text-decoration: none; transition: opacity .2s; }
+  .yn-lock-hint:hover { opacity: .75; }
   @media (prefers-reduced-motion: reduce) { .yn-fade { animation: none; } }
 `;

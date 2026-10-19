@@ -175,7 +175,7 @@ export default function MemberClient({
               )}
             </div>
             <p className={`text-xs leading-loose text-center ${theme.faint}`}>
-              引路的「整理成笔记」、翻书的完整书单，已经都是你的了。
+              {isYinian ? '已解锁全部传奇心智' : '引路的「整理成笔记」、翻书的完整书单，已经都是你的了。'}
             </p>
             <p className="text-center">
               <a href={isYinian ? '/yinian' : '/wenxin'} className={`text-xs tracking-[0.2em] ${theme.faint} hover:opacity-70`}>
@@ -249,8 +249,12 @@ export default function MemberClient({
                 </p>
               </div>
               <ul className={`space-y-2 text-sm leading-loose ${theme.faint}`}>
-                <li>· 引路「整理成笔记」不限次</li>
-                <li>· 翻书解锁完整书单</li>
+                {/* <li>· 引路「整理成笔记」不限次</li>
+                <li>· 翻书解锁完整书单</li> */}
+                <li>· 解锁全部传奇心智</li> 
+                <li>· 优先体验复盘高级功能</li> 
+                <li>· 更快匹配、更快收到评论</li>
+                
               </ul>
             </div>
 

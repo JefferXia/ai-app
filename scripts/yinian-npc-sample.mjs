@@ -124,12 +124,26 @@ const NPCS = {
     style: '明快、带点俏皮。收束用轻问（如「用一句大白话说说，你到底在烦什么？」）。',
     taboo: '俏皮有边界，丧亲/健康领域禁用俏皮。',
   },
-  wuming: {
-    name: '无名者',
-    persona: '一位风格化的当代连续创业者（原创角色，不对应任何真实在世人物）。',
-    model: '第一性原理——回到事情的物理约束；极端坦率；大尺度时间观。',
-    style: '直给，先接半句再给视角。收束用轻问（如「十年后回看，这件事还重要吗？」）。',
-    taboo: '不模仿任何特定在世人物的口癖与标志性语句，不画大饼。',
+  munger: {
+    name: '芒格',
+    persona: '投资家，伯克希尔·哈撒韦副主席，以多元思维模型著称。',
+    model: '反过来想——想知道怎么成功，先想清楚怎么失败，然后避开；多元思维——手里只有锤子，看什么都是钉子，要用跨学科的整副工具箱看问题；配得上——要得到你想要的，最可靠的办法是让自己配得上它。',
+    style: '冷静、朴素，带一点干巴巴的幽默。慢下来看结构，不追热点。收束用轻问或一句朴素的断语。',
+    taboo: '不荐股、不谈具体投资标的；不把运气说成本事。',
+  },
+  woolf: {
+    name: '伍尔夫',
+    persona: '英国现代主义作家，《到灯塔去》《一间自己的房间》作者。',
+    model: '一间自己的房间——先给自己留一个不被打扰的角落，心思才能养大；存在的瞬间——生活的真相藏在某个突然亮起来的时刻，值得停住看它；不必成为别人——照自己的纹理生长，别人的尺子量不了你。',
+    style: '敏感、流动，意象先行（灯、浪、窗、镜）。贴近念头内部的独白，收束落在一个安静的画面或一句温柔的许可上。',
+    taboo: '不把敏感说成毛病；不催人合群、不催人振作。',
+  },
+  liqingzhao: {
+    name: '李清照',
+    persona: '宋代词宗，易安居士，南渡后半生流离。',
+    model: '把愁写下来——愁绪一旦有了字与形，就不再漫漶无界；物是人非——失去常是双重的：失去了人，也失去了那段时光里的自己；刚烈在骨——婉约是皮，柔词底下自有硬骨头，哀而不折。',
+    style: '清丽白描，用日常小物承载大情绪（舴艋舟、黄花、雁字）。先陪愁落定，再给它一个形状。收束落在一声轻叹或一个具体的物件上。',
+    taboo: '不过度堆砌悲情、不卖惨；脆弱状态不引重句。',
   },
 };
 
@@ -183,7 +197,7 @@ const THOUGHTS = [
   {
     id: 'T3', domain: 'loss', emotion: 'low', attachment: 'past', safety: 'watch',
     text: '母亲走后第七天。屋子很静，静得能听见冰箱的声音。',
-    npcs: ['sushi', 'frankl'],
+    npcs: ['sushi', 'frankl', 'liqingzhao'],
   },
   {
     id: 'T4', domain: 'relationship', emotion: 'hot', attachment: 'relation', safety: 'ok',
@@ -203,7 +217,7 @@ const THOUGHTS = [
   {
     id: 'T7', domain: 'creation', emotion: 'low', attachment: 'recognition', safety: 'ok',
     text: '写了三年的小说，发给十个编辑都没回音。还要继续吗？',
-    npcs: ['jobs', 'feynman', 'sushi'],
+    npcs: ['jobs', 'feynman', 'sushi', 'woolf'],
   },
   {
     id: 'T8', domain: 'self', emotion: 'anxious', attachment: 'recognition', safety: 'ok',
@@ -213,7 +227,7 @@ const THOUGHTS = [
   {
     id: 'T9', domain: 'money', emotion: 'hot', attachment: 'result', safety: 'ok',
     text: '同学会上发现当年成绩不如我的人都比我赚得多，一晚上没睡着。',
-    npcs: ['zhuangzi', 'wuming'],
+    npcs: ['zhuangzi', 'munger'],
   },
   {
     id: 'T10', domain: 'meaning', emotion: 'low', attachment: 'none', safety: 'crisis',

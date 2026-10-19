@@ -1,6 +1,7 @@
 import 'server-only';
 
 import prisma from '@/lib/prisma';
+import { getMemberState } from '@/lib/wenxin-membership';
 import { chat } from './llm';
 import { matchNpcs } from './match';
 import { NPCS, buildNpcSystemPrompt } from './npcs';
@@ -11,6 +12,7 @@ import type { ThoughtTag } from './tag';
  * 一念 · 点评编排
  * 打标完成后由 API 经 unstable_after 触发：
  * crisis → 写入红线话术（不走 NPC）；否则匹配 NPC → 建 pending 行 → 并行生成。
+ * 云游路过为会员权益：匹配前查会员状态，isMember 传入 matchNpcs（服务端硬门）。
  */
 
 const CARE_NPC_KEY = 'care'; // 红线话术的伪 NPC key（前端特判渲染）
@@ -61,13 +63,16 @@ export async function generateRepliesForThought(thoughtId: string): Promise<void
     return;
   }
 
-  // 轮空判定：该用户最近 3 个念头的点评 NPC
-  const recent = await prisma.ynThought.findMany({
-    where: { userId: thought.userId, id: { not: thoughtId } },
-    orderBy: { createdAt: 'desc' },
-    take: 3,
-    include: { replies: { select: { npcKey: true } } },
-  });
+  // 轮空判定：该用户最近 3 个念头的点评 NPC；会员状态并行拉取（云游路过是会员权益）
+  const [recent, member] = await Promise.all([
+    prisma.ynThought.findMany({
+      where: { userId: thought.userId, id: { not: thoughtId } },
+      orderBy: { createdAt: 'desc' },
+      take: 3,
+      include: { replies: { select: { npcKey: true } } },
+    }),
+    getMemberState(thought.userId),
+  ]);
   const recentReplyKeys = recent.map((t) => t.replies.map((r) => r.npcKey));
 
   const tag: ThoughtTag = {
@@ -76,7 +81,12 @@ export async function generateRepliesForThought(thoughtId: string): Promise<void
     attachment: thought.attachment ?? 'none',
     safety: thought.safety as ThoughtTag['safety'],
   };
-  const npcKeys = matchNpcs({ tag, isDeep: thought.isDeep, recentReplyKeys });
+  const npcKeys = matchNpcs({
+    tag,
+    isDeep: thought.isDeep,
+    recentReplyKeys,
+    isMember: member?.isMember ?? false,
+  });
   if (npcKeys.length === 0) return;
 
   const rows = await Promise.all(
