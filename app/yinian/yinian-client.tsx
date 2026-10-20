@@ -9,6 +9,7 @@ import { NPC_DISPLAY, CARE_REPLY } from '@/lib/yinian/npc-display';
 import { EMOTION_DOT, STAR_CSS, Planet, Spinner, panelPlacement, starVisualOf } from './yinian-shared';
 import { computeUniverse, hash01, type UniverseLayout } from './universe';
 import YinianHeader from './yinian-header';
+import { ReleaseBar, ReleaseShell } from './release-composer';
 
 /* ===== 一念 · 首页即星空（二期：心念宇宙） =====
  * 书写区在上，念头以星点散布于下方夜空；放出后星先隐身等打标 domain（~11s），
@@ -470,33 +471,28 @@ export default function YinianClient() {
       <YinianHeader />
 
       <div style={S.board}>
-        {/* 书写区 */}
-        <section style={S.composer}>
-          <textarea
-            style={S.textarea}
-            placeholder="此刻心里有什么，就写什么"
-            value={draft}
-            autoFocus
-            maxLength={MAX_LEN}
-            aria-label="写下你的念头"
-            onChange={(e) => {
-              setDraft(e.target.value);
-              localStorage.setItem(DRAFT_KEY, e.target.value);
-            }}
-          />
-          <div style={S.composerBar}>
-            <span style={S.hint}>
-              {error || '写下即照见 · 仅你与 NPC 可见'}
-            </span>
-            <button
-              style={{ ...S.btnRelease, opacity: draft.trim() ? 1 : 0.4 }}
-              disabled={!draft.trim() || publishing}
+        {/* 书写区：复用首页发光输入卡（release-composer 共享件，金色呼吸晕 + 漂浮星光） */}
+        <section className="relative z-[2] mb-4 shrink-0">
+          <ReleaseShell className="px-[26px] pb-[18px] pt-[20px]">
+            <textarea
+              className="m-0 block w-full min-h-[96px] resize-none border-none bg-transparent p-0 font-[inherit] text-[17px] leading-[2] tracking-[0.03em] text-[#d6d3cd] outline-none placeholder:text-[#6b6b72]"
+              placeholder="此刻心里有什么，就写什么"
+              value={draft}
+              autoFocus
+              maxLength={MAX_LEN}
+              aria-label="写下你的念头"
+              onChange={(e) => {
+                setDraft(e.target.value);
+                localStorage.setItem(DRAFT_KEY, e.target.value);
+              }}
+            />
+            <ReleaseBar
+              hint={error || '写下即照见 · 仅你与 NPC 可见'}
+              active={!!draft.trim()}
+              publishing={publishing}
               onClick={publish}
-              aria-label="释念"
-            >
-              {publishing ? '释念中…' : '释 念'}
-            </button>
-          </div>
+            />
+          </ReleaseShell>
         </section>
 
         {/* 星野：宇宙布局——同领域聚星座；打标未完成时按初始散布。
@@ -667,22 +663,6 @@ export default function YinianClient() {
 const S: Record<string, React.CSSProperties> = {
   page: { height: '100vh', display: 'flex', flexDirection: 'column', background: '#0b0b0c', color: '#d6d3cd', fontFamily: SERIF, overflow: 'hidden' },
   board: { position: 'relative', zIndex: 1, flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', maxWidth: 720, width: '100%', margin: '0 auto', padding: '96px 24px 0' },
-    composer: { position: 'relative', zIndex: 2, flexShrink: 0, marginBottom: 16 },
-  textarea: {
-    width: '100%', minHeight: 96, resize: 'none', background: 'transparent',
-    border: 'none', outline: 'none', fontFamily: SERIF, fontSize: 17,
-    lineHeight: 2, color: '#d6d3cd', letterSpacing: '0.03em',
-  },
-  composerBar: {
-    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-    paddingTop: 14, borderTop: '1px solid #26262b',
-  },
-  hint: { fontSize: 12, letterSpacing: '0.2em', color: '#d5d5d5' },
-  btnRelease: {
-    border: '1px solid #d5d5d5', borderRadius: 999, background: '#d5d5d5',
-    color: '#141416', fontFamily: SERIF, fontSize: 12, letterSpacing: '0.3em',
-    padding: '8px 26px 8px 30px', cursor: 'pointer', transition: 'all .3s',
-  },
   field: { position: 'relative', flex: 1, minHeight: 0 },
   loadingWrap: { position: 'absolute', left: '50%', top: '38%', transform: 'translate(-50%, -50%)' },
   empty: { position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#d5d5d5', fontSize: 13, letterSpacing: '0.2em', textAlign: 'center' },

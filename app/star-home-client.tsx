@@ -7,6 +7,7 @@ import * as HoverCard from '@radix-ui/react-hover-card';
 import { EMOTION_DOT } from './yinian/yinian-shared';
 import { NPC_DISPLAY, FIELD_LABEL } from '@/lib/yinian/npc-display';
 import YinianHeader from './yinian/yinian-header';
+import { ReleaseBar, ReleaseShell } from './yinian/release-composer';
 
 /* 新首页：一念星空落地页。
  * 视觉参考 stars-scroll-effect：固定星空容器，星星带深度（视差速度）随机散布，
@@ -136,26 +137,14 @@ function ReleaseDemo() {
       className={`${DEMO_LINK}${shown ? ' yn-demo-on' : ''} w-[min(560px,100%)]`}
       aria-label="放出一念 · 进入一念"
     >
-      <div
-        className="yn-rise yn-rel relative min-h-[168px] cursor-pointer overflow-hidden rounded-[18px] border border-white/10 bg-[rgba(17,18,22,0.72)] px-[26px] pb-[18px] pt-[26px] text-left shadow-[0_24px_60px_rgba(0,0,0,0.4)] transition-[border-color,box-shadow] duration-[350ms] ease-in-out"
-        style={{ ['--d' as string]: '0s' }}
-      >
-        <span className="yn-rel-spark" style={{ left: '14%', top: '24%' }} aria-hidden />
-        <span className="yn-rel-spark" style={{ left: '84%', top: '20%', animationDelay: '1.4s' }} aria-hidden />
-        <span className="yn-rel-spark" style={{ left: '74%', top: '66%', animationDelay: '2.8s' }} aria-hidden />
-        <span className="yn-rel-spark" style={{ left: '30%', top: '72%', animationDelay: '2.1s' }} aria-hidden />
+      <ReleaseShell className="yn-rise min-h-[168px] cursor-pointer px-[26px] pb-[18px] pt-[26px] text-left" style={{ ['--d' as string]: '0s' }}>
         <p className="relative m-0 min-h-[3.6em] text-[15.5px] leading-[2] tracking-[0.04em] text-[#e8edf2]">
           {RELEASE_SAMPLES[si].slice(0, n)}
           <span className="yn-rel-caret" aria-hidden />
         </p>
         {flying && <span className="yn-rel-fly" aria-hidden />}
-        <div className="relative mt-[18px] flex items-center justify-between border-t border-white/[0.08] pt-3.5">
-          <span className="text-[11px] tracking-[0.25em] text-[#8f8f95]">倾听内心的声音，如实记录</span>
-          <span className="inline-block rounded-full bg-[#d5d5d5] py-2 pl-7 pr-6 text-xs tracking-[0.3em] text-[#141416]">
-            释 念
-          </span>
-        </div>
-      </div>
+        <ReleaseBar hint="倾听内心的声音，如实记录" active={n >= RELEASE_SAMPLES[si].length} />
+      </ReleaseShell>
     </Link>
   );
 }
