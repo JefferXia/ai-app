@@ -1,16 +1,20 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useRef, useState } from 'react';
+import { Fragment, useEffect, useRef, useState } from 'react';
 import { Mail } from 'lucide-react';
 import * as HoverCard from '@radix-ui/react-hover-card';
-import { SERIF } from './wenxin/shared';
+import { EMOTION_DOT } from './yinian/yinian-shared';
+import { NPC_DISPLAY, FIELD_LABEL } from '@/lib/yinian/npc-display';
 import YinianHeader from './yinian/yinian-header';
 
 /* 新首页：一念星空落地页。
  * 视觉参考 stars-scroll-effect：固定星空容器，星星带深度（视差速度）随机散布，
  * 滚动时星星以不同速度上移（参考项目的 warp 拉伸被其 twinkle 动画覆盖，实际不生效，故不做）；
- * 语汇对齐一念：#0b0b0c 夜空、衬线、#d6d3cd 正文、#d5d5d5 次级、#c9a86a 金。 */
+ * 语汇对齐一念：#0b0b0c 夜空、衬线、#d6d3cd 正文、#d5d5d5 次级、#c9a86a 金。
+ * 样式整理（2026-10-20）：布局排版走 Tailwind 工具类；keyframes / 伪元素 / hover / 媒体查询
+ * 等通用样式迁至 app/globals.css 的「一念 · 星空首页」区块；
+ * 动态值（--d 入场延迟 / --r 卡片旋转 / --i --num 词云序号 / --duration 星闪周期、情绪色）仍内联。 */
 
 interface Star {
   left: number;      // %
@@ -43,19 +47,364 @@ const SECTIONS = [
   {
     mark: '壹',
     title: '放出一念',
-    body: '一个念头落下，就亮成一颗星。不必宏大，不必完整——触动即是标准',
+    body: '',
   },
   {
     mark: '贰',
     title: '念有回复',
-    body: '传奇心智路过你的星，留下一条评论。被看见，本身就是一种回应',
+    body: '看看传奇心智会回复些什么',
   },
   {
     mark: '叁',
-    title: '回观',
-    body: '重读那时的念与评论，隔着时间，看见当时的自己',
+    title: '回观复盘',
+    body: '对照即明，让复盘成为一种生活习惯',
   },
 ] as const;
+
+/* ===== 功能介绍区：三个 HTML/CSS 模拟演示（对应 /yinian 与 /yinian/echo 的真实功能） ===== */
+
+/* 演示卡公共链接（整卡可点进对应页面）；宽度与附加间距按各演示追加 */
+const DEMO_LINK = 'yn-demo block mx-auto mt-11 no-underline text-inherit';
+/* Footer 栏目（<700px 收为通栏，补齐了旧内联样式下从未生效的移动端布局） */
+const FOOT_COL = 'w-[28%] max-w-[340px] max-[700px]:w-full max-[700px]:max-w-none';
+
+/* 进入视口后播放入场动效（IntersectionObserver 单次触发，无 IO 环境直接显示） */
+function useReveal<T extends HTMLElement>() {
+  const ref = useRef<T | null>(null);
+  const [shown, setShown] = useState(false);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || shown) return;
+    if (typeof IntersectionObserver === 'undefined') {
+      setShown(true);
+      return;
+    }
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((e) => e.isIntersecting)) {
+          setShown(true);
+          io.disconnect();
+        }
+      },
+      { threshold: 0.2 },
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, [shown]);
+  return { ref, shown };
+}
+
+/* 壹 · 放出一念：会发光的输入框——示例念头逐字浮现，凝成一颗星飞走，循环下一念；
+ * 整卡可点进 /yinian */
+const RELEASE_SAMPLES = [
+  '这周又有3位同事离职，我感觉不能再原地踏步了，内心有紧迫感。',
+  '什么都不缺，但每天醒来都觉得没意思。',
+  '新买了辆白色自行车，超喜欢！决定每天多运动。',
+  '不要在意他人的言行，而要专注于自己该做的事。',
+  '我总是优柔寡断。',
+  '虽然犯了错，但我已经学会今后该如何处理，这就够了！打住打住，别再垂头丧气了！',
+];
+
+function ReleaseDemo() {
+  const { ref, shown } = useReveal<HTMLAnchorElement>();
+  const [si, setSi] = useState(0);
+  const [n, setN] = useState(0); // 已浮现字数
+  const [flying, setFlying] = useState(false);
+
+  useEffect(() => {
+    if (!shown) return;
+    if (flying) {
+      const t = setTimeout(() => {
+        setFlying(false);
+        setN(0);
+        setSi((i) => (i + 1) % RELEASE_SAMPLES.length);
+      }, 1050);
+      return () => clearTimeout(t);
+    }
+    if (n < RELEASE_SAMPLES[si].length) {
+      const t = setTimeout(() => setN(n + 1), 88);
+      return () => clearTimeout(t);
+    }
+    const t = setTimeout(() => setFlying(true), 1800);
+    return () => clearTimeout(t);
+  }, [shown, si, n, flying]);
+
+  return (
+    <Link
+      ref={ref}
+      href="/yinian"
+      className={`${DEMO_LINK}${shown ? ' yn-demo-on' : ''} w-[min(560px,100%)]`}
+      aria-label="放出一念 · 进入一念"
+    >
+      <div
+        className="yn-rise yn-rel relative min-h-[168px] cursor-pointer overflow-hidden rounded-[18px] border border-white/10 bg-[rgba(17,18,22,0.72)] px-[26px] pb-[18px] pt-[26px] text-left shadow-[0_24px_60px_rgba(0,0,0,0.4)] transition-[border-color,box-shadow] duration-[350ms] ease-in-out"
+        style={{ ['--d' as string]: '0s' }}
+      >
+        <span className="yn-rel-spark" style={{ left: '14%', top: '24%' }} aria-hidden />
+        <span className="yn-rel-spark" style={{ left: '84%', top: '20%', animationDelay: '1.4s' }} aria-hidden />
+        <span className="yn-rel-spark" style={{ left: '74%', top: '66%', animationDelay: '2.8s' }} aria-hidden />
+        <span className="yn-rel-spark" style={{ left: '30%', top: '72%', animationDelay: '2.1s' }} aria-hidden />
+        <p className="relative m-0 min-h-[3.6em] text-[15.5px] leading-[2] tracking-[0.04em] text-[#e8edf2]">
+          {RELEASE_SAMPLES[si].slice(0, n)}
+          <span className="yn-rel-caret" aria-hidden />
+        </p>
+        {flying && <span className="yn-rel-fly" aria-hidden />}
+        <div className="relative mt-[18px] flex items-center justify-between border-t border-white/[0.08] pt-3.5">
+          <span className="text-[11px] tracking-[0.25em] text-[#8f8f95]">倾听内心的声音，如实记录</span>
+          <span className="inline-block rounded-full bg-[#d5d5d5] py-2 pl-7 pr-6 text-xs tracking-[0.3em] text-[#141416]">
+            释 念
+          </span>
+        </div>
+      </div>
+    </Link>
+  );
+}
+
+/* 贰 · 念有回复：传奇心智的评论卡——参考 onboarding 卡片（堆叠微旋、头像/正文/元信息/辉光）；
+ * 印章即头像，印色取 NPC 单源展示数据；末条为「创业者分身」演示（对应规划中的知识库型心智，
+ * 见 docs/yinian-npc-spec.md §8），不在 NPC_DISPLAY 名册内，展示字段就地给出 */
+const REPLY_CARDS: Array<{
+  key: string;
+  text: string;
+  meta: string;
+  name?: string;
+  seal?: string;
+  inkColor?: string;
+  field?: string;
+}> = [
+  {
+    key: 'laozi',
+    text: '「重为轻根，静为躁君」，若过于轻率就会失去根本，若过于急躁就会失去沉着与主见……',
+    meta: '回应于上周五的深夜',
+  },
+  {
+    key: 'jung',
+    text: '你怕的不是失败，是「失败的自己」被人看见。那个影子，也在等一把椅子。',
+    meta: '回应于昨日的清晨',
+  },
+  {
+    key: 'founder',
+    name: '某位创业者',
+    seal: '创',
+    inkColor: '#7a4a3a',
+    field: '分身',
+    text: '人生没有标准答案，你自己选择的那条路，就是正确的路。',
+    meta: '回应于昨日的午后',
+  },
+];
+
+function RepliesDemo() {
+  const { ref, shown } = useReveal<HTMLAnchorElement>();
+  return (
+    <Link
+      ref={ref}
+      href="/yinian"
+      className={`${DEMO_LINK}${shown ? ' yn-demo-on' : ''} w-[min(480px,100%)] pb-[60px]`}
+      aria-label="念有回复 · 进入一念"
+    >
+      <div className="relative px-2 pb-2.5 pt-3">
+        <div className="yn-reply-glow" aria-hidden />
+        <div className="yn-reply-dots" aria-hidden>
+          <i className="on" />
+          <i />
+          <i />
+        </div>
+        {REPLY_CARDS.map((c, i) => {
+          const npc = NPC_DISPLAY[c.key];
+          const name = npc ? npc.name : c.name;
+          const seal = npc ? npc.seal : c.seal;
+          const ink = npc ? npc.inkColor : c.inkColor;
+          const field = npc ? FIELD_LABEL[npc.field] : c.field;
+          return (
+            <div
+              key={c.key}
+              className={`yn-reply-card yn-reply-${i}`}
+              style={{ ['--d' as string]: `${(0.12 + i * 0.2).toFixed(2)}s` }}
+            >
+              <div className="mb-3 flex items-center gap-3">
+                <span
+                  className="inline-flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-lg text-sm text-[#f3ece2] shadow-[0_2px_8px_rgba(0,0,0,0.35)]"
+                  style={{ background: ink }}
+                >
+                  {seal}
+                </span>
+                <span className="text-[13.5px] tracking-[0.18em] text-[#f3ece2]">
+                  {name}
+                  <span className="ml-2.5 inline-block rounded-full border border-white/[0.12] px-[9px] py-0.5 align-[1px] text-[10.5px] tracking-[0.2em] text-[#8f8f95]">
+                    {field}
+                  </span>
+                </span>
+                <span className="ml-auto text-lg leading-none text-[#8f8f95]" aria-hidden>
+                  ⋯
+                </span>
+              </div>
+              <p className="m-0 text-[14.5px] leading-[2] tracking-[0.03em] text-[#e8edf2]">{c.text}</p>
+              <p className="mt-2.5 text-[11px] tracking-[0.16em] text-[#8f8f95]">{c.meta}</p>
+            </div>
+          );
+        })}
+      </div>
+    </Link>
+  );
+}
+
+/* 叁 · 回观：念头时间轴——同一条心念线索的 内心 → 行动 → 结果 三段回观，
+ * 节点间用金色箭头 + 短注解标出因果关联；+ 情绪日历（霍金斯七档色月历，色取 EMOTION_DOT 单源）；
+ * 点击进 /yinian/echo */
+const ECHO_TIMELINE: Array<{
+  stage: string;
+  when: string;
+  emotion: string;
+  text: string;
+  seals: string[];
+  link?: string; // 指向下一节点的箭头注解（因果关联）
+}> = [
+  {
+    stage: '内心',
+    when: '两个月前 · 午后',
+    emotion: 'low',
+    text: '写了三年的小说，发给十个编辑都没回音。还要继续吗？',
+    seals: ['woolf', 'sushi'],
+    link: '把不甘，换成了一个决定',
+  },
+  {
+    stage: '行动',
+    when: '三周前 · 清晨',
+    emotion: 'courage',
+    text: '决定再给自己九十天。每天清晨先写五百字，写完才看手机。',
+    seals: ['adler', 'yangming'],
+    link: '写下去，答案自己会来',
+  },
+  {
+    stage: '结果',
+    when: '今天 · 深夜',
+    emotion: 'calm',
+    text: '清晨跑步时突然想通：我怕的不是失败，是别人看见失败的我。第十一个编辑，回了信。',
+    seals: ['socrates', 'jung'],
+  },
+];
+
+/* 十月样本（2026-10：1 日为周四，周一为首列 → 3 个空位；演示数据，展示层不落库）。
+ * 元组 = [情绪档, 浓度]；null = 未写的一天 */
+const CAL_CELLS: Array<readonly [string, number] | null> = [
+  null, null, null,
+  ['anxious', 0.55], ['hot', 0.8], ['low', 0.45], null, ['calm', 0.9], ['courage', 0.7], ['low', 0.5],
+  ['anxious', 0.75], ['calm', 0.85], ['love', 0.95], ['courage', 0.6], null, ['numb', 0.5], ['low', 0.55],
+  ['anxious', 0.7], ['hot', 0.85], ['courage', 0.75], ['calm', 0.9], ['calm', 0.8], ['love', 0.9], null,
+  ['courage', 0.65], ['anxious', 0.6], ['low', 0.5], ['courage', 0.8], ['calm', 0.95], ['love', 1], null,
+  ['calm', 0.85], ['love', 0.95], ['courage', 0.7],
+  null,
+];
+
+const EMOTION_LABEL: Record<string, string> = {
+  numb: '冷淡', low: '悲伤', anxious: '恐惧', hot: '愤怒', courage: '勇气', calm: '理智', love: '爱',
+};
+
+function EchoDemo() {
+  const { ref, shown } = useReveal<HTMLAnchorElement>();
+  return (
+    <Link
+      ref={ref}
+      href="/yinian/echo"
+      className={`${DEMO_LINK}${shown ? ' yn-demo-on' : ''} w-[min(560px,100%)]`}
+      aria-label="回观 · 进入回观"
+    >
+      <div className="yn-echo-cols">
+        {/* 时间轴：竖线随入场生长；内心 → 行动 → 结果 三段用金色箭头 + 短注解串联因果，
+            节点带情绪色呼吸 */}
+        <div className="relative flex flex-col gap-2 pl-[26px]">
+          <span className="yn-tl-line" aria-hidden />
+          {ECHO_TIMELINE.map((node, i) => (
+            <Fragment key={node.when}>
+              <div className="yn-rise relative" style={{ ['--d' as string]: `${(0.15 + i * 0.3).toFixed(2)}s` }}>
+                <span
+                  className="yn-tl-dot"
+                  style={{
+                    background: EMOTION_DOT[node.emotion],
+                    boxShadow: `0 0 0 3px rgba(11,15,20,.92), 0 0 12px 2px ${EMOTION_DOT[node.emotion]}55`,
+                  }}
+                  aria-hidden
+                />
+                <div className="rounded-[14px] border border-white/[0.08] bg-[rgba(17,18,22,0.7)] px-[18px] pb-3 pt-3.5 text-left">
+                  <p className="m-0 mb-2 text-[11px] tracking-[0.3em] text-[#c9a86a]">
+                    <span
+                      className={`mr-2.5 inline-block rounded-full border border-[rgba(201,168,106,0.45)] py-[1px] pl-2 pr-1.5 align-[1px] text-[9.5px] tracking-[0.2em] text-[#c9a86a]${
+                        node.stage === '结果' ? ' bg-[rgba(201,168,106,0.14)]' : ''
+                      }`}
+                    >
+                      {node.stage}
+                    </span>
+                    {node.when}
+                  </p>
+                  <p className="m-0 text-[13.5px] leading-[2] tracking-[0.03em] text-[#d6d3cd]">{node.text}</p>
+                  <span className="mt-2.5 flex gap-2">
+                    {node.seals.map((k) => (
+                      <span
+                        key={k}
+                        className="inline-flex h-5 w-5 items-center justify-center rounded-md text-[10.5px] text-[#f3ece2]"
+                        style={{ background: NPC_DISPLAY[k].inkColor }}
+                      >
+                        {NPC_DISPLAY[k].seal}
+                      </span>
+                    ))}
+                  </span>
+                </div>
+              </div>
+              {node.link && (
+                <div
+                  className="yn-rise yn-tl-link"
+                  style={{ ['--d' as string]: `${(0.32 + i * 0.3).toFixed(2)}s` }}
+                >
+                  <span className="yn-tl-arrow" aria-hidden />
+                  <span className="text-[10.5px] tracking-[0.2em] text-[rgba(201,168,106,0.8)]">{node.link}</span>
+                </div>
+              )}
+            </Fragment>
+          ))}
+        </div>
+        {/* 情绪日历：一月 35 格逐格弹出，今日金环呼吸 */}
+        <div className="text-center">
+          <p className="m-0 mb-3.5 indent-[0.35em] text-xs tracking-[0.35em] text-[#d5d5d5]">十月 · 写了 27 念</p>
+          <div className="mx-auto grid w-[min(310px,100%)] grid-cols-7 gap-[5px]">
+            {['一', '二', '三', '四', '五', '六', '日'].map((w) => (
+              <span key={w} className="text-center text-[10px] leading-[18px] text-[#8f8f95]">
+                {w}
+              </span>
+            ))}
+            {CAL_CELLS.map((c, i) => {
+              const day = i - 2; // 首列周一，10 月 1 日为周四
+              return (
+                <span
+                  key={i}
+                  className={`yn-cal-cell${day === 20 ? ' yn-cal-today' : ''}`}
+                  style={{
+                    ...(c ? { background: EMOTION_DOT[c[0]], opacity: c[1] } : {}),
+                    ['--d' as string]: `${(i * 0.018).toFixed(3)}s`,
+                  }}
+                  title={c && day > 0 && day < 32 ? `十月${day}日 · ${EMOTION_LABEL[c[0]]}` : undefined}
+                />
+              );
+            })}
+          </div>
+          <div className="mt-4 flex flex-wrap justify-center gap-x-3.5 gap-y-1.5">
+            {Object.entries(EMOTION_LABEL).map(([k, label]) => (
+              <span
+                key={k}
+                className="inline-flex items-center gap-1.5 text-[10.5px] tracking-[0.12em] text-[#8f8f95]"
+              >
+                <span
+                  className="inline-block h-[7px] w-[7px] rounded-[3px]"
+                  style={{ background: EMOTION_DOT[k] }}
+                />
+                {label}
+              </span>
+            ))}
+          </div>
+        </div>
+      </div>
+    </Link>
+  );
+}
 
 /* 心念词云：心念宇宙 / 认知体系 / 心智模型的词汇 */
 const CLOUD_WORDS = [
@@ -116,12 +465,10 @@ export default function StarHomeClient() {
   const wenxinHref = inviteCode ? `/wenxin?code=${inviteCode}` : '/wenxin';
 
   return (
-    <div style={S.page}>
-      <style>{CSS}</style>
-
+    <div className="yn-home-bg min-h-screen overflow-x-hidden font-['Noto_Serif_SC','Songti_SC',serif] text-[#e8edf2]">
       {/* 星空背景（固定，滚动视差）。两层结构：外层管位置（JS 内联 top），
           内层管闪烁脉动（CSS 动画 transform/opacity），互不干扰 */}
-      <div aria-hidden style={S.starField}>
+      <div aria-hidden className="pointer-events-none fixed inset-0 z-0 overflow-hidden">
         {stars?.map((s, i) => (
           <div
             key={i}
@@ -151,18 +498,18 @@ export default function StarHomeClient() {
       {/* 公共顶栏：双圆 logo（One Mind）+ 导航胶囊（所有 yinian 页面共用） */}
       <YinianHeader />
 
-      <main style={S.main}>
+      <main className="relative z-[1]">
         {/* Hero */}
-        <section style={S.hero}>
-          <h1 style={{ ...S.over, animationDelay: '0.1s' }} className="title-gradient yn-home-fade">
+        <section className="flex min-h-screen flex-col items-center justify-center px-6 pb-12 pt-[88px] text-center">
+          <h1 className="title-gradient yn-home-fade mb-7 text-5xl font-semibold [animation-delay:0.1s]">
             One Mind
           </h1>
-          <h2 style={{ ...S.title, animationDelay: '0.2s' }} className="yn-home-fade">
+          <h2 className="yn-home-fade m-0 text-[32px] font-normal tracking-[0.35em] [animation-delay:0.2s]">
             向内觉知 心念合一
           </h2>
           {/* 心念词云：纯 CSS 3D 文字球（参考 css-only-3d-tagcloud-v2），
               斐波那契球面布点，rotateX 匀速旋转 + 每词反向自转保持朝上，hover 暂停 */}
-          <div className="yn-cloud yn-home-fade" style={{ animationDelay: '0.35s' }} aria-hidden>
+          <div className="yn-cloud yn-home-fade [animation-delay:0.35s]" aria-hidden>
             <div className="yn-cloud-tilt">
               <ul className="yn-cloud-sphere" style={{ ['--num' as string]: `${CLOUD_WORDS.length}` }}>
                 {CLOUD_WORDS.map((w, i) => (
@@ -179,25 +526,33 @@ export default function StarHomeClient() {
           </div>
           {/* 入场淡入放外层：hover 的 lightning 会重置同元素 animation，
               分层后移开鼠标不会重播入场动画 */}
-          <div className="yn-home-fade" style={{ animationDelay: '0.5s', marginTop: 48 }}>
-            <Link href="/yinian" style={{ ...S.cta, marginTop: 0 }} className="yn-home-cta">
+          <div className="yn-home-fade mt-12 [animation-delay:0.5s]">
+            <Link
+              href="/yinian"
+              className="yn-home-cta inline-block rounded-full border-2 border-[#f1c40f] bg-[#222] py-3 pl-10 pr-[34px] text-xs tracking-[0.3em] text-[#f1c40f] no-underline transition-all duration-300"
+            >
               记 录 心 念
             </Link>
           </div>
-          <p style={{ ...S.tagline, animationDelay: '0.6s' }} className="yn-home-fade">
+          <p className="yn-home-fade mt-8 text-sm leading-[2.6] tracking-[0.2em] text-[#d5d5d5] [animation-delay:0.6s]">
             写下即照见——让传奇心智照见你的每一个念头
           </p>
-          <p style={{ ...S.scrollHint, animationDelay: '0.8s' }} className="yn-home-fade">
+          <p className="yn-home-fade mt-[72px] text-[11px] tracking-[0.3em] text-[#d5d5d5] opacity-60 [animation-delay:0.8s]">
             向下滚动，穿过这片星空
           </p>
         </section>
 
-        {/* 三段式介绍 */}
+        {/* 三段式功能介绍：文字 + HTML/CSS 模拟演示（演示卡可点进对应页面） */}
         {SECTIONS.map((sec) => (
-          <section key={sec.mark} style={S.section}>
-            {/* <p style={S.mark}>{sec.mark}</p> */}
-            <h2 style={S.sectionTitle}>{sec.title}</h2>
-            <p style={S.sectionBody}>{sec.body}</p>
+          <section
+            key={sec.mark}
+            className="flex min-h-[80vh] flex-col items-center justify-center px-6 text-center"
+          >
+            <h2 className="m-0 indent-[0.4em] text-2xl font-normal tracking-[0.4em]">{sec.title}</h2>
+            <p className="mt-6 max-w-[520px] text-sm leading-[2.6] tracking-[0.15em] text-[#d5d5d5]">{sec.body}</p>
+            {sec.mark === '壹' && <ReleaseDemo />}
+            {sec.mark === '贰' && <RepliesDemo />}
+            {sec.mark === '叁' && <EchoDemo />}
           </section>
         ))}
 
@@ -205,11 +560,11 @@ export default function StarHomeClient() {
 
       {/* Footer：星空收场。80vh 纯星空缓冲带后进入通高 footer，
           渐变把星空压入底色 + backdrop-blur 晕开过渡带，栏目钉在底部 */}
-      <footer style={S.foot} className="yn-foot">
+      <footer className="yn-foot relative z-[1] flex items-end justify-evenly gap-6 px-[4vw] pb-[72px] pt-24">
         <div className="yn-foot-backdrop" aria-hidden />
-        <div style={S.footCol}>
-          <p style={S.footBrand}>一念 · One Mind</p>
-          <p style={S.footTagline}>向内觉知 心念合一</p>
+        <div className={FOOT_COL}>
+          <p className="mb-3.5 mt-0 font-sans text-lg font-semibold tracking-[0.22em] text-white">一念 · One Mind</p>
+          <p className="m-0 text-[13px] leading-[2.2] tracking-[0.2em] text-[#d5d5d5]">向内觉知 心念合一</p>
           {/* 联系方式：邮箱 / 微信 / 飞书，hover 弹出联系卡片 */}
           <div className="yn-foot-social">
             <HoverCard.Root openDelay={120} closeDelay={150}>
@@ -264,15 +619,17 @@ export default function StarHomeClient() {
               </HoverCard.Portal>
             </HoverCard.Root>
           </div>
-          <p style={S.footCopy}>2026 © All Rights Reserved</p>
+          <p className="mt-7 font-['IBM_Plex_Sans'] text-xs tracking-[0.15em] text-[#8f8f95]">
+            2026 © All Rights Reserved
+          </p>
         </div>
-        <nav style={{ ...S.footCol, ...S.footCard }}>
+        <nav className={`${FOOT_COL} rounded-[20px] border border-white/[0.09] bg-white/5 px-[30px] py-[26px]`}>
           <Link href="/yinian">一念</Link>
           <Link href="/yinian/sky">心念宇宙</Link>
           <Link href="/yinian/hall">传奇心智</Link>
           <Link href="/yinian/echo">回观</Link>
         </nav>
-        <nav style={{ ...S.footCol, ...S.footCard }}>
+        <nav className={`${FOOT_COL} rounded-[20px] border border-white/[0.09] bg-white/5 px-[30px] py-[26px]`}>
           <Link href="/">关于我们</Link>
           <Link href="/">加入团队</Link>
           <Link href="/">隐私政策</Link>
@@ -282,345 +639,3 @@ export default function StarHomeClient() {
     </div>
   );
 }
-
-const S: Record<string, React.CSSProperties> = {
-  page: {
-    background:
-      'radial-gradient(1200px 800px at 80% 10%, rgba(124, 58, 237, .25), transparent 60%),' +
-      'radial-gradient(1000px 700px at 10% 90%, rgba(6, 182, 212, .22), transparent 55%),' +
-      '#0b0f14',
-    color: '#e8edf2',
-    fontFamily: SERIF,
-    minHeight: '100vh',
-    overflowX: 'hidden',
-  },
-  starField: {
-    position: 'fixed',
-    inset: 0,
-    zIndex: 0,
-    pointerEvents: 'none',
-    overflow: 'hidden',
-  },
-  main: { position: 'relative', zIndex: 1 },
-  hero: {
-    minHeight: '100vh',
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'center',
-    justifyContent: 'center',
-    textAlign: 'center',
-    padding: '88px 24px 48px',
-  },
-  over: { fontSize: 48, fontWeight: 600, marginBottom: 28 },
-  title: { fontSize: 32, fontWeight: 400, letterSpacing: '0.35em', margin: 0 },
-  tagline: { marginTop: 32, fontSize: 14, lineHeight: 2.6, letterSpacing: '0.2em', color: '#d5d5d5' },
-  cta: {
-    display: 'inline-block',
-    marginTop: 48,
-    padding: '12px 34px 12px 40px',
-    borderRadius: 999,
-    background: '#222',
-    border: '2px solid #f1c40f',
-    color: '#f1c40f',
-    fontSize: 12,
-    letterSpacing: '0.3em',
-    textDecoration: 'none',
-    transition: 'all .3s',
-  },
-  scrollHint: { marginTop: 72, fontSize: 11, letterSpacing: '0.3em', color: '#d5d5d5', opacity: 0.6 },
-  section: {
-    minHeight: '80vh',
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'center',
-    justifyContent: 'center',
-    textAlign: 'center',
-    padding: '0 24px',
-  },
-  mark: { fontSize: 11, letterSpacing: '0.6em', color: '#c9a86a', marginBottom: 24, textIndent: '0.6em' },
-  sectionTitle: { fontSize: 24, fontWeight: 400, letterSpacing: '0.4em', margin: 0, textIndent: '0.4em' },
-  sectionBody: {
-    marginTop: 24,
-    maxWidth: 520,
-    fontSize: 14,
-    lineHeight: 2.6,
-    letterSpacing: '0.15em',
-    color: '#d5d5d5',
-  },
-  /* ===== Footer：星空收场（参考 Juxtopposed footer） ===== */
-  foot: {
-    position: 'relative',
-    zIndex: 1,
-    display: 'flex',
-    flexDirection: 'row',
-    justifyContent: 'space-evenly',
-    alignItems: 'flex-end',
-    gap: 24,
-    padding: '96px 4vw 72px',
-  },
-  footCol: { width: '28%', maxWidth: 340 },
-  footBrand: {
-    fontFamily: 'ui-sans-serif, system-ui, -apple-system, sans-serif',
-    fontSize: 18,
-    fontWeight: 600,
-    letterSpacing: '0.22em',
-    color: '#fff',
-    margin: '0 0 14px',
-  },
-  footTagline: { margin: 0, fontSize: 13, letterSpacing: '0.2em', lineHeight: 2.2, color: '#d5d5d5' },
-  footCopy: { marginTop: 28, fontSize: 12, letterSpacing: '0.15em', color: '#8f8f95', fontFamily: 'IBM Plex Sans' },
-  footCard: {
-    background: 'rgba(255, 255, 255, 0.05)',
-    border: '1px solid rgba(255, 255, 255, 0.09)',
-    borderRadius: 20,
-    padding: '26px 30px',
-  },
-  footLabel: {
-    margin: '0 0 18px',
-    fontSize: 11,
-    letterSpacing: '0.6em',
-    textIndent: '0.6em',
-    color: '#c9a86a',
-  },
-};
-
-const CSS = `
-  .yn-home-star-pos {
-    position: absolute;
-    will-change: top;
-  }
-  .yn-home-star {
-    width: 100%;
-    height: 100%;
-    border-radius: 50%;
-    opacity: 0.8;
-    animation: yn-home-twinkle var(--duration, 3s) infinite ease-in-out;
-    will-change: transform, opacity;
-  }
-  @keyframes yn-home-twinkle {
-    0%, 100% { opacity: 0.3; transform: scale(0.8); }
-    50% { opacity: 1; transform: scale(1.2); }
-  }
-  .yn-home-fade { animation: yn-home-fade 1s ease-out both; }
-  @keyframes yn-home-fade { from { opacity: 0; transform: translateY(14px) } to { opacity: 1; transform: none } }
-  @media (prefers-reduced-motion: reduce) {
-    .yn-home-star, .yn-home-fade, .yn-cloud-sphere, .yn-cloud-tag, .yn-foot-pop { animation: none; }
-  }
-  .title-gradient {
-    font-family: ui-sans-serif, system-ui, -apple-system, sans-serif;
-    background: linear-gradient(135deg, #fff 30%, #06b6d4 100%);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-  }
-
-  /* ===== CTA：闪电辉光（参考 btn-effect-7：#222 底 + #f1c40f 字/框，
-     hover 播放 lightning——box-shadow 辉光 5px → 20px → 30px+50px 脉动） ===== */
-  .yn-home-cta:hover,
-  .yn-home-cta:focus-visible { animation: lightning 1.5s infinite; }
-  @keyframes lightning {
-    0%, 50%, 100% { box-shadow: 0 0 5px #f1c40f; }
-    25% { box-shadow: 0 0 20px #f1c40f; }
-    75% { box-shadow: 0 0 30px #f1c40f, 0 0 50px #f1c40f; }
-  }
-
-  /* ===== 心念词云：纯 CSS 3D 文字球（参考 css-only-3d-tagcloud-v2） =====
-     斐波那契球面均匀布点（CSS 三角函数按 --i/--num 计算），
-     外层 rotateX 匀速旋转、每个词反向自转保持文字朝上，perspective 提供纵深；
-     省略参考中的 radio 交互控制，保留 hover 暂停与静态倾斜 */
-  .yn-cloud {
-    --d: min(66vw, 330px);  /* 球直径 */
-    --tag: 68px;            /* 词格尺寸 */
-    --play: running;
-    position: relative;
-    width: var(--d);
-    height: var(--d);
-    margin: 40px 0 4px;
-  }
-  .yn-cloud:hover { --play: paused; }
-  .yn-cloud-tilt {
-    position: absolute;
-    inset: 0;
-    transform: rotateZ(54deg);
-    transform-style: preserve-3d;
-    perspective: calc(var(--d) * 2);
-    background: radial-gradient(circle, rgba(11, 15, 20, .55) 16%, rgba(11, 15, 20, 0) 68%);
-    border-radius: 50%;
-  }
-  .yn-cloud-sphere {
-    position: absolute;
-    inset: 0;
-    margin: 0;
-    padding: 0;
-    list-style: none;
-    transform-style: preserve-3d;
-    animation: yn-cloud-spin 32s linear infinite var(--play);
-    will-change: transform;
-  }
-  @keyframes yn-cloud-spin {
-    from { transform: rotateX(0deg); }
-    to { transform: rotateX(360deg); }
-  }
-  .yn-cloud-tag {
-    --r: calc((var(--d) - var(--tag)) / 2);
-    --phi: acos(calc(-1 + (2 * var(--i)) / var(--num)));
-    --theta: calc(sqrt(calc(var(--num) * 3.14159265)) * var(--phi));
-    --ny: calc(sin(var(--theta)) * sin(var(--phi)));
-    --nz: calc(cos(var(--phi)));
-    --x: calc(cos(var(--theta)) * sin(var(--phi)) * var(--r) + var(--r));
-    --y: calc(var(--ny) * var(--r) + var(--r));
-    --z: calc(var(--nz) * var(--r));
-    /* 相位角：词在 YZ 平面的初始方位。透明度脉动以此为相位，
-       与球的 rotateX 旋转锁相——词转到正面时最亮，转到背面时最暗（纯 CSS 纵深） */
-    --alpha: atan2(var(--nz), var(--ny));
-    --fade-delay: calc(((90deg - var(--alpha)) / 360deg - 1) * 32s);
-    /* 深度振幅 = 词在 YZ 平面的旋转半径：贴边转圈（半径≈0）的词深度不变，不参与明暗脉动 */
-    --amp: sqrt(calc(var(--ny) * var(--ny) + var(--nz) * var(--nz)));
-    --o-front: 1;
-    --o-mid: calc(1 - 0.15 * var(--amp));
-    --o-back: calc(1 - 0.84 * var(--amp));
-    position: absolute;
-    width: var(--tag);
-    height: var(--tag);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transform: translate3d(var(--x), var(--y), var(--z));
-    animation:
-      yn-cloud-tag-spin 32s linear infinite var(--play),
-      yn-cloud-tag-fade 32s linear infinite var(--play) var(--fade-delay);
-    will-change: transform, opacity;
-    color: rgba(232, 237, 242, .92);
-  }
-  @keyframes yn-cloud-tag-spin {
-    from { transform: translate3d(var(--x), var(--y), var(--z)) rotateX(360deg); }
-    to { transform: translate3d(var(--x), var(--y), var(--z)) rotateX(0deg); }
-  }
-  /* 前半球亮度平台：0% 为最正面，正面 20% 内几乎全亮，只在转到背面（50%）骤降 */
-  @keyframes yn-cloud-tag-fade {
-    0%, 100% { opacity: var(--o-front); }
-    20%, 80% { opacity: var(--o-mid); }
-    50% { opacity: var(--o-back); }
-  }
-  .yn-cloud-tag div {
-    transform: rotateZ(-54deg);
-    font-size: 13px;
-    line-height: 1.5;
-    letter-spacing: 0.12em;
-    text-align: center;
-    text-shadow: 0 2px 12px rgba(11, 15, 20, .9);
-  }
-  @media (max-width: 480px) {
-    .yn-cloud { --d: min(84vw, 300px); --tag: 58px; margin: 28px 0 2px; }
-    .yn-cloud-tag div { font-size: 11px; }
-  }
-
-  /* ===== Footer：星幕收场（参考 Juxtopposed footer） =====
-     ::before 把星空渐变压入页面底色，backdrop 层带 mask 让过渡带里的星星晕开；
-     两层都在 footer 独立层叠上下文内（z-index 负值），内容在其上 */
-  .yn-foot::before {
-    content: "";
-    position: absolute;
-    inset: 0;
-    z-index: -2;
-    pointer-events: none;
-    background: linear-gradient(
-      rgba(11, 15, 20, 0) 5%,
-      rgba(11, 15, 20, .45) 22%,
-      rgba(11, 15, 20, .8) 36%,
-      rgb(11, 15, 20) 50%
-    );
-  }
-  .yn-foot-backdrop {
-    position: absolute;
-    inset: 0;
-    z-index: -1;
-    pointer-events: none;
-    backdrop-filter: blur(40px);
-    -webkit-backdrop-filter: blur(40px);
-    mask-image: linear-gradient(rgba(0, 0, 0, 0), rgba(0, 0, 0, .5) 12%, rgba(0, 0, 0, .8) 22%, rgb(0, 0, 0) 34%);
-    -webkit-mask-image: linear-gradient(rgba(0, 0, 0, 0), rgba(0, 0, 0, .5) 12%, rgba(0, 0, 0, .8) 22%, rgb(0, 0, 0) 34%);
-  }
-  .yn-foot nav a {
-    display: block;
-    width: fit-content;
-    font-size: 14px;
-    letter-spacing: 0.12em;
-    line-height: 2.5;
-    color: #d5d5d5;
-    text-decoration: none;
-    transition: color .3s ease;
-  }
-  .yn-foot nav a:hover,
-  .yn-foot nav a:focus-visible { color: #fff; }
-
-  /* ===== 联系方式行：玻璃小方钮 + Radix HoverCard 联系卡片 ===== */
-  .yn-foot-social {
-    display: flex;
-    flex-direction: row;
-    justify-content: flex-start;
-    gap: 10px;
-    margin: 16px 0 6px;
-  }
-  .yn-foot-link {
-    width: 34px;
-    height: 34px;
-    border-radius: 10px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: rgba(255, 255, 255, 0.07);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    color: #d5d5d5;
-    cursor: pointer;
-    padding: 0;
-    transition: color .3s ease, border-color .3s ease, background .3s ease;
-  }
-  .yn-foot-link:hover,
-  .yn-foot-link:focus-visible {
-    color: #fff;
-    border-color: rgba(255, 255, 255, .28);
-    background: rgba(255, 255, 255, .1);
-  }
-  .yn-foot-link svg { width: 16px; height: 16px; }
-  .yn-foot-pop {
-    z-index: 60;
-    min-width: 190px;
-    padding: 16px 18px;
-    border-radius: 14px;
-    background: rgba(23, 23, 26, .96);
-    backdrop-filter: blur(14px);
-    -webkit-backdrop-filter: blur(14px);
-    border: 1px solid rgba(255, 255, 255, .1);
-    box-shadow: 0 12px 32px rgba(0, 0, 0, .45);
-    animation: yn-foot-pop .25s ease-out both;
-    text-align: center;
-  }
-  @keyframes yn-foot-pop { from { opacity: 0; transform: translateY(6px) } to { opacity: 1; transform: none } }
-  .yn-foot-pop-label {
-    margin: 0 0 10px;
-    font-size: 10px;
-    letter-spacing: .3em;
-    text-indent: .3em;
-    color: #8f8f95;
-  }
-  .yn-foot-pop-qr {
-    display: block;
-    width: 150px;
-    height: 150px;
-    margin: 0 auto;
-    border-radius: 10px;
-  }
-  .yn-foot-pop-mail {
-    font-size: 13px;
-    letter-spacing: .05em;
-    color: #d5d5d5;
-    text-decoration: none;
-    transition: color .3s ease;
-  }
-  .yn-foot-pop-mail:hover { color: #fff; }
-
-  @media (max-width: 700px) {
-    .yn-foot { flex-direction: column; align-items: stretch; padding: 96px 24px 56px; gap: 20px; }
-    .yn-foot-col { width: 100%; max-width: none; }
-  }
-`;

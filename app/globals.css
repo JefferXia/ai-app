@@ -28,28 +28,36 @@
   .text-balance {
     text-wrap: balance;
   }
+
   .animate-fade-in-up {
     animation: fadeInUp 1s ease-out forwards;
   }
+
   .animate-fade-in-slow {
     animation: fadeIn 2s ease-out forwards;
   }
+
   .animate-fade-in {
     animation: fadeIn 0.5s ease-out forwards;
   }
+
   .animate-spin-slow {
     animation: spin 3s linear infinite;
   }
+
   .glass-panel {
     @apply bg-slate-900/60 backdrop-blur-xl border border-white/10;
   }
+
   .custom-scrollbar::-webkit-scrollbar {
     width: 6px;
     height: 6px;
   }
+
   .custom-scrollbar::-webkit-scrollbar-track {
     @apply bg-slate-800/50 rounded;
   }
+
   .custom-scrollbar::-webkit-scrollbar-thumb {
     @apply bg-slate-600 rounded hover:bg-slate-500;
   }
@@ -57,31 +65,6 @@
 
 @layer base {
   :root {
-    /* --background: 0 0% 100%;
-    --foreground: 240 10% 3.9%;
-    --card: 0 0% 100%;
-    --card-foreground: 240 10% 3.9%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 240 10% 3.9%;
-    --primary: 240 5.9% 10%;
-    --primary-foreground: 0 0% 98%;
-    --secondary: 240 4.8% 95.9%;
-    --secondary-foreground: 240 5.9% 10%;
-    --muted: 240 4.8% 95.9%;
-    --muted-foreground: 240 3.8% 46.1%;
-    --accent: 240 4.8% 95.9%;
-    --accent-foreground: 240 5.9% 10%;
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 240 5.9% 90%;
-    --input: 240 5.9% 90%;
-    --ring: 240 10% 3.9%;
-    --chart-1: 12 76% 61%;
-    --chart-2: 173 58% 39%;
-    --chart-3: 197 37% 24%;
-    --chart-4: 43 74% 66%;
-    --chart-5: 27 87% 67%;
-    --radius: 0.5rem; */
     --background: 0 0% 100%;
     --foreground: 222.2 84% 4.9%;
     --card: 0 0% 100%;
@@ -116,6 +99,7 @@
     --sidebar-border: 220 13% 91%;
     --sidebar-ring: 217.2 91.2% 59.8%;
   }
+
   .dark {
     --background: 258 44% 7%;
     --foreground: 210 20% 98%;
@@ -175,7 +159,7 @@
     font-weight: 100 900;
     src: url(/fonts/geist-mono.woff2) format('woff2');
   }
-   
+
   #loading p {
     display: inline-block;
     height: 35px;
@@ -189,21 +173,54 @@
       background: #fff;
     }
   }
-   
-  @keyframes loader{
-    50% { height: 6px; margin-top: 29px; opacity: .1; }
+
+  @keyframes loader {
+    50% {
+      height: 6px;
+      margin-top: 29px;
+      opacity: .1;
+    }
   }
-   
-  #loading p:nth-child(1) {animation-delay:.1s;}
-  #loading p:nth-child(2) {animation-delay:.2s;}
-  #loading p:nth-child(3) {animation-delay:.3s;}
-  #loading p:nth-child(4) {animation-delay:.4s;}
-  #loading p:nth-child(5) {animation-delay:.5s;}
-  #loading p:nth-child(6) {animation-delay:.6s;}
-  #loading p:nth-child(7) {animation-delay:.7s;}
-  #loading p:nth-child(8) {animation-delay:.8s;}
-  #loading p:nth-child(9) {animation-delay:.9s;}
-  #loading p:nth-child(10){animation-delay:1s;}
+
+  #loading p:nth-child(1) {
+    animation-delay: .1s;
+  }
+
+  #loading p:nth-child(2) {
+    animation-delay: .2s;
+  }
+
+  #loading p:nth-child(3) {
+    animation-delay: .3s;
+  }
+
+  #loading p:nth-child(4) {
+    animation-delay: .4s;
+  }
+
+  #loading p:nth-child(5) {
+    animation-delay: .5s;
+  }
+
+  #loading p:nth-child(6) {
+    animation-delay: .6s;
+  }
+
+  #loading p:nth-child(7) {
+    animation-delay: .7s;
+  }
+
+  #loading p:nth-child(8) {
+    animation-delay: .8s;
+  }
+
+  #loading p:nth-child(9) {
+    animation-delay: .9s;
+  }
+
+  #loading p:nth-child(10) {
+    animation-delay: 1s;
+  }
 }
 
 .skeleton {
@@ -246,7 +263,7 @@
     width: 0
   }
 }
-    
+
 @keyframes blink {
   50% {
     border-color: transparent
@@ -274,6 +291,7 @@
   outline: none;
   opacity: 1;
 }
+
 .great-btn:hover:after {
   position: absolute;
   content: '';
@@ -285,12 +303,32 @@
   background-color: #fff;
   animation: shiny-btn 3s ease-in-out;
 }
+
 @keyframes shiny-btn {
-  0% { transform: scale(0) rotate(45deg); opacity: 0; }
-  20% { transform: scale(0) rotate(45deg); opacity: 0.5; }
-  21% { transform: scale(4) rotate(45deg); opacity: 1; }
-  40% { transform: scale(50) rotate(45deg); opacity: 0; }
-  100% { transform: scale(50) rotate(45deg); opacity: 0; }
+  0% {
+    transform: scale(0) rotate(45deg);
+    opacity: 0;
+  }
+
+  20% {
+    transform: scale(0) rotate(45deg);
+    opacity: 0.5;
+  }
+
+  21% {
+    transform: scale(4) rotate(45deg);
+    opacity: 1;
+  }
+
+  40% {
+    transform: scale(50) rotate(45deg);
+    opacity: 0;
+  }
+
+  100% {
+    transform: scale(50) rotate(45deg);
+    opacity: 0;
+  }
 }
 
 @keyframes animation-linespin {
@@ -319,9 +357,12 @@
 }
 
 @keyframes pulse {
-  0%, 100% {
+
+  0%,
+  100% {
     opacity: 1;
   }
+
   50% {
     opacity: .5;
   }
@@ -331,7 +372,7 @@
   .animate-pulse {
     animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite !important;
   }
-  
+
   .gradient-text {
     @apply bg-gradient-to-r from-cyan-400 via-blue-500 to-purple-600 bg-clip-text text-transparent;
   }
@@ -357,7 +398,7 @@
 
   .hero-gradient {
     background: radial-gradient(ellipse at top, rgba(34, 211, 238, 0.15), transparent 50%),
-                radial-gradient(ellipse at bottom, rgba(168, 85, 247, 0.1), transparent 50%);
+      radial-gradient(ellipse at bottom, rgba(168, 85, 247, 0.1), transparent 50%);
   }
 
   .card-hover {
@@ -380,45 +421,52 @@
     width: 100%
   }
 
-  th, td {
-      padding: 8px 16px;
-      border: 1px solid #e5e6eb
+  th,
+  td {
+    padding: 8px 16px;
+    border: 1px solid #e5e6eb
   }
 
   th {
-      background-color: #f5f6f7;
-      .dark & {
-        background-color: #23272f;
-      }
-      font-weight: 500
+    background-color: #f5f6f7;
+
+    .dark & {
+      background-color: #23272f;
+    }
+
+    font-weight: 500
   }
 
   a {
-      color: #3370ff!important;
-      text-decoration: none
+    color: #3370ff !important;
+    text-decoration: none
   }
 
   a:hover {
-      text-decoration: underline
+    text-decoration: underline
   }
 
   p {
     margin: 16px 0;
     line-height: 1.8;
   }
+
   ol {
     padding-left: 16px;
     margin: 8px 0;
     list-style-type: decimal;
+
     li {
       margin: 16px 0;
     }
   }
+
   ul {
     padding-left: 16px;
     margin: 8px 0;
     list-style-type: disc;
     list-style-position: outside;
+
     li {
       margin: 7px 0;
     }
@@ -430,6 +478,7 @@
     opacity: 0;
     transform: translateY(20px);
   }
+
   to {
     opacity: 1;
     transform: translateY(0);
@@ -440,6 +489,7 @@
   from {
     opacity: 0;
   }
+
   to {
     opacity: 1;
   }
@@ -451,7 +501,10 @@ body {
 }
 
 /* 标题使用 Instrument Serif 字体 */
-h1, h2, h3, .font-heading {
+h1,
+h2,
+h3,
+.font-heading {
   font-family: var(--font-instrument-serif), Georgia, serif;
 }
 
@@ -470,9 +523,12 @@ h1, h2, h3, .font-heading {
 
 /* 音波动画 - 按住说话 */
 @keyframes wave {
-  0%, 100% {
+
+  0%,
+  100% {
     transform: scaleY(0.5);
   }
+
   50% {
     transform: scaleY(1);
   }
@@ -480,4 +536,717 @@ h1, h2, h3, .font-heading {
 
 .animate-wave {
   animation: wave 0.5s ease-in-out infinite;
+}
+
+/* ===== 一念 · 星空首页（app/star-home-client.tsx）通用样式 =====
+ * 布局与排版走组件内的 Tailwind 工具类；这里只放 Tailwind 表达不了的部分：
+ * keyframes、伪元素、hover、媒体查询与多段渐变等「类组件」样式。
+ * 动态值（--d 入场延迟 / --r 卡片旋转 / --i --num 词云序号 / --duration 星闪周期、情绪色）
+ * 仍由组件内联注入。类名前缀 yn-home / yn-cloud / yn-rel / yn-reply / yn-tl / yn-cal / yn-foot / yn-demo。 */
+
+/* 页面底：夜空 + 紫/青双色 radial 晕 */
+.yn-home-bg {
+  background:
+    radial-gradient(1200px 800px at 80% 10%, rgba(124, 58, 237, 0.25), transparent 60%),
+    radial-gradient(1000px 700px at 10% 90%, rgba(6, 182, 212, 0.22), transparent 55%),
+    #0b0f14;
+}
+
+/* 星空背景：外层 yn-home-star-pos 管位置（JS 视差写 top），内层 yn-home-star 管闪烁脉动 */
+.yn-home-star-pos {
+  position: absolute;
+  will-change: top;
+}
+
+.yn-home-star {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  opacity: 0.8;
+  animation: yn-home-twinkle var(--duration, 3s) infinite ease-in-out;
+  will-change: transform, opacity;
+}
+
+@keyframes yn-home-twinkle {
+
+  0%,
+  100% {
+    opacity: 0.3;
+    transform: scale(0.8);
+  }
+
+  50% {
+    opacity: 1;
+    transform: scale(1.2);
+  }
+}
+
+/* 入场淡入：不用 shorthand（会内联重置 animation-delay），
+   delay 由 JSX 的 [animation-delay:*] 工具类给出 */
+.yn-home-fade {
+  animation-name: yn-home-fade;
+  animation-duration: 1s;
+  animation-timing-function: ease-out;
+  animation-fill-mode: both;
+}
+
+@keyframes yn-home-fade {
+  from {
+    opacity: 0;
+    transform: translateY(14px)
+  }
+
+  to {
+    opacity: 1;
+    transform: none
+  }
+}
+
+.title-gradient {
+  font-family: ui-sans-serif, system-ui, -apple-system, sans-serif;
+  background: linear-gradient(135deg, #fff 30%, #06b6d4 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+@media (prefers-reduced-motion: reduce) {
+
+  .yn-home-star,
+  .yn-home-fade,
+  .yn-cloud-sphere,
+  .yn-cloud-tag,
+  .yn-foot-pop,
+  .yn-rel-spark,
+  .yn-rel-caret,
+  .yn-rel-fly,
+  .yn-reply-card,
+  .yn-tl-dot,
+  .yn-cal-cell,
+  .yn-rise {
+    animation: none;
+  }
+
+  .yn-demo-on .yn-tl-line {
+    transition: none;
+    transform: scaleY(1);
+  }
+}
+
+/* ===== CTA：闪电辉光（参考 btn-effect-7：#222 底 + #f1c40f 字/框，
+   hover 播放 lightning——box-shadow 辉光 5px → 20px → 30px+50px 脉动） ===== */
+.yn-home-cta:hover,
+.yn-home-cta:focus-visible {
+  animation: lightning 1.5s infinite;
+}
+
+@keyframes lightning {
+
+  0%,
+  50%,
+  100% {
+    box-shadow: 0 0 5px #f1c40f;
+  }
+
+  25% {
+    box-shadow: 0 0 20px #f1c40f;
+  }
+
+  75% {
+    box-shadow: 0 0 30px #f1c40f, 0 0 50px #f1c40f;
+  }
+}
+
+/* ===== 心念词云：纯 CSS 3D 文字球（参考 css-only-3d-tagcloud-v2） =====
+   斐波那契球面均匀布点（CSS 三角函数按 --i/--num 计算），
+   外层 rotateX 匀速旋转、每个词反向自转保持文字朝上，perspective 提供纵深；
+   省略参考中的 radio 交互控制，保留 hover 暂停与静态倾斜 */
+.yn-cloud {
+  --d: min(66vw, 330px);
+  /* 球直径 */
+  --tag: 68px;
+  /* 词格尺寸 */
+  --play: running;
+  position: relative;
+  width: var(--d);
+  height: var(--d);
+  margin: 40px 0 4px;
+}
+
+.yn-cloud:hover {
+  --play: paused;
+}
+
+.yn-cloud-tilt {
+  position: absolute;
+  inset: 0;
+  transform: rotateZ(54deg);
+  transform-style: preserve-3d;
+  perspective: calc(var(--d) * 2);
+  background: radial-gradient(circle, rgba(11, 15, 20, 0.55) 16%, rgba(11, 15, 20, 0) 68%);
+  border-radius: 50%;
+}
+
+.yn-cloud-sphere {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  transform-style: preserve-3d;
+  animation: yn-cloud-spin 32s linear infinite var(--play);
+  will-change: transform;
+}
+
+@keyframes yn-cloud-spin {
+  from {
+    transform: rotateX(0deg);
+  }
+
+  to {
+    transform: rotateX(360deg);
+  }
+}
+
+.yn-cloud-tag {
+  --r: calc((var(--d) - var(--tag)) / 2);
+  --phi: acos(calc(-1 + (2 * var(--i)) / var(--num)));
+  --theta: calc(sqrt(calc(var(--num) * 3.14159265)) * var(--phi));
+  --ny: calc(sin(var(--theta)) * sin(var(--phi)));
+  --nz: calc(cos(var(--phi)));
+  --x: calc(cos(var(--theta)) * sin(var(--phi)) * var(--r) + var(--r));
+  --y: calc(var(--ny) * var(--r) + var(--r));
+  --z: calc(var(--nz) * var(--r));
+  /* 相位角：词在 YZ 平面的初始方位。透明度脉动以此为相位，
+     与球的 rotateX 旋转锁相——词转到正面时最亮，转到背面时最暗（纯 CSS 纵深） */
+  --alpha: atan2(var(--nz), var(--ny));
+  --fade-delay: calc(((90deg - var(--alpha)) / 360deg - 1) * 32s);
+  /* 深度振幅 = 词在 YZ 平面的旋转半径：贴边转圈（半径≈0）的词深度不变，不参与明暗脉动 */
+  --amp: sqrt(calc(var(--ny) * var(--ny) + var(--nz) * var(--nz)));
+  --o-front: 1;
+  --o-mid: calc(1 - 0.15 * var(--amp));
+  --o-back: calc(1 - 0.84 * var(--amp));
+  position: absolute;
+  width: var(--tag);
+  height: var(--tag);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transform: translate3d(var(--x), var(--y), var(--z));
+  animation:
+    yn-cloud-tag-spin 32s linear infinite var(--play),
+    yn-cloud-tag-fade 32s linear infinite var(--play) var(--fade-delay);
+  will-change: transform, opacity;
+  color: rgba(232, 237, 242, 0.92);
+}
+
+@keyframes yn-cloud-tag-spin {
+  from {
+    transform: translate3d(var(--x), var(--y), var(--z)) rotateX(360deg);
+  }
+
+  to {
+    transform: translate3d(var(--x), var(--y), var(--z)) rotateX(0deg);
+  }
+}
+
+/* 前半球亮度平台：0% 为最正面，正面 20% 内几乎全亮，只在转到背面（50%）骤降 */
+@keyframes yn-cloud-tag-fade {
+
+  0%,
+  100% {
+    opacity: var(--o-front);
+  }
+
+  20%,
+  80% {
+    opacity: var(--o-mid);
+  }
+
+  50% {
+    opacity: var(--o-back);
+  }
+}
+
+.yn-cloud-tag div {
+  transform: rotateZ(-54deg);
+  font-size: 13px;
+  line-height: 1.5;
+  letter-spacing: 0.12em;
+  text-align: center;
+  text-shadow: 0 2px 12px rgba(11, 15, 20, 0.9);
+}
+
+@media (max-width: 480px) {
+  .yn-cloud {
+    --d: min(84vw, 300px);
+    --tag: 58px;
+    margin: 28px 0 2px;
+  }
+
+  .yn-cloud-tag div {
+    font-size: 11px;
+  }
+}
+
+/* ===== Footer：星幕收场（参考 Juxtopposed footer） =====
+   ::before 把星空渐变压入页面底色，backdrop 层带 mask 让过渡带里的星星晕开；
+   两层都在 footer 独立层叠上下文内（z-index 负值），内容在其上 */
+.yn-foot::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -2;
+  pointer-events: none;
+  background: linear-gradient(rgba(11, 15, 20, 0) 5%,
+      rgba(11, 15, 20, 0.45) 22%,
+      rgba(11, 15, 20, 0.8) 36%,
+      rgb(11, 15, 20) 50%);
+}
+
+.yn-foot-backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  backdrop-filter: blur(40px);
+  -webkit-backdrop-filter: blur(40px);
+  mask-image: linear-gradient(rgba(0, 0, 0, 0), rgba(0, 0, 0, 0.5) 12%, rgba(0, 0, 0, 0.8) 22%, rgb(0, 0, 0) 34%);
+  -webkit-mask-image: linear-gradient(rgba(0, 0, 0, 0), rgba(0, 0, 0, 0.5) 12%, rgba(0, 0, 0, 0.8) 22%, rgb(0, 0, 0) 34%);
+}
+
+.yn-foot nav a {
+  display: block;
+  width: fit-content;
+  font-size: 14px;
+  letter-spacing: 0.12em;
+  line-height: 2.5;
+  color: #d5d5d5;
+  text-decoration: none;
+  transition: color 0.3s ease;
+}
+
+.yn-foot nav a:hover,
+.yn-foot nav a:focus-visible {
+  color: #fff;
+}
+
+/* ===== 联系方式行：玻璃小方钮 + Radix HoverCard 联系卡片 ===== */
+.yn-foot-social {
+  display: flex;
+  flex-direction: row;
+  justify-content: flex-start;
+  gap: 10px;
+  margin: 16px 0 6px;
+}
+
+.yn-foot-link {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #d5d5d5;
+  cursor: pointer;
+  padding: 0;
+  transition: color 0.3s ease, border-color 0.3s ease, background 0.3s ease;
+}
+
+.yn-foot-link:hover,
+.yn-foot-link:focus-visible {
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.28);
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.yn-foot-link svg {
+  width: 16px;
+  height: 16px;
+}
+
+.yn-foot-pop {
+  z-index: 60;
+  min-width: 190px;
+  padding: 16px 18px;
+  border-radius: 14px;
+  background: rgba(23, 23, 26, 0.96);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+  animation: yn-foot-pop 0.25s ease-out both;
+  text-align: center;
+}
+
+@keyframes yn-foot-pop {
+  from {
+    opacity: 0;
+    transform: translateY(6px)
+  }
+
+  to {
+    opacity: 1;
+    transform: none
+  }
+}
+
+.yn-foot-pop-label {
+  margin: 0 0 10px;
+  font-size: 10px;
+  letter-spacing: 0.3em;
+  text-indent: 0.3em;
+  color: #8f8f95;
+}
+
+.yn-foot-pop-qr {
+  display: block;
+  width: 150px;
+  height: 150px;
+  margin: 0 auto;
+  border-radius: 10px;
+}
+
+.yn-foot-pop-mail {
+  font-size: 13px;
+  letter-spacing: 0.05em;
+  color: #d5d5d5;
+  text-decoration: none;
+  transition: color 0.3s ease;
+}
+
+.yn-foot-pop-mail:hover {
+  color: #fff;
+}
+
+@media (max-width: 700px) {
+  .yn-foot {
+    flex-direction: column;
+    align-items: stretch;
+    padding: 96px 24px 56px;
+    gap: 20px;
+  }
+}
+
+/* ===== 功能介绍区：三个 HTML/CSS 模拟演示 =====
+   .yn-demo 本身只是行为钩子（入场时 JS 追加 yn-demo-on），盒子样式走 Tailwind 工具类 */
+.yn-demo-on .yn-rise {
+  animation: yn-demo-rise 0.8s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+  animation-delay: var(--d, 0s);
+}
+
+@keyframes yn-demo-rise {
+  from {
+    opacity: 0;
+    transform: translateY(22px);
+  }
+}
+
+/* 壹 · 会发光的念头输入框：金色呼吸晕 + 漂浮星光 + 打字光标 + 凝星飞走 */
+.yn-rel::before {
+  content: "";
+  position: absolute;
+  inset: -30%;
+  background: radial-gradient(closest-side, rgba(201, 168, 106, 0.14), transparent 68%);
+  animation: yn-rel-breathe 4.5s ease-in-out infinite;
+  pointer-events: none;
+}
+
+@keyframes yn-rel-breathe {
+
+  0%,
+  100% {
+    opacity: 0.5;
+  }
+
+  50% {
+    opacity: 1;
+  }
+}
+
+.yn-rel:hover {
+  border-color: rgba(201, 168, 106, 0.45) !important;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.4), 0 0 26px rgba(201, 168, 106, 0.12) !important;
+}
+
+.yn-rel-spark {
+  position: absolute;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: #eec98a;
+  box-shadow: 0 0 9px 2px rgba(238, 201, 138, 0.5);
+  animation: yn-rel-tw 3.4s ease-in-out infinite;
+  pointer-events: none;
+}
+
+@keyframes yn-rel-tw {
+
+  0%,
+  100% {
+    opacity: 0.15;
+    transform: scale(0.7);
+  }
+
+  50% {
+    opacity: 0.95;
+    transform: scale(1.15);
+  }
+}
+
+.yn-rel-caret {
+  display: inline-block;
+  width: 2px;
+  height: 1.05em;
+  margin-left: 3px;
+  vertical-align: -0.14em;
+  background: #c9a86a;
+  animation: yn-rel-blink 1.05s steps(2) infinite;
+}
+
+@keyframes yn-rel-blink {
+  50% {
+    opacity: 0;
+  }
+}
+
+.yn-rel-fly {
+  position: absolute;
+  right: 20%;
+  top: 34%;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #fff, #eec98a 60%, #c98f45);
+  box-shadow: 0 0 16px 5px rgba(238, 201, 138, 0.55);
+  animation: yn-rel-fly 1.05s cubic-bezier(0.3, 0.6, 0.4, 1) both;
+  pointer-events: none;
+}
+
+@keyframes yn-rel-fly {
+  from {
+    transform: translate(0, 6px) scale(0.9);
+    opacity: 0;
+  }
+
+  18% {
+    opacity: 1;
+  }
+
+  to {
+    transform: translate(30px, -88px) scale(0.45);
+    opacity: 0;
+  }
+}
+
+/* 贰 · 评论卡：堆叠微旋（--r 单源），入场后回到类上定义的静置旋转，hover 摆正 */
+.yn-reply-dots {
+  position: relative;
+  display: flex;
+  gap: 7px;
+  justify-content: center;
+  margin-bottom: 22px;
+}
+
+.yn-reply-dots i {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.22);
+}
+
+.yn-reply-dots i.on {
+  width: 16px;
+  background: #c9a86a;
+}
+
+.yn-reply-glow {
+  position: absolute;
+  inset: -34px -20px;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(60% 55% at 50% 30%, rgba(201, 168, 106, 0.13), transparent 70%),
+    radial-gradient(55% 50% at 55% 75%, rgba(6, 182, 212, 0.1), transparent 72%);
+  filter: blur(8px);
+}
+
+.yn-reply-card {
+  position: relative;
+  z-index: 1;
+  text-align: left;
+  padding: 18px 20px 15px;
+  background: linear-gradient(180deg, rgba(30, 31, 37, 0.95), rgba(21, 22, 27, 0.95));
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 18px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 18px 44px rgba(0, 0, 0, 0.5);
+  transform: rotate(var(--r, 0deg));
+  transition: transform 0.4s ease, box-shadow 0.4s ease;
+}
+
+.yn-demo-on .yn-reply-card {
+  animation: yn-reply-in 0.85s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+  animation-delay: var(--d, 0s);
+}
+
+@keyframes yn-reply-in {
+  from {
+    opacity: 0;
+    transform: translateY(30px) rotate(var(--r, 0deg)) scale(0.97);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) rotate(var(--r, 0deg));
+  }
+}
+
+.yn-reply-card:hover {
+  transform: rotate(0deg) translateY(-4px);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.07),
+    0 22px 54px rgba(0, 0, 0, 0.55),
+    0 0 24px rgba(201, 168, 106, 0.12),
+    0 0 0 1px rgba(201, 168, 106, 0.28) !important;
+}
+
+.yn-reply-0 {
+  --r: -2.4deg;
+}
+
+.yn-reply-1 {
+  --r: 1.8deg;
+  margin-top: -8px;
+}
+
+.yn-reply-2 {
+  --r: -1.6deg;
+  margin-top: -8px;
+}
+
+/* 叁 · 回观：时间轴竖线生长 + 节点情绪色呼吸；情绪日历逐格弹出 + 今日金环呼吸 */
+.yn-echo-cols {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 40px;
+}
+
+@media (min-width: 880px) {
+  .yn-echo-cols {
+    grid-template-columns: 1.12fr 1fr;
+    gap: 56px;
+    align-items: center;
+  }
+}
+
+.yn-tl-line {
+  position: absolute;
+  left: 5px;
+  top: 10px;
+  bottom: 10px;
+  width: 2px;
+  border-radius: 2px;
+  background: linear-gradient(rgba(201, 168, 106, 0), rgba(201, 168, 106, 0.4) 10%, rgba(255, 255, 255, 0.16) 88%, rgba(255, 255, 255, 0));
+  transform: scaleY(0);
+  transform-origin: top;
+  transition: transform 1.6s cubic-bezier(0.4, 0, 0.2, 1) 0.25s;
+}
+
+.yn-demo-on .yn-tl-line {
+  transform: scaleY(1);
+}
+
+.yn-tl-dot {
+  position: absolute;
+  left: -25px;
+  top: 10px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  animation: yn-tl-pulse 3.2s ease-in-out infinite;
+  animation-delay: var(--d, 0s);
+}
+
+@keyframes yn-tl-pulse {
+
+  0%,
+  100% {
+    transform: scale(1);
+  }
+
+  50% {
+    transform: scale(1.28);
+  }
+}
+
+/* 节点间因果关联行：金色箭头钉在时间轴线上，注解文字随卡片左缘对齐 */
+.yn-tl-link {
+  position: relative;
+  display: flex;
+  align-items: center;
+  min-height: 24px;
+}
+
+.yn-tl-arrow {
+  position: absolute;
+  left: -23px;
+  top: 50%;
+  width: 8px;
+  height: 8px;
+  border-right: 1.5px solid rgba(201, 168, 106, 0.8);
+  border-bottom: 1.5px solid rgba(201, 168, 106, 0.8);
+  transform: translateY(-55%) rotate(45deg);
+}
+
+.yn-cal-cell {
+  display: block;
+  width: 100%;
+  aspect-ratio: 1;
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.yn-demo-on .yn-cal-cell {
+  animation: yn-cal-pop 0.5s cubic-bezier(0.3, 1.4, 0.5, 1) backwards;
+  animation-delay: var(--d, 0s);
+}
+
+@keyframes yn-cal-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.35);
+  }
+}
+
+.yn-cal-today {
+  box-shadow: 0 0 0 2px #0b0f14, 0 0 0 3.5px rgba(201, 168, 106, 0.9);
+}
+
+.yn-demo-on .yn-cal-today {
+  animation:
+    yn-cal-pop 0.5s cubic-bezier(0.3, 1.4, 0.5, 1) backwards var(--d, 0s),
+    yn-today 3s ease-in-out infinite 1.2s;
+}
+
+@keyframes yn-today {
+
+  0%,
+  100% {
+    box-shadow: 0 0 0 2px #0b0f14, 0 0 0 3.5px rgba(201, 168, 106, 0.9);
+  }
+
+  50% {
+    box-shadow: 0 0 0 2px #0b0f14, 0 0 0 5.5px rgba(201, 168, 106, 0.4);
+  }
+}
+
+@media (max-width: 420px) {
+  .yn-rel {
+    padding: 22px 18px 14px !important;
+  }
+
+  .yn-reply-card {
+    padding: 15px 16px 12px !important;
+  }
 }
