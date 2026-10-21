@@ -246,14 +246,12 @@ export default function YinianClient() {
     return () => window.removeEventListener('keydown', onKey);
   }, []);
 
-  // 飞行一段（等落位）：打标异步完成前 domain 为空，新星只会在自由星列表——量到的坐标不是星盘落位。
-  // 所以先按兵不动（星保持 yn-star-await 隐身），轮询带回 domain → groups 重算、星进星盘，
-  // 再 rAF 量到落点坐标、补上起跑偏移起飞（--fx/--fy）；30s 仍未打标则按自由星兜底起飞
+  // 飞行一段（发布即起飞）：POST 秒回后新星已在星野（打标未完成时暂作自由星），
+  // 立即量到坐标、补上起跑偏移起飞（--fx/--fy）；打标带回 domain 后星随布局迁入星盘，
+  // 飞行收场不等待——发布即弹浮层（2026-10-21 改版，原「等 domain 归位再飞」流程废弃）
   useEffect(() => {
     if (!flight || flight.to) return;
-    const t = thoughts?.find((x) => x.id === flight.id);
-    if (!t) return;
-    if (!t.domain && Date.now() - t.createdAt < 30_000) return;
+    if (!thoughts?.some((x) => x.id === flight.id)) return;
     const raf = requestAnimationFrame(() => {
       const el = document.querySelector<HTMLButtonElement>(`[data-tid="${flight.id}"]`);
       if (!el) {
@@ -385,7 +383,7 @@ export default function YinianClient() {
       setThoughts((prev) => [thought, ...(prev ?? [])]);
       setDraft('');
       localStorage.removeItem(DRAFT_KEY);
-      // 星先隐身等打标：domain 由轮询带回后星进星盘落位，再从释念钮飞往落位；到位后星球原地放大展开浮层
+      // 发布即起飞：新星已在星野（打标未完成时暂作自由星），下一步量坐标起飞、到位弹浮层
       setFlight({ id: thought.id, from });
     } finally {
       setPublishing(false);
@@ -501,10 +499,6 @@ export default function YinianClient() {
         <main style={S.field}>
           {thoughts === null && (
             <div style={S.loadingWrap}><Spinner /></div>
-          )}
-          {/* 等打标归位：星隐身等 domain 期间给一句 shimmer 提示，起飞即消失 */}
-          {flight && !flight.to && (
-            <div style={S.loadingWrap}><Wave text="此念正在归位…" /></div>
           )}
           {groups.clusters.map((c) => (
             <div key={c.domain} className="yn-cluster">
