@@ -1,9 +1,10 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import moment from 'moment';
+import ReactMarkdown from 'react-markdown';
 import { Bookmark, Lock } from 'lucide-react';
 import { anchorLabel } from '../../wenxin/shared';
 import { EMOTION_DOT, DOMAIN_LABEL, Spinner } from '../yinian-shared';
@@ -17,7 +18,8 @@ import YinianHeader from '../yinian-header';
  *         往往只有本人能察觉）/奇妙（看似无关事件的意外呼应）；不强求匹配，有就有、
  *         没有就没有；与聚焦的三件事相互独立
  *   总结：LLM 回答「总的来说，这些事情究竟表达了什么」——由表及里：状态→模式→信念/渴望；
- *         具体化的一件小事从三件最重要的事着手
+ *         具体化的一件小事从三件最重要的事着手；抽象总结用 markdown 渲染
+ *         （每段一行 ### 小标题 + 空行分段 + 少量 **加粗**）
  *   手写：下周计划由用户自己写（编辑保护，重新生成不覆盖）
  * 门槛：本周念头超过 3 个。数据源 /api/yinian/review，周口径 = 周一 0 点 UTC。
  * 会员门：周复盘生成是会员功能——非会员生成/重新生成按钮带锁，点击弹会员提示浮层
@@ -144,7 +146,28 @@ function BookmarkIcon({ on }: { on: boolean }) {
   );
 }
 
-/* ===== 样式（tailwind 工具类常量） ===== */
+/* 抽象总结的 markdown 渲染：提示词放开每段 ### 小标题 + 空行分段 + 少量 **加粗**，
+ * 样式沿用页面散文排版（小标题金色小字）；旧复盘的纯文本（无标题无空行）渲染成单段，不受影响 */
+function AbstractProse({ text }: { text: string }) {
+  const H = (props: { children?: ReactNode }) => <h3 className={ABSTRACT_HEAD_CLS}>{props.children}</h3>;
+  return (
+    <div className={ABSTRACT_PROSE_CLS}>
+      <ReactMarkdown
+        components={{
+          h2: H,
+          h3: H,
+          h4: H, // 提示词约定 ###，h2/h4 兜底按同样式渲染
+          p: (props) => <p className={ABSTRACT_P_CLS}>{props.children}</p>,
+          strong: (props) => <strong className={ABSTRACT_STRONG_CLS}>{props.children}</strong>,
+        }}
+      >
+        {text}
+      </ReactMarkdown>
+    </div>
+  );
+}
+
+/* ===== 样式（tailwind 工具类常量；页面最小字号 12px，SVG 图内文字同理） ===== */
 
 /* 页面字体与基底（SERIF = "Noto Serif SC","Songti SC",serif） */
 const PAGE_CLS =
@@ -159,7 +182,7 @@ const HEAD_CLS = `mb-[34px] ${FADE}`;
 const TITLE_CLS = 'm-0 font-normal text-[22px] tracking-[0.1em] text-[#e8edf2]';
 const WEEK_BAR_CLS = 'flex items-center gap-3 mt-5 mb-1.5';
 const CAL_TITLE_CLS = 'text-[12px] tracking-[0.25em] text-[#d5d5d5] min-w-[96px] text-center';
-const WEEK_HINT_CLS = 'ml-auto text-[10.5px] tracking-[0.15em] text-[#8f8f95]';
+const WEEK_HINT_CLS = 'ml-auto text-[12px] tracking-[0.15em] text-[#8f8f95]';
 
 const CALBTN_CLS =
   'inline-flex items-center justify-center w-[30px] h-[30px] border-0 bg-transparent rounded-full ' +
@@ -169,7 +192,7 @@ const CALBTN_CLS =
 
 const CAL_CLS = 'mt-[18px] select-none';
 const CALNAMES_CLS = 'grid grid-cols-7 pt-2.5 pb-1';
-const CALNAME_CLS = 'text-center text-[10px] tracking-[0.1em] text-[#85858c]';
+const CALNAME_CLS = 'text-center text-[12px] tracking-[0.1em] text-[#85858c]';
 const CALROWS_CLS = FADE_FAST;
 const WKROW_CLS = 'grid grid-cols-7 w-full bg-transparent rounded-[10px] transition-opacity duration-200';
 const WKCELL_CLS =
@@ -189,7 +212,7 @@ const DAYDOT_WRAP_CLS = 'ml-[15px]';
 const CALDETAIL_CLS =
   'mt-3 px-[18px] py-3.5 bg-[rgba(164,164,164,0.08)] border border-[#26262b] ' +
   'rounded-[4px_12px_12px_12px] ' + FADE_FAST;
-const CALDETAIL_HEAD_CLS = 'mb-2 text-[11px] tracking-[0.25em] text-[#c9a86a]';
+const CALDETAIL_HEAD_CLS = 'mb-2 text-[12px] tracking-[0.25em] text-[#c9a86a]';
 const CALDETAIL_LINE_CLS =
   'm-0 flex items-baseline gap-2 min-w-0 text-[12.5px] leading-[2] tracking-[0.03em] text-[#d6d3cd]';
 const CALDETAIL_TEXT_CLS = 'block flex-1 min-w-0 truncate';
@@ -200,7 +223,7 @@ const CENTER_CLS = 'flex justify-center pt-[140px]';
 const STAT_STRIP_CLS = 'pt-4 px-1 pb-1.5 border-t border-[#1e1e22]';
 const STAT_LINE_CLS = 'm-0 text-[12.5px] tracking-[0.18em] text-[#d5d5d5]';
 const STAT_TAGS_CLS = 'mt-2.5 mb-0 flex flex-wrap gap-y-1.5 gap-x-3.5';
-const TAG_CLS = 'inline-flex items-center gap-1.5 text-[11px] tracking-[0.12em] text-[#8f8f95]';
+const TAG_CLS = 'inline-flex items-center gap-1.5 text-[12px] tracking-[0.12em] text-[#8f8f95]';
 const TAG_DOT_CLS = 'inline-block w-[7px] h-[7px] rounded-[3px]';
 
 const GEN_WRAP_CLS = `text-center pt-[30px] pb-1.5 ${FADE}`;
@@ -209,7 +232,7 @@ const GEN_CLS =
   'font-[inherit] text-[12px] tracking-[0.35em] py-3 pl-[38px] pr-8 cursor-pointer ' +
   'transition-colors duration-300 hover:enabled:bg-[rgba(201,168,106,0.2)] hover:enabled:text-[#e6c98f] ' +
   'disabled:opacity-55 disabled:cursor-default';
-const GEN_NOTE_CLS = 'mt-3 mb-0 text-[10.5px] tracking-[0.3em] text-[#8f8f95]';
+const GEN_NOTE_CLS = 'mt-3 mb-0 text-[12px] tracking-[0.3em] text-[#8f8f95]';
 const GEN_LOADING_CLS = 'flex items-center justify-center gap-3.5 pt-[30px] pb-1.5';
 const GEN_LOADING_TEXT_CLS = 'm-0 text-[12.5px] tracking-[0.25em] text-[#c9a86a]';
 const ERROR_CLS = 'mt-4 mb-0 text-center text-[12px] tracking-[0.12em] text-[#e2725b]';
@@ -228,19 +251,25 @@ const MODAL_TEXT_CLS = 'mt-3 mb-0 text-[12px] leading-[2.1] tracking-[0.05em] te
 const MODAL_ROW_CLS = 'mt-6 flex items-center justify-center gap-5';
 const MODAL_CTA_CLS =
   'inline-flex items-center border border-[rgba(201,168,106,0.55)] bg-[rgba(201,168,106,0.1)] ' +
-  'text-[#c9a86a] rounded-full font-[inherit] text-[11px] tracking-[0.3em] py-2.5 pl-[26px] pr-[20px] ' +
+  'text-[#c9a86a] rounded-full font-[inherit] text-[12px] tracking-[0.3em] py-2.5 pl-[26px] pr-[20px] ' +
   'cursor-pointer transition-colors duration-300 ' +
   'hover:bg-[rgba(201,168,106,0.2)] hover:text-[#e6c98f]';
 const MODAL_LATER_CLS =
-  'border-0 bg-transparent text-[#5c5c63] font-[inherit] text-[11px] tracking-[0.18em] cursor-pointer ' +
+  'border-0 bg-transparent text-[#5c5c63] font-[inherit] text-[12px] tracking-[0.18em] cursor-pointer ' +
   'p-0 transition-colors hover:text-[#8f8f95]';
 
 const SEC_CLS = `mt-11 ${FADE}`;
 const SEC_HEAD_CLS = 'mb-4 mt-0 flex items-baseline gap-3.5';
 const SEC_TITLE_CLS = 'm-0 text-[15px] tracking-[0.28em] text-[#e8edf2] font-normal';
-const SEC_SUB_CLS = 'text-[11px] tracking-[0.2em] text-[#8f8f95]';
+const SEC_SUB_CLS = 'text-[12px] tracking-[0.2em] text-[#8f8f95]';
 const PENDING_CLS = 'm-0 text-[12.5px] tracking-[0.1em] text-[#5c5c63] leading-[2.2]';
-const PROSE_CLS = 'm-0 text-sm leading-[2.3] tracking-[0.03em] whitespace-pre-wrap text-[#d6d3cd]';
+/* 抽象总结正文（markdown 渲染：每段一个 ### 小标题，段落间留白） */
+const ABSTRACT_PROSE_CLS =
+  'text-sm leading-[2.3] tracking-[0.03em] text-[#d6d3cd] ' +
+  '[&_p+p]:mt-3.5 [&_p+h3]:mt-4 [&_h3+p]:mt-1';
+const ABSTRACT_HEAD_CLS = 'm-0 text-[13px] font-normal tracking-[0.2em] text-[#c9a86a]';
+const ABSTRACT_P_CLS = 'm-0 whitespace-pre-wrap';
+const ABSTRACT_STRONG_CLS = 'font-semibold text-[#e8edf2]';
 
 /* 聚焦：勾选三个念头（勾满 3 件才能生成，勾选本身就是决断） */
 const PICK_LIST_CLS = 'list-none m-0 p-0';
@@ -251,13 +280,13 @@ const PICK_ITEM_ON_CLS = 'bg-[rgba(201,168,106,0.06)]';
 const BOOKMARK_ON_CLS = 'text-[#c9a86a]';
 const BOOKMARK_OFF_CLS = 'text-[#3f3f45]';
 const PICK_TEXT_CLS = 'flex-1 min-w-0 text-sm leading-[1.9] tracking-[0.03em] text-[#d6d3cd]';
-const PICK_ANCHOR_CLS = 'shrink-0 text-[10.5px] tracking-[0.12em] text-[#5c5c63]';
+const PICK_ANCHOR_CLS = 'shrink-0 text-[12px] tracking-[0.12em] text-[#5c5c63]';
 
 /* 具体化（LLM 给出的下周一件小事） */
 const CONCRETE_BOX_CLS =
   'mt-[22px] px-5 pt-3.5 pb-4 bg-[rgba(201,168,106,0.05)] border border-[rgba(201,168,106,0.25)] ' +
   'rounded-[4px_12px_12px_12px]';
-const CONCRETE_LABEL_CLS = 'm-0 text-[10.5px] tracking-[0.25em] text-[#c9a86a]';
+const CONCRETE_LABEL_CLS = 'm-0 text-[12px] tracking-[0.25em] text-[#c9a86a]';
 const CONCRETE_TEXT_CLS = 'mt-2 mb-0 text-[13.5px] leading-[2] tracking-[0.03em] text-[#e8edf2]';
 
 const GRAPH_SCROLLER_CLS = 'overflow-x-auto pb-1';
@@ -265,27 +294,27 @@ const GRAPH_WRAP_CLS =
   'min-w-[560px] w-full box-border bg-[#141416] border border-[#26262b] rounded-[4px_12px_12px_12px] p-2';
 const DETAIL_CLS =
   'mt-3.5 px-5 pt-4 pb-3.5 bg-[#141416] border border-[#26262b] rounded-[4px_12px_12px_12px]';
-const DETAIL_HEAD_CLS = 'm-0 text-[11px] tracking-[0.3em] text-[#d5d5d5]';
+const DETAIL_HEAD_CLS = 'm-0 text-[12px] tracking-[0.3em] text-[#d5d5d5]';
 const GOLD_CLS = 'text-[#c9a86a]';
 const DETAIL_TEXT_CLS =
   'mt-2.5 mb-0 text-[13.5px] leading-[2.1] tracking-[0.03em] whitespace-pre-wrap text-[#e8edf2]';
-const DETAIL_LINKS_CLS = 'mt-2.5 mb-0 text-[11.5px] tracking-[0.1em] text-[#8f8f95]';
+const DETAIL_LINKS_CLS = 'mt-2.5 mb-0 text-[12px] tracking-[0.1em] text-[#8f8f95]';
 const DETAIL_REASON_CLS = 'text-[#8f8f95]';
 
 const LINK_LIST_CLS = 'mt-3 flex flex-col gap-0.5';
-const LINK_IDX_CLS = 'text-[11.5px] tracking-[0.1em]';
+const LINK_IDX_CLS = 'text-[12px] tracking-[0.1em]';
 const LINK_ARROW_CLS = 'text-[#c9a86a] text-[12px]';
-const LINK_REASON_CLS = 'ml-auto text-[10.5px] tracking-[0.15em] text-[#8f8f95]';
+const LINK_REASON_CLS = 'ml-auto text-[12px] tracking-[0.15em] text-[#8f8f95]';
 const LINK_ITEM_CLS =
   'flex items-center gap-2 w-full text-left border-0 bg-transparent text-[#d6d3cd] font-[inherit] ' +
   'text-[12px] tracking-[0.08em] px-2.5 py-[7px] rounded-lg cursor-pointer ' +
   'transition-colors duration-200 hover:bg-white/5';
 const LINK_KIND_CLS =
-  'shrink-0 text-[10px] tracking-[0.18em] leading-[1.6] text-[#c9a86a] ' +
+  'shrink-0 text-[12px] tracking-[0.18em] leading-[1.6] text-[#c9a86a] ' +
   'border border-[rgba(201,168,106,0.4)] rounded-full px-[7px] py-[1px]';
 /* 图例：线型对应联结三型（与图谱 stroke 一致） */
 const LEGEND_CLS =
-  'm-0 flex items-center justify-end gap-4 text-[10px] tracking-[0.15em] text-[#8f8f95]';
+  'm-0 flex items-center justify-end gap-4 text-[12px] tracking-[0.15em] text-[#8f8f95]';
 const LEGEND_SAMPLE_SOLID_CLS =
   'inline-block w-[18px] h-0 border-t border-solid border-[rgba(201,168,106,0.8)] align-middle';
 const LEGEND_SAMPLE_DASHED_CLS =
@@ -295,21 +324,21 @@ const LEGEND_SAMPLE_DOTTED_CLS =
 
 const PLAN_BOX_CLS =
   'mt-[22px] px-5 pt-[18px] pb-4 bg-[#141416] border border-[#26262b] rounded-[4px_12px_12px_12px]';
-const PLAN_LABEL_CLS = 'mb-3 mt-0 text-[11.5px] tracking-[0.2em] text-[#d5d5d5]';
+const PLAN_LABEL_CLS = 'mb-3 mt-0 text-[12px] tracking-[0.2em] text-[#d5d5d5]';
 const PLAN_AREA_CLS =
   'w-full box-border bg-[#0f0f11] border border-[#26262b] rounded-[10px] text-[#e8edf2] ' +
   'font-[inherit] text-[13.5px] leading-[2] tracking-[0.03em] px-4 py-3 resize-y outline-none ' +
   'transition-colors focus:border-[rgba(201,168,106,0.5)]';
 const PLAN_ROW_CLS = 'flex items-center gap-3.5 mt-3';
-const PLAN_NOTE_CLS = 'text-[10.5px] tracking-[0.12em] text-[#5c5c63]';
+const PLAN_NOTE_CLS = 'text-[12px] tracking-[0.12em] text-[#5c5c63]';
 const SAVE_CLS =
-  'border border-[#d5d5d5] rounded-full bg-[#d5d5d5] text-[#141416] font-[inherit] text-[11px] ' +
+  'border border-[#d5d5d5] rounded-full bg-[#d5d5d5] text-[#141416] font-[inherit] text-[12px] ' +
   'tracking-[0.3em] py-2 pl-[26px] pr-[22px] cursor-pointer transition-opacity duration-300 ' +
   'hover:enabled:opacity-85 disabled:opacity-40 disabled:cursor-default';
 
-const REG_LINE_CLS = `mt-[46px] mb-0 text-center text-[11px] tracking-[0.15em] text-[#8f8f95] ${FADE}`;
+const REG_LINE_CLS = `mt-[46px] mb-0 text-center text-[12px] tracking-[0.15em] text-[#8f8f95] ${FADE}`;
 const REG_CLS =
-  'border-0 bg-transparent text-[#8f8f95] font-[inherit] text-[11px] tracking-[0.18em] cursor-pointer ' +
+  'border-0 bg-transparent text-[#8f8f95] font-[inherit] text-[12px] tracking-[0.18em] cursor-pointer ' +
   'underline underline-offset-4 decoration-[#2e2e33] p-0 transition-colors ' +
   'hover:enabled:text-[#c9a86a] disabled:opacity-50 disabled:cursor-default';
 const STALE_NOTE_CLS = 'text-[#c9a86a]';
@@ -733,12 +762,11 @@ export default function EchoClient() {
             <section className={SEC_CLS}>
               <p className={SEC_HEAD_CLS}>
                 <span className={SEC_TITLE_CLS}>这一周的总结</span>
-                <span className={SEC_SUB_CLS}>总的来说，这些事情究竟表达了什么</span>
               </p>
               {genLoading ? (
                 <p className={PENDING_CLS}>正在总结……</p>
               ) : review?.abstract ? (
-                <p className={PROSE_CLS}>{review.abstract}</p>
+                <AbstractProse text={review.abstract} />
               ) : (
                 <p className={PENDING_CLS}>生成复盘后，这里会写下这一周的答案。</p>
               )}
@@ -751,7 +779,7 @@ export default function EchoClient() {
 
               {/* 用户手写计划（编辑保护：写入后 LLM 不覆盖） */}
               <div className={PLAN_BOX_CLS}>
-                <p className={PLAN_LABEL_CLS}>写给下周的一件小事（你自己的）</p>
+                <p className={PLAN_LABEL_CLS}>这周备注</p>
                 <textarea
                   className={PLAN_AREA_CLS}
                   value={plan}
@@ -759,7 +787,7 @@ export default function EchoClient() {
                     setPlan(e.target.value);
                     setPlanSaved(false);
                   }}
-                  placeholder="下周，我想试着……"
+                  placeholder="比如：下周，我想试着……"
                   rows={3}
                   maxLength={600}
                 />
@@ -1088,7 +1116,7 @@ function WeekGraph({
             {EMOTION_ORDER.map((e, r) => (
               <g key={e}>
                 <circle cx={layout.PAD_L - 12} cy={layout.rowY(r)} r={3} fill={EMOTION_DOT[e] ?? '#888'} />
-                <text x={layout.PAD_L - 22} y={layout.rowY(r) + 3.5} textAnchor="end" fontSize={10} fill="#8f8f95">
+                <text x={layout.PAD_L - 22} y={layout.rowY(r) + 3.5} textAnchor="end" fontSize={12} fill="#8f8f95">
                   {EMOTION_LABEL[e]}
                 </text>
               </g>
@@ -1096,7 +1124,7 @@ function WeekGraph({
 
             {/* 星期轴（周一起始） */}
             {WEEKDAYS_CN_MON.map((w, c) => (
-              <text key={w} x={layout.colX(c)} y={layout.h - 10} textAnchor="middle" fontSize={9.5} fill="#8f8f95">
+              <text key={w} x={layout.colX(c)} y={layout.h - 10} textAnchor="middle" fontSize={12} fill="#8f8f95">
                 {w}
               </text>
             ))}
@@ -1119,7 +1147,7 @@ function WeekGraph({
                     x={e.lx}
                     y={e.ly - 3}
                     textAnchor="middle"
-                    fontSize={9}
+                    fontSize={12}
                     fill="rgba(201,168,106,.9)"
                     stroke="#0b0b0c"
                     strokeWidth={3}
@@ -1154,7 +1182,7 @@ function WeekGraph({
                     x={p.x}
                     y={p.y - p.r - 5}
                     textAnchor="middle"
-                    fontSize={9}
+                    fontSize={12}
                     fill={i === selected ? '#c9a86a' : '#8f8f95'}
                   >
                     {i + 1}
