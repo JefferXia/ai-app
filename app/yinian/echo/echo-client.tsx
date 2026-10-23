@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import moment from 'moment';
-import { Bookmark } from 'lucide-react';
+import { Bookmark, Lock } from 'lucide-react';
 import { anchorLabel } from '../../wenxin/shared';
 import { EMOTION_DOT, DOMAIN_LABEL, Spinner } from '../yinian-shared';
 import YinianHeader from '../yinian-header';
@@ -20,6 +20,8 @@ import YinianHeader from '../yinian-header';
  *         具体化的一件小事从三件最重要的事着手
  *   手写：下周计划由用户自己写（编辑保护，重新生成不覆盖）
  * 门槛：本周念头超过 3 个。数据源 /api/yinian/review，周口径 = 周一 0 点 UTC。
+ * 会员门：周复盘生成是会员功能——非会员生成/重新生成按钮带锁，点击弹会员提示浮层
+ *         （CTA → /yinian/member）；服务端 POST 另有硬门（403）。
  * 周选择：月历直接展开（参考 event-calendar-widget / moment，整行 = 一周），
  * 点某天只更新当天详情，切到别的一周才重新拉取；当天念头以情绪色点显示，
  * 详情面板列出当天念头；今日高亮蓝色，未来周置灰不可选。
@@ -62,6 +64,7 @@ interface ReviewData {
 interface WeekPayload {
   weekStart: string;
   canReview: boolean;
+  isMember?: boolean; // 会员门：false = 非会员（生成带锁；缺省按会员处理，避免误锁）
   thoughts: WeekThought[];
   stats: WeekStats;
   review: ReviewData | null;
@@ -211,6 +214,27 @@ const GEN_LOADING_CLS = 'flex items-center justify-center gap-3.5 pt-[30px] pb-1
 const GEN_LOADING_TEXT_CLS = 'm-0 text-[12.5px] tracking-[0.25em] text-[#c9a86a]';
 const ERROR_CLS = 'mt-4 mb-0 text-center text-[12px] tracking-[0.12em] text-[#e2725b]';
 
+/* 会员门：锁标 + 会员提示浮层（周复盘生成是会员功能） */
+const LOCK_CLS = 'inline-block -translate-y-px text-current';
+const MODAL_MASK_CLS =
+  'fixed inset-0 z-[60] flex items-center justify-center bg-black/70 px-6 backdrop-blur-[2px]';
+const MODAL_BOX_CLS =
+  'w-full max-w-[320px] bg-[#141416] border border-[#26262b] rounded-[4px_12px_12px_12px] ' +
+  'px-7 pt-7 pb-6 text-center ' +
+  FADE;
+const MODAL_ICON_CLS = 'mx-auto text-[#c9a86a]';
+const MODAL_TITLE_CLS = 'mt-3 mb-0 text-[14px] tracking-[0.25em] text-[#e8edf2]';
+const MODAL_TEXT_CLS = 'mt-3 mb-0 text-[12px] leading-[2.1] tracking-[0.05em] text-[#8f8f95]';
+const MODAL_ROW_CLS = 'mt-6 flex items-center justify-center gap-5';
+const MODAL_CTA_CLS =
+  'inline-flex items-center border border-[rgba(201,168,106,0.55)] bg-[rgba(201,168,106,0.1)] ' +
+  'text-[#c9a86a] rounded-full font-[inherit] text-[11px] tracking-[0.3em] py-2.5 pl-[26px] pr-[20px] ' +
+  'cursor-pointer transition-colors duration-300 ' +
+  'hover:bg-[rgba(201,168,106,0.2)] hover:text-[#e6c98f]';
+const MODAL_LATER_CLS =
+  'border-0 bg-transparent text-[#5c5c63] font-[inherit] text-[11px] tracking-[0.18em] cursor-pointer ' +
+  'p-0 transition-colors hover:text-[#8f8f95]';
+
 const SEC_CLS = `mt-11 ${FADE}`;
 const SEC_HEAD_CLS = 'mb-4 mt-0 flex items-baseline gap-3.5';
 const SEC_TITLE_CLS = 'm-0 text-[15px] tracking-[0.28em] text-[#e8edf2] font-normal';
@@ -307,6 +331,8 @@ export default function EchoClient() {
   const [loading, setLoading] = useState(true);
   const [genLoading, setGenLoading] = useState(false);
   const [genError, setGenError] = useState<string | null>(null);
+  /* 会员门：非会员点生成/重新生成时弹会员提示浮层 */
+  const [memberModal, setMemberModal] = useState(false);
   const [selected, setSelected] = useState<number | null>(null);
   /* 聚焦：用户勾选的三个念头 id（勾选本身是决断练习） */
   const [picks, setPicks] = useState<string[]>([]);
@@ -459,6 +485,17 @@ export default function EchoClient() {
 
   const review = data?.review ?? null;
   const reviewLinks = useMemo(() => review?.links ?? [], [review]);
+  /* 会员门（GET 未带 isMember 时按会员处理，避免误锁） */
+  const isMember = data?.isMember !== false;
+
+  /* 生成/重新生成入口：非会员弹会员提示，会员走正常生成 */
+  const requestGenerate = useCallback(() => {
+    if (!isMember) {
+      setMemberModal(true);
+      return;
+    }
+    generate();
+  }, [isMember, generate]);
 
   /* 选中念头的相关边（详情卡 + 图谱高亮共用） */
   const focusSet = useMemo(() => {
@@ -592,14 +629,19 @@ export default function EchoClient() {
               </p>
             </div>
 
-            {/* 生成入口（未生成时；可不标记，LLM 会先判定三件最重要的事） */}
+            {/* 生成入口（未生成时；可不标记，LLM 会先判定三件最重要的事；非会员带锁） */}
             {!review && !genLoading && (
               <div className={GEN_WRAP_CLS}>
-                <button className={GEN_CLS} onClick={generate}>
-                  生 成 周 复 盘
+                <button className={GEN_CLS} onClick={requestGenerate}>
+                  生 成 周 复 盘{' '}
+                  {!isMember && <Lock size={13} strokeWidth={1.8} className={LOCK_CLS} aria-hidden />}
                 </button>
                 <p className={GEN_NOTE_CLS}>
-                  {picks.length === 3 ? '按你标记的三件生成' : '可不标记，LLM 会先判定三件最重要的事'}
+                  {!isMember
+                    ? '周复盘是会员功能'
+                    : picks.length === 3
+                      ? '按你标记的三件生成'
+                      : '可不标记，LLM 会先判定三件最重要的事'}
                 </p>
               </div>
             )}
@@ -734,12 +776,13 @@ export default function EchoClient() {
               </div>
             </section>
 
-            {/* 重新生成 / 生成元信息 */}
+            {/* 重新生成 / 生成元信息（非会员带锁） */}
             {review && !genLoading && (
               <p className={REG_LINE_CLS}>
                 复盘生成于 {anchorLabel(review.updatedAt)} ·{' '}
-                <button className={REG_CLS} onClick={generate} disabled={genLoading}>
-                  重新生成（按当前标记，手写计划会保留）
+                <button className={REG_CLS} onClick={requestGenerate} disabled={genLoading}>
+                  重新生成（按当前标记，手写计划会保留）{' '}
+                  {!isMember && <Lock size={11} strokeWidth={1.8} className={LOCK_CLS} aria-hidden />}
                 </button>
                 {picksChanged && <span className={STALE_NOTE_CLS}>　标记已变，会按新的三件来</span>}
                 {stale && <span className={STALE_NOTE_CLS}>　本周又添了新念头，复盘还是旧的</span>}
@@ -748,6 +791,31 @@ export default function EchoClient() {
           </>
         )}
       </main>
+
+      {/* 会员提示浮层：非会员点生成/重新生成时弹出 */}
+      {memberModal && (
+        <div className={MODAL_MASK_CLS} onClick={() => setMemberModal(false)} role="presentation">
+          <div
+            className={MODAL_BOX_CLS}
+            onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+            aria-label="会员提示"
+          >
+            <Lock size={20} strokeWidth={1.4} className={MODAL_ICON_CLS} aria-hidden />
+            <p className={MODAL_TITLE_CLS}>周复盘是会员功能</p>
+            <p className={MODAL_TEXT_CLS}>开通会员，每周回看念头的来路与去处——聚焦三件事、看见联结、写下下周。</p>
+            <div className={MODAL_ROW_CLS}>
+              <Link href="/yinian/member" className={MODAL_CTA_CLS}>
+                开 通 会 员
+              </Link>
+              <button className={MODAL_LATER_CLS} onClick={() => setMemberModal(false)}>
+                暂不需要
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

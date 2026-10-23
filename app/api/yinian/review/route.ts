@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getWenxinUser } from '@/lib/wenxin-auth';
 import { chat } from '@/lib/yinian/llm';
+import { getMemberState } from '@/lib/wenxin-membership';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
@@ -16,6 +17,7 @@ export const maxDuration = 60;
  *      （重新生成保留用户手写 plan —— update 不带 plan 字段即不覆盖）
  * PATCH { week, plan }               → 保存用户手写的下周计划
  *
+ * 会员门：周复盘生成是会员功能——非会员 POST 返回 403；GET 附带 isMember 供页面显示锁与提示。
  * 联结不再用确定性打分，宁缺毋滥：直接联结 = 一个事件引发后续事件，间接联结 = 内心想法
  * 触发具体行动（经由个人特质，往往只有本人能察觉），奇妙联结 = 看似无关事件的意外呼应；
  * 方向遵循时间顺序——早前的念头引发后续的念头。交给 LLM 识别，不凭空想象。
@@ -251,6 +253,7 @@ export async function GET(req: Request) {
 
     const rows = await fetchWeekThoughts(userId, weekStart);
     const stats = buildStats(rows);
+    const member = await getMemberState(userId);
     const review = await prisma.ynReview.findUnique({
       where: { userId_weekStart: { userId, weekStart } },
     });
@@ -286,6 +289,7 @@ export async function GET(req: Request) {
       data: {
         weekStart: weekKey(weekStart),
         canReview: rows.length > 3,
+        isMember: !!member?.isMember,
         thoughts: rows.map(toClientThought),
         stats,
         review: review ? reviewToClient(review) : null,
@@ -305,6 +309,11 @@ export async function POST(req: Request) {
     const userId = await getWenxinUser();
     if (!userId) {
       return NextResponse.json({ success: false, error: '未授权访问' }, { status: 401 });
+    }
+    /* 复盘是会员功能：服务端硬门（防绕过前端直接调接口） */
+    const member = await getMemberState(userId);
+    if (!member?.isMember) {
+      return NextResponse.json({ success: false, error: '周复盘是会员功能' }, { status: 403 });
     }
     const body = await req.json().catch(() => null);
     const resolved = resolveWeek(body?.week);
