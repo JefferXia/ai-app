@@ -1,11 +1,12 @@
 /* ===== 一念 · 跨页共享：星空底、情绪色、领域中文名、星体视觉 ===== */
 
 /* 霍金斯能量层级 7 档色（2026-10-15 校准，详见 docs/design/yinian-star-visual.md §3）：
- * 自低到高 numb 羞愧·冷淡 → low 悲伤 → anxious 恐惧 → hot 愤怒 → courage 勇气 → calm 理智 → love 爱 */
+ * 自低到高 numb 羞愧·冷淡 → low 悲伤 → anxious 恐惧 → hot 愤怒 → courage 勇气 → calm 理智 → love 爱
+ * 2026-10-23：anxious 木星橙 #d07f45 → 深褐 #7b4b26（原与 courage 金黄过近，情绪点难辨别） */
 export const EMOTION_DOT: Record<string, string> = {
   numb: '#2a2a38',
   low: '#2296b4',
-  anxious: '#d07f45',
+  anxious: '#7b4b26',
   hot: '#e21a35',
   courage: '#c98f45',
   calm: '#c8c8c0',
@@ -75,22 +76,22 @@ export const STAR_VISUAL: Record<string, StarVisual> = {
     shadow: '0 0 5px lightblue',
     bodyAnim: 'yn-breathe-slow',
   },
-  // 恐惧·欲望（100-125）：木星——橙乳横纹（参考条带按 75px 原型折算为百分比）
+  // 恐惧·欲望（100-125）：木星——深褐横纹（2026-10-23 由橙乳改深褐，与 courage 金黄区分；参考条带按 75px 原型折算为百分比）
   anxious: {
-    dot: 'radial-gradient(circle at 35% 30%, #f7d8c1, #e89150 55%, #a34f12)',
-    glow: 'rgba(232,145,80,.6)',
+    dot: 'radial-gradient(circle at 35% 30%, #d9b98c, #7b4b26 55%, #3f2208)',
+    glow: 'rgba(123,75,38,.55)',
     dotAnim: 'yn-flicker',
-    body: 'linear-gradient(to bottom, #E89150 6.7%, #f7d8c1 13.3%, #D16F1B 40%, #f7d8c1 66.7%, #D16F1B 73.3%, #f7d8c1 93.3%, #E89150 100%)',
+    body: 'linear-gradient(to bottom, #7B4B26 6.7%, #d9b98c 13.3%, #4A2A0E 40%, #d9b98c 66.7%, #4A2A0E 73.3%, #d9b98c 93.3%, #7B4B26 100%)',
     stops: [
-      [0.067, '#E89150'],
-      [0.133, '#f7d8c1'],
-      [0.4, '#D16F1B'],
-      [0.667, '#f7d8c1'],
-      [0.733, '#D16F1B'],
-      [0.933, '#f7d8c1'],
-      [1, '#E89150'],
+      [0.067, '#7B4B26'],
+      [0.133, '#d9b98c'],
+      [0.4, '#4A2A0E'],
+      [0.667, '#d9b98c'],
+      [0.733, '#4A2A0E'],
+      [0.933, '#d9b98c'],
+      [1, '#7B4B26'],
     ],
-    halo: 'rgba(232,145,80,.35)',
+    halo: 'rgba(123,75,38,.3)',
     bodyAnim: 'yn-flicker',
   },
   // 愤怒·骄傲（150-175）：绯红星——circle 参考：白辉高光叠 salmon→红基球，右下 inset 黑月牙
