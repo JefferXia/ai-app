@@ -57,7 +57,7 @@ const SECTIONS = [
   },
   {
     mark: '叁',
-    title: '回观复盘',
+    title: '每周复盘',
     body: '对照即明，让复盘成为一种生活习惯',
   },
 ] as const;
@@ -237,7 +237,7 @@ function RepliesDemo() {
   );
 }
 
-/* 叁 · 回观：念头时间轴——同一条心念线索的 内心 → 行动 → 结果 三段回观，
+/* 叁 · 复盘：念头时间轴——同一条心念线索的 内心 → 行动 → 结果 三段回看，
  * 节点间用金色箭头 + 短注解标出因果关联；+ 情绪日历（霍金斯七档色月历，色取 EMOTION_DOT 单源）；
  * 点击进 /yinian/echo */
 const ECHO_TIMELINE: Array<{
@@ -296,7 +296,7 @@ function EchoDemo() {
       ref={ref}
       href="/yinian/echo"
       className={`${DEMO_LINK}${shown ? ' yn-demo-on' : ''} w-[min(560px,100%)]`}
-      aria-label="回观 · 进入回观"
+      aria-label="复盘 · 进入复盘"
     >
       <div className="yn-echo-cols">
         {/* 时间轴：竖线随入场生长；内心 → 行动 → 结果 三段用金色箭头 + 短注解串联因果，
@@ -616,7 +616,7 @@ export default function StarHomeClient() {
           <Link href="/yinian">一念</Link>
           <Link href="/yinian/sky">心念宇宙</Link>
           <Link href="/yinian/hall">传奇心智</Link>
-          <Link href="/yinian/echo">回观</Link>
+          <Link href="/yinian/echo">复盘</Link>
         </nav>
         <nav className={`${FOOT_COL} rounded-[20px] border border-white/[0.09] bg-white/5 px-[30px] py-[26px]`}>
           <Link href="/">关于我们</Link>

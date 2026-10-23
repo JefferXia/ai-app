@@ -66,6 +66,7 @@
     "markmap-lib": "^0.17.0",
     "markmap-view": "^0.17.0",
     "mic": "^2.1.2",
+    "moment": "^2.31.0",
     "next": "15.0.7",
     "next-auth": "5.0.0-beta.25",
     "next-themes": "^0.3.0",

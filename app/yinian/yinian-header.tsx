@@ -10,7 +10,7 @@ import { MEMBER_PRICE_LABEL } from '@/lib/member-plan';
 import { SERIF } from '../wenxin/shared';
 
 /* ===== 一念公共顶栏：双圆 logo（One Mind 字标）+ 磨砂玻璃导航胶囊 + 登录态 =====
- * yinian 体系所有页面（/、/yinian、/yinian/sky、/yinian/hall、/yinian/echo 等）统一使用，
+ * yinian 体系所有页面（/、/yinian、/yinian/sky、/yinian/hall、/yinian/echo（复盘）等）统一使用，
  * 页面各自渲染本组件；全局 Navbar 在 /yinian 路径下不再重复渲染顶栏。
  * 布局：logo 靠左，导航胶囊整体靠右，登录态（登录按钮 / 用户 icon）在导航右侧。
  * 移动端（<768px）：导航与登录态都收进右拉抽屉（vaul Drawer direction=right，问心式），
@@ -25,7 +25,7 @@ const NAV_ITEMS = [
   { href: '/yinian', label: '一念' },
   { href: '/yinian/sky', label: '心念宇宙' },
   { href: '/yinian/hall', label: '传奇心智' },
-  { href: '/yinian/echo', label: '回观' },
+  { href: '/yinian/echo', label: '复盘' },
 ] as const;
 
 function activeHref(pathname: string): string | null {

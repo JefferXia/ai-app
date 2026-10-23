@@ -1125,7 +1125,7 @@ h3,
   margin-top: -8px;
 }
 
-/* 叁 · 回观：时间轴竖线生长 + 节点情绪色呼吸；情绪日历逐格弹出 + 今日金环呼吸 */
+/* 叁 · 复盘：时间轴竖线生长 + 节点情绪色呼吸；情绪日历逐格弹出 + 今日金环呼吸 */
 .yn-echo-cols {
   display: grid;
   grid-template-columns: 1fr;

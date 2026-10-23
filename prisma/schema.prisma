@@ -60,6 +60,7 @@ model User {
   userMemories    UserMemory[]                        // 用户记忆
   wenxinEntries  WenxinEntry[]                        // 问心归档条目
   ynThoughts     YnThought[]                          // 一念念头
+  ynReviews      YnReview[]                           // 一念周复盘
 
   @@index([invite_code])
   @@index([invited_by])
@@ -485,4 +486,29 @@ model YnReply {
   thought   YnThought @relation(fields: [thoughtId], references: [id], onDelete: Cascade)
 
   @@index([thoughtId, createdAt])
+}
+
+// 一念 - 周复盘（每周一份；weekStart 为该周周一 0 点 UTC，与 userId 组成唯一约束）
+model YnReview {
+  id        String   @id @default(uuid())
+  userId    String
+  weekStart DateTime              // 本周周一 0点（UTC），唯一键的一部分
+  thoughtIds String  @db.Text      // 参与本周复盘的念头 id，逗号分隔（时序）
+
+  // 自动统计快照（复盘时的一周数据画像；links 为 LLM 识别的联结，kind = 直接/间接/奇妙）
+  stats     Json?
+
+  // 复盘正文（聚焦 = 三件最重要的事：用户书签优先，否则 LLM 判定；联结/总结由 LLM 产出；plan 手写）
+  focusIds  String?  @db.Text      // 三件最重要的事的念头 id，逗号分隔（时序）
+  abstract  String?  @db.Text      // 总结 · 抽象化（LLM，由表及里：状态→模式→信念/渴望）
+  concrete  String?  @db.Text      // 总结 · 具体化：下周可以试的一件小事（LLM）
+  plan      String?  @db.Text      // 用户手写的下周计划（编辑保护：写入后 LLM 不覆盖）
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user      User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, weekStart])
+  @@index([userId, createdAt(sort: Desc)])
 }
