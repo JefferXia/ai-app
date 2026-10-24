@@ -1,7 +1,7 @@
 /* ===== 一念 · 跨页共享：星空底、情绪色、领域中文名、星体视觉 ===== */
 
 /* 霍金斯能量层级 7 档色（2026-10-15 校准，详见 docs/design/yinian-star-visual.md §3）：
- * 自低到高 numb 羞愧·冷淡 → low 悲伤 → anxious 恐惧 → hot 愤怒 → courage 勇气 → calm 理智 → love 爱
+ * 自低到高 numb 羞愧·内疚 → low 冷淡·悲伤 → anxious 恐惧 → hot 愤怒 → courage 勇气 → calm 宽容 → love 仁爱
  * 2026-10-23：anxious 木星橙 #d07f45 → 深褐 #7b4b26（原与 courage 金黄过近，情绪点难辨别） */
 export const EMOTION_DOT: Record<string, string> = {
   numb: '#2a2a38',
@@ -50,7 +50,7 @@ export interface StarVisual {
 }
 
 export const STAR_VISUAL: Record<string, StarVisual> = {
-  // 羞愧·内疚·冷淡（20-50）：黑矮星——几乎熄灭，inset 阴影压出暗月牙与残光
+  // 羞愧·内疚（20-30）：黑矮星——几乎熄灭，inset 阴影压出暗月牙与残光（冷淡 50 归 low 档）
   numb: {
     dot: 'radial-gradient(circle at 35% 30%, #9c9a91, #5a5952 55%, #2c2c30)',
     glow: 'rgba(92,90,96,.35)',
@@ -62,7 +62,7 @@ export const STAR_VISUAL: Record<string, StarVisual> = {
     halo: 'rgba(92,90,96,.14)',
     shadow: 'inset 40px 20px 60px #000, inset -20px -10px 20px #ddc',
   },
-  // 悲伤（75）：深海蓝星——冷蓝沉底
+  // 冷淡·悲伤（50-75）：深海蓝星——冷蓝沉底
   low: {
     dot: 'radial-gradient(circle at 35% 30%, #d8f4fd, #57b8d4 60%, #2a7286)',
     glow: 'rgba(120,205,230,.55)',
@@ -110,7 +110,7 @@ export const STAR_VISUAL: Record<string, StarVisual> = {
     shadow: 'inset -5px -14px 38px -14px #000',
     bodyAnim: 'yn-corona',
   },
-  // 勇气·满意·主动（200-310，勇气是正负转折点）：熔金太阳——日冕式双层金光，有力而不灼人
+  // 勇气·主动（200-310，勇气是正负转折点）：熔金太阳——日冕式双层金光，有力而不灼人
   courage: {
     dot: 'radial-gradient(circle at 38% 32%, #ffe9b8, #e0b163 55%, #c98f45)',
     glow: 'rgba(236,203,135,.75)',
@@ -123,7 +123,7 @@ export const STAR_VISUAL: Record<string, StarVisual> = {
     halo: 'rgba(255,228,150,.5)',
     shadow: '0 0 18px #ffc, 0 0 50px #ffb',
   },
-  // 宽恕·理智（350-400）：月球——象牙映着深空蓝
+  // 宽容·理智（350-400）：月球——象牙映着深空蓝
   calm: {
     dot: 'radial-gradient(circle at 35% 30%, #fffdf7, #e8e4da 60%, #9b968b)',
     glow: 'rgba(232,228,218,.55)',
@@ -134,7 +134,7 @@ export const STAR_VISUAL: Record<string, StarVisual> = {
     ],
     halo: 'rgba(238,238,221,.35)',
   },
-  // 爱·喜悦·平静·开悟（500-1000）：天王星——青白辉光，安静地亮着，层次最高
+  // 仁爱·平和（500-1000）：天王星——青白辉光，安静地亮着，层次最高
   love: {
     dot: 'radial-gradient(circle at 36% 30%, #f2ffff, #b9f2f2 55%, #7fd6d6)',
     glow: 'rgba(178,255,255,.75)',

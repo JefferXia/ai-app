@@ -35,6 +35,7 @@ interface WeekThought {
   text: string;
   domain: string | null;
   emotion: string | null;
+  emotionScore?: number | null; // 霍金斯频率分（旧数据 null，图谱落位按档位代表值兜底）
   isDeep: boolean;
   createdAt: number;
 }
@@ -51,6 +52,7 @@ interface WeekStats {
   deep: number;
   emotions: Record<string, number>;
   domains: Record<string, number>;
+  avgEmotionScore?: number | null; // 霍金斯平均能量分（旧复盘快照可能无此字段）
 }
 
 interface ReviewData {
@@ -73,11 +75,50 @@ interface WeekPayload {
   monthThoughts?: WeekThought[];
 }
 
+/* 情绪点短标签（统计条 / 图谱 title；取档名首词，2026-10-24 与档位说明统一） */
 const EMOTION_LABEL: Record<string, string> = {
-  numb: '冷淡', low: '悲伤', anxious: '恐惧', hot: '愤怒', courage: '勇气', calm: '理智', love: '爱',
+  numb: '羞愧', low: '冷淡', anxious: '恐惧', hot: '愤怒', courage: '勇气', calm: '宽容', love: '仁爱',
 };
-/* 纵轴：霍金斯层级自低到高（与 yinian-shared 注释一致） */
+/* 7 档枚举自低到高（情绪点校验 / 档色取值；与 yinian-shared 注释一致） */
 const EMOTION_ORDER = ['numb', 'low', 'anxious', 'hot', 'courage', 'calm', 'love'];
+
+/* 霍金斯能量层级 17 锚点（复盘图谱 Y 轴细分，2026-10-24；tier = 所属 7 档，供轴色点取色）：
+ * 低能量区 20 羞耻 / 30 内疚 / 50 冷漠 / 75 悲伤 / 100 恐惧 / 125 欲望 / 150 愤怒 / 175 骄傲，
+ * 转折点 200 勇气（力量的起点），高能量区 250 淡定 / 310 主动 / 350 宽容 / 400 理性 /
+ * 500 仁爱 / 540 平和 / 600 宁静 / 700-1000 开悟 */
+const SCALE_TIERS: ReadonlyArray<{ score: number; label: string; tier: string }> = [
+  { score: 20, label: '羞耻', tier: 'numb' },
+  { score: 30, label: '内疚', tier: 'numb' },
+  { score: 50, label: '冷漠', tier: 'low' },
+  { score: 75, label: '悲伤', tier: 'low' },
+  { score: 100, label: '恐惧', tier: 'anxious' },
+  { score: 125, label: '欲望', tier: 'anxious' },
+  { score: 150, label: '愤怒', tier: 'hot' },
+  { score: 175, label: '骄傲', tier: 'hot' },
+  { score: 200, label: '勇气', tier: 'courage' },
+  { score: 250, label: '淡定', tier: 'courage' },
+  { score: 310, label: '主动', tier: 'courage' },
+  { score: 350, label: '宽容', tier: 'calm' },
+  { score: 400, label: '理性', tier: 'calm' },
+  { score: 500, label: '仁爱', tier: 'love' },
+  { score: 540, label: '平和', tier: 'love' },
+  { score: 600, label: '宁静', tier: 'love' },
+  { score: 700, label: '开悟', tier: 'love' },
+];
+
+/* 档位代表值兜底（与 lib/yinian/tag.ts FALLBACK_SCORE 同口径：默认区间中点，love 例外取喜悦 540）；旧数据无 score 时图谱落位用 */
+const EMOTION_SCORE_FALLBACK: Record<string, number> = {
+  numb: 25, low: 63, anxious: 113, hot: 163, courage: 255, calm: 375, love: 540,
+};
+
+/* 分数 → 就近锚点行（并列取较低层） */
+function nearestTierIdx(score: number): number {
+  let best = 0;
+  for (let i = 1; i < SCALE_TIERS.length; i++) {
+    if (Math.abs(SCALE_TIERS[i].score - score) < Math.abs(SCALE_TIERS[best].score - score)) best = i;
+  }
+  return best;
+}
 /* 联结三型（产品思路：直接因果可见 / 经由个人内在特质的间接 / 无关事件的意外呼应） */
 const LINK_KIND_LABEL: Record<string, string> = { direct: '直接', indirect: '间接', serendipitous: '奇妙' };
 /* 月历表头：周日起始（与 codepen 一致）；关联图谱轴：周一起始 */
@@ -638,6 +679,7 @@ export default function EchoClient() {
             <div className={STAT_STRIP_CLS + ' ' + FADE}>
               <p className={STAT_LINE_CLS}>
                 这周共 {data.stats.total} 念 · 深念 {data.stats.deep}
+                {data.stats.avgEmotionScore != null ? ` · 平均能量 ${data.stats.avgEmotionScore}` : ''}
                 {review ? ` · 联结 ${review.links.length} 处` : ''}
               </p>
               <p className={STAT_TAGS_CLS}>
@@ -958,7 +1000,7 @@ function WeekCalendar({
 }
 
 /* ===== 联结图谱 =====
- * 纯 SVG：横轴 = 星期（本地时区，与锚点标签一致），纵轴 = 霍金斯情绪层级（自低到高）；
+ * 纯 SVG：横轴 = 星期（本地时区，与锚点标签一致），纵轴 = 霍金斯能量层级（SCALE_TIERS 17 锚点，2026-10-24 起）；
  * 同格多颗确定性错开；曲线箭头从早到晚，理由标在弧中点；线型区分联结三型
  * （实线 = 直接，虚线 = 间接，点线 = 奇妙）；点击念头看全文。
  */
@@ -968,6 +1010,8 @@ interface GraphNode {
   y: number;
   r: number;
   emo: string;
+  score: number;   // 霍金斯频率分（落位依据）
+  tierIdx: number; // 就近锚点行索引（SCALE_TIERS）
 }
 
 interface GraphEdge {
@@ -1008,7 +1052,8 @@ function WeekGraph({
     if (!el) return;
     const ro = new ResizeObserver((entries) => {
       const w = entries[0].contentRect.width;
-      setSize({ w, h: clamp(Math.round(w * 0.78), 300, 440) });
+      /* 17 行 Y 轴需要更高：下限 380 保证每行 ≥20px（12px 轴标签不重叠） */
+      setSize({ w, h: clamp(Math.round(w * 0.9), 380, 560) });
     });
     ro.observe(el);
     return () => ro.disconnect();
@@ -1016,27 +1061,31 @@ function WeekGraph({
 
   const layout = useMemo(() => {
     if (!size) return null;
-    const PAD_L = 78;
+    const PAD_L = 96; // 轴标签含分数（如 "200 勇气"），较 7 档版加宽
     const PAD_R = 20;
     const PAD_T = 18;
     const PAD_B = 30;
     const innerW = size.w - PAD_L - PAD_R;
     const innerH = size.h - PAD_T - PAD_B;
     const colX = (c: number) => PAD_L + (innerW * (c + 0.5)) / 7;
-    const rowY = (r: number) => PAD_T + innerH * (1 - r / 6);
+    const rowY = (r: number) => PAD_T + innerH * (1 - r / (SCALE_TIERS.length - 1));
     const cells = new Map<string, number>();
     const nodes: GraphNode[] = thoughts.map((t) => {
       const dayCol = (new Date(t.createdAt).getDay() + 6) % 7;
       const emo = t.emotion && EMOTION_ORDER.includes(t.emotion) ? t.emotion : 'calm';
-      const row = EMOTION_ORDER.indexOf(emo);
+      /* 落位按 emotionScore 就近锚点（旧数据/未打标按档位代表值兜底）；节点色仍取 7 档档色 */
+      const score = t.emotionScore ?? EMOTION_SCORE_FALLBACK[emo] ?? 375;
+      const row = nearestTierIdx(score);
       const k = `${dayCol}-${row}`;
       const n = cells.get(k) ?? 0;
       cells.set(k, n + 1);
       return {
         x: clamp(colX(dayCol) + ((n % 3) - 1) * 18, PAD_L, size.w - PAD_R),
-        y: clamp(rowY(row) + ((Math.floor(n / 3) % 3) - 1) * 15, PAD_T, size.h - PAD_B),
+        y: clamp(rowY(row) + ((Math.floor(n / 3) % 3) - 1) * 7, PAD_T, size.h - PAD_B),
         r: t.isDeep ? 8 : 5.5,
         emo,
+        score,
+        tierIdx: row,
       };
     });
     return { colX, rowY, nodes, w: size.w, h: size.h, PAD_T, PAD_B, PAD_L, PAD_R };
@@ -1083,7 +1132,7 @@ function WeekGraph({
             width={layout.w}
             height={layout.h}
             role="img"
-            aria-label="一周念头联结图谱：横轴为星期，纵轴为情绪能量，连线区分直接、间接、奇妙三种联结"
+            aria-label="一周念头联结图谱：横轴为星期，纵轴为霍金斯能量层级（20–1000 共 17 级），连线区分直接、间接、奇妙三种联结"
           >
             <defs>
               <marker
@@ -1112,12 +1161,12 @@ function WeekGraph({
               />
             ))}
 
-            {/* 情绪轴：左侧色点 + 中文名 */}
-            {EMOTION_ORDER.map((e, r) => (
-              <g key={e}>
-                <circle cx={layout.PAD_L - 12} cy={layout.rowY(r)} r={3} fill={EMOTION_DOT[e] ?? '#888'} />
+            {/* 能量层级轴：左侧档色点 + 分数与层级名（17 锚点自低到高） */}
+            {SCALE_TIERS.map((t, r) => (
+              <g key={t.score}>
+                <circle cx={layout.PAD_L - 12} cy={layout.rowY(r)} r={3} fill={EMOTION_DOT[t.tier] ?? '#888'} />
                 <text x={layout.PAD_L - 22} y={layout.rowY(r) + 3.5} textAnchor="end" fontSize={12} fill="#8f8f95">
-                  {EMOTION_LABEL[e]}
+                  {`${t.score} ${t.label}`}
                 </text>
               </g>
             ))}
@@ -1165,7 +1214,7 @@ function WeekGraph({
               const dim = focusSet !== null && !focusSet.has(t.id);
               return (
                 <g key={t.id} onClick={() => onSelect(i === selected ? null : i)} className="cursor-pointer" opacity={dim ? 0.38 : 1}>
-                  <title>{`第${i + 1}念 · ${EMOTION_LABEL[p.emo] ?? p.emo}：${t.text}`}</title>
+                  <title>{`第${i + 1}念 · ${SCALE_TIERS[p.tierIdx].label} ${p.score}：${t.text}`}</title>
                   <circle cx={p.x} cy={p.y} r={p.r + 8} fill="transparent" />
                   {t.isDeep && (
                     <circle cx={p.x} cy={p.y} r={p.r + 3.5} fill="none" stroke="rgba(201,168,106,.5)" strokeWidth={0.8} />

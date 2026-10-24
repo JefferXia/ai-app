@@ -17,6 +17,7 @@ function toClient(t: any) {
     text: t.text,
     domain: t.domain,
     emotion: t.emotion,
+    emotionScore: t.emotionScore,
     attachment: t.attachment,
     safety: t.safety,
     isDeep: t.isDeep,
@@ -95,7 +96,7 @@ export async function POST(req: Request) {
         const tag = await tagThought(text);
         await prisma.ynThought.update({
           where: { id: thought.id },
-          data: { domain: tag.domain, emotion: tag.emotion, attachment: tag.attachment, safety: tag.safety },
+          data: { domain: tag.domain, emotion: tag.emotion, emotionScore: tag.emotionScore, attachment: tag.attachment, safety: tag.safety },
         });
         await generateRepliesForThought(thought.id);
       } catch (e) {

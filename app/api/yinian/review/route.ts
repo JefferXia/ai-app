@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getWenxinUser } from '@/lib/wenxin-auth';
 import { chat } from '@/lib/yinian/llm';
+import { emotionScoreOf } from '@/lib/yinian/tag';
 import { getMemberState } from '@/lib/wenxin-membership';
 
 export const runtime = 'nodejs';
@@ -66,6 +67,7 @@ function toClientThought(r: WeekRow) {
     text: r.text,
     domain: r.domain,
     emotion: r.emotion,
+    emotionScore: r.emotionScore,
     attachment: r.attachment,
     isDeep: r.isDeep,
     createdAt: r.createdAt.getTime(),
@@ -86,6 +88,7 @@ interface WeekRow {
   text: string;
   domain: string | null;
   emotion: string | null;
+  emotionScore: number | null;
   attachment: string | null;
   isDeep: boolean;
   createdAt: Date;
@@ -103,6 +106,7 @@ async function fetchWeekThoughts(userId: string, weekStart: Date): Promise<WeekR
       text: true,
       domain: true,
       emotion: true,
+      emotionScore: true,
       attachment: true,
       isDeep: true,
       createdAt: true,
@@ -120,7 +124,10 @@ function buildStats(rows: WeekRow[]) {
     if (r.emotion) emotions[r.emotion] = (emotions[r.emotion] ?? 0) + 1;
     if (r.domain) domains[r.domain] = (domains[r.domain] ?? 0) + 1;
   }
-  return { total: rows.length, deep, emotions, domains };
+  /* 平均能量分（霍金斯频率，2026-10-23 分数化；旧数据无 score 按档位代表值回填） */
+  const scored = rows.map((r) => emotionScoreOf(r.emotion, r.emotionScore)).filter((v): v is number => v != null);
+  const avgEmotionScore = scored.length ? Math.round(scored.reduce((a, b) => a + b, 0) / scored.length) : null;
+  return { total: rows.length, deep, emotions, domains, avgEmotionScore };
 }
 
 function reviewToClient(r: {
@@ -149,7 +156,7 @@ function buildPrompt(rows: WeekRow[], markSet: Set<string>): string {
   const lines = rows.map((r, i) => {
     const d = new Date(r.createdAt.getTime());
     const emo = r.emotion
-      ? { numb: '冷淡', low: '悲伤', anxious: '恐惧', hot: '愤怒', courage: '勇气', calm: '理智', love: '爱' }[r.emotion] ?? r.emotion
+      ? { numb: '羞愧', low: '冷淡', anxious: '恐惧', hot: '愤怒', courage: '勇气', calm: '宽容', love: '仁爱' }[r.emotion] ?? r.emotion
       : '未标';
     const dom = r.domain ?? '其他';
     const mark = markSet.has(r.id) ? '★' : '';
@@ -278,6 +285,7 @@ export async function GET(req: Request) {
           text: true,
           domain: true,
           emotion: true,
+          emotionScore: true,
           attachment: true,
           isDeep: true,
           createdAt: true,

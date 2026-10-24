@@ -93,13 +93,13 @@ function Wave({ text }: { text: string }) {
  * bar 为一条连续色带（色由 EMOTION_DOT 单源生成），7 段等分仅作热区，
  * 鼠标悬停 / 键盘聚焦弹出该层级说明 */
 const TIER_INFO = [
-  { key: 'numb', label: '羞愧 · 内疚 · 冷淡', range: '20–50', tone: '低能量 / 负面' },
-  { key: 'low', label: '悲伤', range: '75', tone: '低能量 / 负面' },
+  { key: 'numb', label: '羞愧 · 内疚', range: '20–30', tone: '低能量 / 负面' },
+  { key: 'low', label: '冷淡 · 悲伤', range: '50–75', tone: '低能量 / 负面' },
   { key: 'anxious', label: '恐惧 · 欲望', range: '100–125', tone: '低能量 / 负面' },
   { key: 'hot', label: '愤怒 · 骄傲', range: '150–175', tone: '低能量 / 负面' },
-  { key: 'courage', label: '勇气 · 满意 · 主动', range: '200–310', tone: '正向' },
-  { key: 'calm', label: '宽恕 · 理智', range: '350–400', tone: '正向' },
-  { key: 'love', label: '爱 · 喜悦 · 平静 · 开悟', range: '500–1000', tone: '正向' },
+  { key: 'courage', label: '勇气 · 主动', range: '200–310', tone: '正向' },
+  { key: 'calm', label: '宽容 · 理智', range: '350–400', tone: '正向' },
+  { key: 'love', label: '仁爱 · 平和', range: '500–1000', tone: '正向' },
 ] as const;
 
 function EnergyScale() {

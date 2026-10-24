@@ -36,6 +36,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
         // thought 字段随轮询带回：打标异步完成，星点颜色/深念态/宇宙布局靠它更新
         thought: {
           emotion: thought.emotion,
+          emotionScore: thought.emotionScore,
           domain: thought.domain,
           attachment: thought.attachment,
           isDeep: thought.isDeep,
