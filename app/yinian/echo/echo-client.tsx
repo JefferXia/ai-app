@@ -87,9 +87,9 @@ const EMOTION_ORDER = ['numb', 'low', 'anxious', 'hot', 'courage', 'calm', 'love
  * 转折点 200 勇气（力量的起点），高能量区 250 淡定 / 310 主动 / 350 宽容 / 400 理性 /
  * 500 仁爱 / 540 平和 / 600 宁静 / 700-1000 开悟 */
 const SCALE_TIERS: ReadonlyArray<{ score: number; label: string; tier: string }> = [
-  { score: 20, label: '羞耻', tier: 'numb' },
+  { score: 20, label: '羞愧', tier: 'numb' },
   { score: 30, label: '内疚', tier: 'numb' },
-  { score: 50, label: '冷漠', tier: 'low' },
+  { score: 50, label: '冷淡', tier: 'low' },
   { score: 75, label: '悲伤', tier: 'low' },
   { score: 100, label: '恐惧', tier: 'anxious' },
   { score: 125, label: '欲望', tier: 'anxious' },
@@ -99,10 +99,10 @@ const SCALE_TIERS: ReadonlyArray<{ score: number; label: string; tier: string }>
   { score: 250, label: '淡定', tier: 'courage' },
   { score: 310, label: '主动', tier: 'courage' },
   { score: 350, label: '宽容', tier: 'calm' },
-  { score: 400, label: '理性', tier: 'calm' },
-  { score: 500, label: '仁爱', tier: 'love' },
-  { score: 540, label: '平和', tier: 'love' },
-  { score: 600, label: '宁静', tier: 'love' },
+  { score: 400, label: '理智', tier: 'calm' },
+  { score: 500, label: '爱', tier: 'love' },
+  { score: 540, label: '喜悦', tier: 'love' },
+  { score: 600, label: '平和', tier: 'love' },
   { score: 700, label: '开悟', tier: 'love' },
 ];
 
@@ -686,7 +686,7 @@ export default function EchoClient() {
                 {EMOTION_ORDER.filter((e) => data.stats.emotions[e]).map((e) => (
                   <span key={e} className={TAG_CLS}>
                     <i className={TAG_DOT_CLS} style={{ background: EMOTION_DOT[e] ?? '#888' }} />
-                    {EMOTION_LABEL[e] ?? e}×{data.stats.emotions[e]}
+                    ×{data.stats.emotions[e]}
                   </span>
                 ))}
                 {Object.entries(data.stats.domains)

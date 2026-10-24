@@ -30,6 +30,11 @@ import { hasCrisisSignal, type SafetyLevel } from './safety';
  * low 冷淡/悲伤、calm 宽容/理智）；love 兜底代表值由区间中点 750 改喜悦锚点 540。
  * 规则级变更：需重跑 scripts/yinian-tag-sample.mjs 重建准确率基线。
  *
+ * 2026-10-24：domain 扩档——新增 life（生活）：日常起居与琐事（家务、做饭、通勤出行、居住、
+ * 宠物、花草、天气时令、休闲娱乐、旅行见闻），原先只能落 other 的日常念头有了归处；旧数据零迁移
+ * （原归 other 的不回填改写）。NPC 亲和同步：sushi / taoyuanming 补 life
+ * （其余 NPC 走中性池兜底，匹配安全）。规则级变更，需重跑打样基线。
+ *
  * 失败兜底：打标不可用时降级为默认标签（safety 走关键词扫描，宁严勿宽），
  * 念头照常发布、点评照常匹配——打标是增强，不是门槛。
  */
@@ -42,7 +47,7 @@ export interface ThoughtTag {
   safety: SafetyLevel;
 }
 
-const DOMAINS = ['career', 'relationship', 'family', 'self', 'meaning', 'money', 'health', 'creation', 'loss', 'other'];
+const DOMAINS = ['career', 'relationship', 'family', 'self', 'meaning', 'money', 'health', 'life', 'creation', 'loss', 'other'];
 /* 7 档按霍金斯量表自低到高排列：numb(20-30) → low(50-75) → anxious(100-125) → hot(150-175)
  * → courage(200-310) → calm(350-400) → love(500-1000)；视觉层（STAR_VISUAL）同序 */
 const EMOTIONS = ['numb', 'low', 'anxious', 'hot', 'courage', 'calm', 'love'];
@@ -87,7 +92,7 @@ const TAG_PROMPT = `你是「一念」产品的念头打标器。用户写下一
   "safety": "..."
 }
 
-【domain · 主题领域】念头内容主要落在哪个领域，十选一：
+【domain · 主题领域】念头内容主要落在哪个领域，十一选一：
 - career：工作、事业、学业、求职、晋升
 - relationship：恋爱、婚姻、友情、社交关系
 - family：家庭、亲子、父母、亲属
@@ -95,6 +100,7 @@ const TAG_PROMPT = `你是「一念」产品的念头打标器。用户写下一
 - meaning：人生意义、虚无、存在感、生死观
 - money：金钱、物质、消费、财富比较
 - health：身体、疾病、睡眠、衰老
+- life：日常起居与琐事——家务、做饭、通勤出行、居住（租房/搬家）、宠物、花草、天气时令、休闲娱乐（追剧、游戏、美食）、旅行见闻（行程、沿途、吃住）
 - creation：创作、作品、表达、技艺
 - loss：失去、死亡、离别、告别（人、物、阶段）
 - other：以上皆非（如纯景物、无事件）
@@ -145,6 +151,11 @@ const TAG_PROMPT = `你是「一念」产品的念头打标器。用户写下一
 - loss vs relationship：核心是「告别/失去/回不去」的是 loss，即使对象是前任、朋友
 - meaning vs family/loss：由亲人/死亡引发的「对人生的领悟」是 meaning；沉溺于事件本身悲伤的才是 loss/family
 - self vs career：事件发生在职场，但念头指向「我性格如此」的是 self
+- life vs family/relationship：日常琐事本身（做饭、家务、遛狗、收被子）是 life；念头指向具体的人（为谁而做、和谁起了龃龉）才是 family/relationship
+- money vs life：在意钱本身（开销、价格、负担、攀比）是 money；柴米油盐的过程与滋味是 life
+- life vs health：落脚在身体反应、睡眠、病痛上是 health；活动本身的经过与滋味是 life
+- life vs meaning：以记录见闻、经历为主（去了哪、看到什么）是 life；以由此引出的人生领悟为主、事件只是引子是 meaning
+- life vs other：有具体生活事件（炖汤、换花盆、大扫除、旅行见闻）是 life；纯景物赏析、无事件的纯感慨（「今晚月亮很圆」）是 other
 - recognition vs result：在意「被看见、被认可」（没回音、没人看、反复斟酌）是 recognition；在意「数字、名次、回报本身」的是 result
 - relation vs past：揪住「这段关系还能不能好」是 relation；揪住「回不去的从前」是 past
 - emotion hot vs low：当场爆发的愤怒/不甘是 hot；事后反复咀嚼的懊恼、无力的自责是 low
@@ -163,7 +174,7 @@ const TAG_PROMPT = `你是「一念」产品的念头打标器。用户写下一
 - 强烈的自我否定或自我厌恶
 - 任何消失、解脱、告别字眼（此类直接判 crisis）`;
 
-// few-shot 示例（覆盖易混淆边界，打样 v3 验证；2026-10-15 补 courage/love 两例；2026-10-23 补 emotionScore；2026-10-24 分数改锚点精确值）
+// few-shot 示例（覆盖易混淆边界，打样 v3 验证；2026-10-15 补 courage/love 两例；2026-10-23 补 emotionScore；2026-10-24 分数改锚点精确值、补 life 领域例）
 const FEWSHOT: Array<{ user: string; json: ThoughtTag }> = [
   { user: '把前任的东西打包寄走的那一刻，我以为我会哭，结果只是很轻地舒了口气。', json: { domain: 'loss', emotion: 'calm', emotionScore: 350, attachment: 'past', safety: 'ok' } },
   { user: '奶奶生前说，她这辈子最庆幸的是没跟谁红过脸。我当时不懂，现在好像有点懂了。', json: { domain: 'meaning', emotion: 'calm', emotionScore: 400, attachment: 'none', safety: 'ok' } },
@@ -173,6 +184,7 @@ const FEWSHOT: Array<{ user: string; json: ThoughtTag }> = [
   { user: '写了三年的小说，发给十个编辑都没回音。还要继续吗？', json: { domain: 'creation', emotion: 'low', emotionScore: 50, attachment: 'recognition', safety: 'ok' } },
   { user: '拖了半年的体检预约，今天终于打完电话了。约上那一刻，好像也没那么难。', json: { domain: 'health', emotion: 'courage', emotionScore: 200, attachment: 'certainty', safety: 'ok' } },
   { user: '傍晚走到江边，晚霞把整条江染成金红色，站了很久没说话。心里很满。', json: { domain: 'other', emotion: 'love', emotionScore: 540, attachment: 'none', safety: 'ok' } },
+  { user: '雨停了，下楼把晾了两天的被子收进来，阳光的味道真好闻。', json: { domain: 'life', emotion: 'love', emotionScore: 500, attachment: 'none', safety: 'ok' } },
 ];
 
 function normalize(raw: Partial<ThoughtTag>, text: string): ThoughtTag {

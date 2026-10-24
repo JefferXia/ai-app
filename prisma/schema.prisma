@@ -458,9 +458,9 @@ model YnThought {
   userId     String
   text       String   @db.Text
   // 打标结果（docs/yinian-npc-spec.md §4）
-  domain     String?  @db.VarChar(20) // career/relationship/family/self/meaning/money/health/creation/loss/other
+  domain     String?  @db.VarChar(20) // career/relationship/family/self/meaning/money/health/life/creation/loss/other
   emotion    String?  @db.VarChar(20) // 霍金斯 7 档：numb/low/anxious/hot/courage/calm/love（2026-10-15 前的旧 5 值仍有效）
-  emotionScore Int?   // 霍金斯频率分（20-1000，落在所选档位区间内；2026-10-23 分数化，旧数据 null 由统计侧按档位中点回填）
+  emotionScore Int?   // 霍金斯频率分（20-1000，落在所选档位区间内；2026-10-23 分数化，旧数据 null 由统计侧按档位代表值回填，love 取喜悦 540）
   attachment String?  @db.VarChar(20) // result/recognition/control/relation/certainty/past/none
   safety     String   @default("ok") @db.VarChar(10) // ok/watch/crisis
   isDeep     Boolean  @default(false) // 深念标记（长按），影响点评数量上限

@@ -49,8 +49,9 @@
 
 ```json
 {
-  "domain": "career | relationship | family | self | meaning | money | health | creation | loss | other",
+  "domain": "career | relationship | family | self | meaning | money | health | life | creation | loss | other",
   "emotion": "numb | low | anxious | hot | courage | calm | love",
+  "emotionScore": 0,
   "attachment": "result | recognition | control | relation | certainty | past | none",
   "safety": "ok | watch | crisis"
 }
@@ -84,7 +85,7 @@
 
 ### 4.3 打标工程参数（打样验证值）
 
-`temperature 0.1`；few-shot 8 条覆盖边界案例（2026-10-15 补 courage/love 两例）；`response_format: json_object`；`max_tokens ≥1500`（推理模型的 reasoning 消耗 completion tokens，300 会被烧光导致空响应；非推理模型下是宽松上限，无害）；解析失败重试一次。
+`temperature 0.1`；few-shot 9 条覆盖边界案例（2026-10-15 补 courage/love 两例；2026-10-24 补 life 例）；`response_format: json_object`；`max_tokens ≥1500`（推理模型的 reasoning 消耗 completion tokens，300 会被烧光导致空响应；非推理模型下是宽松上限，无害）；解析失败重试一次。
 
 **Provider（2026-09-27 起）**：默认直连 DeepSeek 官方 API（`DEEPSEEK_API_KEY`，模型 `deepseek-chat`），OpenRouter 作兜底（未配 DEEPSEEK key 时自动回落）。实测对比（同一念头）：OpenRouter 推理模型打标 ~11.4s / 点评 ~11.6s；DeepSeek 直连 `deepseek-chat` 打标 ~0.7s / 点评 ~0.9s，`deepseek-reasoner` 打标 ~1.1s / 点评 ~4.3s。直连网络握手也快 6.6 倍（62ms vs 412ms）。
 
@@ -102,6 +103,8 @@
 打样脚本 `scripts/yinian-tag-sample.mjs`（双 provider，随 env 自动切换），报告 `docs/yinian-tag-sample-v1.md` / `v3.md`（v2 因 max_tokens 问题作废；v3 现为 deepseek-chat 结果）。调 prompt 或换模型后重跑脚本即可回归。
 
 > **2026-10-15 扩档**：emotion 由 5 档扩为霍金斯 7 档（新增 courage/love），上表准确率为 5 档时期基准；需重跑打样脚本重建基线（人工标注样本需先补 courage/love 正例）。
+
+> **2026-10-24 domain 扩档**：新增 life（生活：日常起居与琐事——家务、做饭、通勤出行、居住、宠物、花草、时令、休闲娱乐），原先只能落 other 的日常念头有了归处；旧数据零迁移（原归 other 的不回填改写）。NPC 亲和：苏轼 / 陶渊明 补 life（其余 NPC 走中性池兜底）。规则级变更，需重跑打样基线。
 
 ## 5. 匹配规则
 

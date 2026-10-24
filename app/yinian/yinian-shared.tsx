@@ -21,6 +21,7 @@ export const DOMAIN_LABEL: Record<string, string> = {
   meaning: '意义',
   money: '金钱',
   health: '健康',
+  life: '生活',
   creation: '创造',
   loss: '失去',
   other: '其他',

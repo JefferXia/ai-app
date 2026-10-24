@@ -3,6 +3,10 @@
  * 依据 docs/yinian-npc-spec.md §4 的 schema 测试 LLM 打标准确率。
  * 测试集 26 条带人工标注真值，输出逐字段准确率 + 混淆明细。
  *
+ * 2026-10-24：系统提示词与 few-shot 改为镜像 lib/yinian/tag.ts（霍金斯 7 档 + emotionScore
+ * 锚点分 + life 领域）——此前脚本内是 2026-10-15 前的 5 档旧版，重跑基线前必须先同步。
+ * 测试集仍为原 26 条：courage/love/life 正例待补，补样后重跑脚本重建基线。
+ *
  * 用法: node scripts/yinian-tag-sample.mjs
  */
 import fs from 'node:fs';
@@ -36,18 +40,19 @@ if (!API_KEY) {
   process.exit(1);
 }
 
-// ---- 打标系统提示词（yinian-npc-spec.md §4） ----
+// ---- 打标系统提示词（镜像 lib/yinian/tag.ts TAG_PROMPT——tag.ts 为 server-only 不可 import，改动须两处同步） ----
 const TAG_PROMPT = `你是「一念」产品的念头打标器。用户写下一个心念（念头），你输出一个 JSON 对象，仅用于内部分类，绝不展示给用户。
 
 【输出 schema】严格输出 JSON，不要 Markdown 围栏，不要任何多余文字：
 {
   "domain": "...",
   "emotion": "...",
+  "emotionScore": 0,
   "attachment": "...",
   "safety": "..."
 }
 
-【domain · 主题领域】念头内容主要落在哪个领域，十选一：
+【domain · 主题领域】念头内容主要落在哪个领域，十一选一：
 - career：工作、事业、学业、求职、晋升
 - relationship：恋爱、婚姻、友情、社交关系
 - family：家庭、亲子、父母、亲属
@@ -55,16 +60,31 @@ const TAG_PROMPT = `你是「一念」产品的念头打标器。用户写下一
 - meaning：人生意义、虚无、存在感、生死观
 - money：金钱、物质、消费、财富比较
 - health：身体、疾病、睡眠、衰老
+- life：日常起居与琐事——家务、做饭、通勤出行、居住（租房/搬家）、宠物、花草、天气时令、休闲娱乐（追剧、游戏、美食）、旅行见闻（行程、沿途、吃住）
 - creation：创作、作品、表达、技艺
 - loss：失去、死亡、离别、告别（人、物、阶段）
 - other：以上皆非（如纯景物、无事件）
 
-【emotion · 情绪底色】念头的整体情绪色调，五选一：
-- calm：平静、释然、清晰、安定
-- hot：激动、愤怒、不甘、委屈、炽热
-- low：低落、悲伤、沮丧、无力
-- anxious：焦虑、不安、担忧、慌乱
-- numb：麻木、空虚、无感、茫然
+【emotion · 能量层级】念头的整体能量层级（按霍金斯意识层级自低到高校准），七选一，取整体色调而非局部措辞：
+- numb：麻木、空虚、无感、茫然、想消失、恨不得隐身；自责、内疚、都是我的错、厌恶自己、不配；绝望、无助、心灰、看不到希望（羞愧/内疚）
+- low：低落、悲伤、沮丧、无力、孤立无援、失去后的沉、为失去而懊悔（冷淡/悲伤）
+- anxious：焦虑、不安、担忧、慌乱、怕出事、疑神疑鬼；惦记、渴望、停不下来的想要、上头放不下（恐惧/欲望）
+- hot：激动、愤怒、不甘、委屈、憋着一股火、怨愤；嫉妒、见不得别人好；傲慢、嘚瑟、瞧不上、不屑（愤怒/骄傲）
+- courage：下决心、想开始、想改变、迈出第一步、真去试了；有干劲、觉得自己可以；从容有底气、觉得没什么大不了（勇气/满意/主动）
+- calm：释然、想通了、放下了、看清了、不较劲了、接纳它本来的样子；安定、清晰、想得分明（宽容/理智）
+- love：感恩、爱、被触动、心里很满、美、暖、由内而生的欢喜、很静但发光（爱/喜悦/平静/开悟）
+
+【emotionScore · 能量分数】霍金斯频率值（整数），必须落在所选 emotion 档的区间内。
+打分两步：先精确判定念头对应的具体状态，再直接取该状态的锚点分——锚点即精确值，不在档内浮动；
+只有念头介于两个相邻状态之间、确实无法归类时，才取两锚点中间值兜底。强烈不等于更高能级：
+- numb 20-30：羞愧 20（万念俱灰、想消失、恨不得隐身、厌恶自己、不配）；内疚 30（自责、懊悔、「都是我的错」、受害感、觉得世界不公）；麻木/空虚/无感等平扁状态（归入本档，无霍金斯原锚）取代表值 ≈25
+- low 50-75：冷漠 50（心灰意冷、失望、提不起劲）；悲伤/忧伤 75（失去后的悲恸、孤立无援、看什么都是灰黑色）
+- anxious 100-125：恐惧 100（担忧、不安、怕出事、疑神疑鬼、缺乏安全感）——恐惧再强烈也是 100，125 只属于欲望；欲望 125（惦记、渴望、停不下来的想要、上头放不下）
+- hot 150-175：愤怒 150（激愤、不甘、怨愤、嫉妒、愤世嫉俗）——暴怒也是 150，175 只属于骄傲；骄傲 175（自以为是、嘚瑟、瞧不上、不屑）
+- courage 200-310：勇气 200（下决心、迈出第一步、果断一试）；淡定 250（从容有底气、镇定、觉得没什么大不了）；主动 310（全情投入、积极进取、出色发挥）
+- calm 350-400：宽容 350（释然、放下了、接纳它本来的样子）；理智 400（看清、想得分明、条理清晰）
+- love 500-1000：爱 500（感恩、温暖、心里很满）；喜悦 540（由内而生的欢喜、被触动、美）——鲜活的喜悦也是 540；宁静 600（为生命意义而起的深层静定，日常念头极少达到）；700-1000 是开悟层级，日常念头不应给出
+分数绝不越出所选档的区间；先定状态、再定档，锚点即精确值。
 
 【attachment · 执念类型】念头背后揪住不放的东西，七选一：
 - result：对结果的执着（输赢、成败、回报）
@@ -91,9 +111,20 @@ const TAG_PROMPT = `你是「一念」产品的念头打标器。用户写下一
 - loss vs relationship：核心是「告别/失去/回不去」的是 loss，即使对象是前任、朋友
 - meaning vs family/loss：由亲人/死亡引发的「对人生的领悟」是 meaning；沉溺于事件本身悲伤的才是 loss/family
 - self vs career：事件发生在职场，但念头指向「我性格如此」的是 self
+- life vs family/relationship：日常琐事本身（做饭、家务、遛狗、收被子）是 life；念头指向具体的人（为谁而做、和谁起了龃龉）才是 family/relationship
+- money vs life：在意钱本身（开销、价格、负担、攀比）是 money；柴米油盐的过程与滋味是 life
+- life vs health：落脚在身体反应、睡眠、病痛上是 health；活动本身的经过与滋味是 life
+- life vs meaning：以记录见闻、经历为主（去了哪、看到什么）是 life；以由此引出的人生领悟为主、事件只是引子是 meaning
+- life vs other：有具体生活事件（炖汤、换花盆、大扫除、旅行见闻）是 life；纯景物赏析、无事件的纯感慨（「今晚月亮很圆」）是 other
 - recognition vs result：在意「被看见、被认可」（没回音、没人看、反复斟酌）是 recognition；在意「数字、名次、回报本身」的是 result
 - relation vs past：揪住「这段关系还能不能好」是 relation；揪住「回不去的从前」是 past
 - emotion hot vs low：当场爆发的愤怒/不甘是 hot；事后反复咀嚼的懊恼、无力的自责是 low
+- emotion hot vs courage：火向外烧、带着对抗是 hot；劲向前走、想开始想改变是 courage
+- emotion courage vs calm：想动起来、跃跃欲试、或从容有底气「没什么大不了」是 courage；沉淀下来、想通了放下了、接纳了是 calm
+- emotion calm vs love：安静、清晰、不波动是 calm；温暖、丰盈、被触动是 love
+- emotion numb vs low：空掉无感、自我厌弃、自责内疚（「是我的错」）是 numb；为具体的失去而悲、清楚疼在哪的是 low
+- 委屈分两路：带着火想讨公道（凭什么、要个说法）是 hot；只剩自苦自怜（没人懂我、总被辜负）是 low
+- 嫉妒（凭什么他有我没有）是 hot 的灼烧，不是 anxious 的想要
 
 【safety watch 触发清单】以下任一出现，至少标 watch（宁严勿宽）：
 - 近期丧亲且处于哀伤早期（数月内）
@@ -103,32 +134,17 @@ const TAG_PROMPT = `你是「一念」产品的念头打标器。用户写下一
 - 强烈的自我否定或自我厌恶
 - 任何消失、解脱、告别字眼（此类直接判 crisis）`;
 
-// few-shot 示例（覆盖易混淆边界）
+// few-shot 示例（镜像 lib/yinian/tag.ts：9 条覆盖边界 + emotionScore 锚点分；2026-10-24 同步）
 const FEWSHOT = [
-  {
-    user: '把前任的东西打包寄走的那一刻，我以为我会哭，结果只是很轻地舒了口气。',
-    json: { domain: 'loss', emotion: 'calm', attachment: 'past', safety: 'ok' },
-  },
-  {
-    user: '奶奶生前说，她这辈子最庆幸的是没跟谁红过脸。我当时不懂，现在好像有点懂了。',
-    json: { domain: 'meaning', emotion: 'calm', attachment: 'none', safety: 'ok' },
-  },
-  {
-    user: '我又一次在会议上没敢说话。事后想到的那句漂亮反驳，已经在脑子里排练二十遍了。',
-    json: { domain: 'self', emotion: 'low', attachment: 'recognition', safety: 'ok' },
-  },
-  {
-    user: '母亲走后第七天。屋子很静，静得能听见冰箱的声音。',
-    json: { domain: 'loss', emotion: 'low', attachment: 'past', safety: 'watch' },
-  },
-  {
-    user: '什么都不缺，但每天醒来都觉得没意思。才三十岁，怎么就把日子过成了复印件。',
-    json: { domain: 'meaning', emotion: 'numb', attachment: 'certainty', safety: 'watch' },
-  },
-  {
-    user: '写了三年的小说，发给十个编辑都没回音。还要继续吗？',
-    json: { domain: 'creation', emotion: 'low', attachment: 'recognition', safety: 'ok' },
-  },
+  { user: '把前任的东西打包寄走的那一刻，我以为我会哭，结果只是很轻地舒了口气。', json: { domain: 'loss', emotion: 'calm', emotionScore: 350, attachment: 'past', safety: 'ok' } },
+  { user: '奶奶生前说，她这辈子最庆幸的是没跟谁红过脸。我当时不懂，现在好像有点懂了。', json: { domain: 'meaning', emotion: 'calm', emotionScore: 400, attachment: 'none', safety: 'ok' } },
+  { user: '我又一次在会议上没敢说话。事后想到的那句漂亮反驳，已经在脑子里排练二十遍了。', json: { domain: 'self', emotion: 'low', emotionScore: 50, attachment: 'recognition', safety: 'ok' } },
+  { user: '母亲走后第七天。屋子很静，静得能听见冰箱的声音。', json: { domain: 'loss', emotion: 'low', emotionScore: 75, attachment: 'past', safety: 'watch' } },
+  { user: '什么都不缺，但每天醒来都觉得没意思。才三十岁，怎么就把日子过成了复印件。', json: { domain: 'meaning', emotion: 'numb', emotionScore: 25, attachment: 'certainty', safety: 'watch' } },
+  { user: '写了三年的小说，发给十个编辑都没回音。还要继续吗？', json: { domain: 'creation', emotion: 'low', emotionScore: 50, attachment: 'recognition', safety: 'ok' } },
+  { user: '拖了半年的体检预约，今天终于打完电话了。约上那一刻，好像也没那么难。', json: { domain: 'health', emotion: 'courage', emotionScore: 200, attachment: 'certainty', safety: 'ok' } },
+  { user: '傍晚走到江边，晚霞把整条江染成金红色，站了很久没说话。心里很满。', json: { domain: 'other', emotion: 'love', emotionScore: 540, attachment: 'none', safety: 'ok' } },
+  { user: '雨停了，下楼把晾了两天的被子收进来，阳光的味道真好闻。', json: { domain: 'life', emotion: 'love', emotionScore: 500, attachment: 'none', safety: 'ok' } },
 ];
 
 // ---- 测试集：26 条，人工标注真值 ----
@@ -252,7 +268,7 @@ async function main() {
   }
 
   const n = CASES.length;
-  let md = `# 一念 · 念头打标打样报告 v3\n\n- 日期: ${new Date().toISOString().slice(0, 10)}\n- 模型: \`${MODEL}\`\n- 样本: ${n} 条（人工标注真值）\n- 规范: docs/yinian-npc-spec.md §4\n- 变更: v2 基础上 max_tokens 300→1500（推理模型 reasoning 消耗 completion tokens）\n\n## 准确率\n\n| 字段 | 准确率 |\n| --- | --- |\n`;
+  let md = `# 一念 · 念头打标打样报告 v3\n\n- 日期: ${new Date().toISOString().slice(0, 10)}\n- 模型: \`${MODEL}\`\n- 样本: ${n} 条（人工标注真值）\n- 规范: docs/yinian-npc-spec.md §4\n- 变更: 2026-10-24 提示词/few-shot 与 lib/yinian/tag.ts 同步（霍金斯 7 档 + emotionScore 锚点分 + life 领域）；样本仍 26 条，courage/love/life 正例待补\n\n## 准确率\n\n| 字段 | 准确率 |\n| --- | --- |\n`;
   for (const f of FIELDS) {
     md += `| ${f} | ${correct[f]}/${n}（${((correct[f] / n) * 100).toFixed(1)}%） |\n`;
   }

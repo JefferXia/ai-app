@@ -49,7 +49,7 @@ export const NPC_DISPLAY: Record<string, NpcDisplay> = {
   yangming: { key: 'yangming', name: '王阳明', seal: '知', inkColor: '#a8483a', status: 'resident', field: 'philosophy', domains: ['self', 'meaning', 'career'], isPsych: false, noWatch: false, tagline: '你未看此花时，此花与汝心同归于寂' },
   laozi: { key: 'laozi', name: '老子', seal: '老', inkColor: '#3d4a52', status: 'resident', field: 'philosophy', domains: ['career', 'self', 'money', 'family'], isPsych: false, noWatch: false, tagline: '你在用力的地方，就是问题所在' },
   zhuangzi: { key: 'zhuangzi', name: '庄子', seal: '庄', inkColor: '#6e6e66', status: 'resident', field: 'philosophy', domains: ['meaning', 'self', 'money', 'career'], isPsych: false, noWatch: false, tagline: '你计较的，在宇宙尺度下不值一提' },
-  sushi: { key: 'sushi', name: '苏轼', seal: '轼', inkColor: '#8a6d4f', status: 'resident', field: 'poet', domains: ['loss', 'relationship', 'meaning', 'creation', 'family'], isPsych: false, noWatch: false, tagline: '用一碗人间烟火，消解你的执念' },
+  sushi: { key: 'sushi', name: '苏轼', seal: '轼', inkColor: '#8a6d4f', status: 'resident', field: 'poet', domains: ['loss', 'relationship', 'meaning', 'creation', 'family', 'life'], isPsych: false, noWatch: false, tagline: '用一碗人间烟火，消解你的执念' },
   socrates: { key: 'socrates', name: '苏格拉底', seal: '诘', inkColor: '#4a4a52', status: 'resident', field: 'philosophy', domains: ['meaning', 'self'], isPsych: false, noWatch: false, tagline: '只问不答，追问到你自证或自破' },
   jung: { key: 'jung', name: '荣格', seal: '影', inkColor: '#46538a', status: 'resident', field: 'psychology', domains: ['self', 'relationship', 'meaning', 'loss'], isPsych: true, noWatch: false, tagline: '念头里你不愿承认的部分，叫阴影' },
   adler: { key: 'adler', name: '阿德勒', seal: '勒', inkColor: '#7a5f45', status: 'resident', field: 'psychology', domains: ['career', 'relationship', 'self'], isPsych: true, noWatch: false, tagline: '这个念头让你逃避了什么？' },
@@ -72,7 +72,7 @@ export const NPC_DISPLAY: Record<string, NpcDisplay> = {
   feynman: { key: 'feynman', name: '费曼', seal: '曼', inkColor: '#8a6d3c', status: 'roaming', field: 'science', domains: ['creation', 'career', 'self'], isPsych: false, noWatch: false, tagline: '讲不清就是没想清' },
   // 扩充云游（2026-10-17）
   freud: { key: 'freud', name: '弗洛伊德', seal: '潜', inkColor: '#5a4a5e', status: 'roaming', field: 'psychology', domains: ['self', 'relationship', 'meaning'], isPsych: true, noWatch: true, tagline: '说出口的，底下还压着没说的' },
-  taoyuanming: { key: 'taoyuanming', name: '陶渊明', seal: '菊', inkColor: '#6a7a58', status: 'roaming', field: 'poet', domains: ['money', 'career', 'self', 'meaning'], isPsych: false, noWatch: false, tagline: '久在樊笼里，复得返自然' },
+  taoyuanming: { key: 'taoyuanming', name: '陶渊明', seal: '菊', inkColor: '#6a7a58', status: 'roaming', field: 'poet', domains: ['money', 'career', 'self', 'meaning', 'life'], isPsych: false, noWatch: false, tagline: '久在樊笼里，复得返自然' },
   rilke: { key: 'rilke', name: '里尔克', seal: '信', inkColor: '#7a6a8a', status: 'roaming', field: 'poet', domains: ['creation', 'self', 'loss'], isPsych: false, noWatch: false, tagline: '对你心里所有未解的题保持耐心' },
   camus: { key: 'camus', name: '加缪', seal: '荒', inkColor: '#52525a', status: 'roaming', field: 'writer', domains: ['meaning', 'career', 'loss', 'health'], isPsych: false, noWatch: false, tagline: '没有意义，恰恰轮到你签发意义' },
   luxun: { key: 'luxun', name: '鲁迅', seal: '迅', inkColor: '#333336', status: 'roaming', field: 'writer', domains: ['self', 'meaning', 'career', 'family'], isPsych: false, noWatch: true, tagline: '摆脱冷气，只是向上走' },
