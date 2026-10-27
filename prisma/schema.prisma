@@ -477,7 +477,7 @@ model YnThought {
 model YnReply {
   id        String   @id @default(uuid())
   thoughtId String
-  npcKey    String   @db.VarChar(20) // lib/yinian/npcs.ts 的 key
+  npcKey    String   @db.VarChar(30) // lib/yinian/npcs.ts 的 key；书源心智直接用 ynNpc.key（30 内），展示数据经 API 附带
   content   String   @db.Text        @default("")
   status    String   @default("pending") @db.VarChar(10) // pending/done/failed
   error     String?  @db.VarChar(200)
@@ -512,4 +512,36 @@ model YnReview {
 
   @@unique([userId, weekStart])
   @@index([userId, createdAt(sort: Desc)])
+}
+
+// 一念 - 书源心智（docs/yinian-npc-spec.md §9：一本书铸一位 NPC）
+model YnNpc {
+  id        String   @id @default(uuid())
+  key       String   @unique @db.VarChar(30)          // 如 "courage-to-be-disliked"
+  name      String   @db.VarChar(50)                  // 展示名（作者或书中化身，如「哲人」）
+  source    String   @db.VarChar(20)                  // legendary | custom | book
+  bookTitle String?  @db.VarChar(200)                 // 书名
+  author    String?  @db.VarChar(100)                 // 原作者
+  isPublicDomain Boolean @default(false)              // 公版标记（版权审校结论）
+  prompt    Json                                       // { persona, mindModel, style, taboo }，style 含原书例句
+  display   Json                                       // NpcDisplay 兼容字段（seal/inkColor/field/domains/tagline/status/noWatch…）
+  status    String   @default("roaming") @db.VarChar(10)
+  noWatch   Boolean  @default(true)                   // 安全审校通过前不接 watch 念头
+  enabled   Boolean  @default(false)                  // 人工审校通过才 true；false 时不进匹配池
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  chunks    YnNpcChunk[]
+}
+
+// 一念 - 书源切片（原书切片向量化入库；检索时单 NPC 内 ~200 片内存余弦）
+model YnNpcChunk {
+  id        String   @id @default(uuid())
+  npcId     String
+  idx       Int                                        // 章节序
+  ref       String?  @db.VarChar(100)                  // 章节/卷次引用（如「卷二」），供「引原文一句」标注出处
+  content   String   @db.Text                          // 切片原文（800-1200 tokens）
+  embedding Json?                                       // 向量（float 数组存 JSON；pgvector 可用后迁移 vector 列）
+  npc       YnNpc    @relation(fields: [npcId], references: [id], onDelete: Cascade)
+
+  @@index([npcId, idx])
 }

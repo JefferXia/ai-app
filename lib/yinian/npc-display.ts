@@ -5,7 +5,9 @@
  * 2026-10-17 扩充：名册 15 → 28 位定稿（同日去孔子/马斯克、废弃无名者原创设定，
  * 增芒格与四位女性心智：伍尔夫/李清照常驻，波伏娃/居里夫人云游），新增 field 擅长
  * 领域分类（哲学/心理学/诗人/作家/开悟者/科技领袖/科学/管理学）。
- * 常驻 14 位为匹配池，云游 14 位为会员权益低概率「路过」出山。
+ * 常驻 14 位为匹配池，云游 15 位为会员权益低概率「路过」出山。
+ * 2026-10-26 增「爱情专家」（云游）：书源《如何去爱》矿石包脱敏改编——名字脱敏 + style 脱写，
+ * 不直引原书例句（版权）、不署真名（人格权），详见 docs/yinian-npc-spec.md §6/§9.7。
  * 后续「知识库型心智」（博主上传资料建 AI 分身）复用同一份展示结构 + 动态来源，
  * 设计预留见 docs/yinian-npc-spec.md §8。
  */
@@ -63,7 +65,7 @@ export const NPC_DISPLAY: Record<string, NpcDisplay> = {
   woolf: { key: 'woolf', name: '伍尔夫', seal: '灯', inkColor: '#6a5a6e', status: 'resident', field: 'writer', domains: ['creation', 'self', 'meaning'], isPsych: false, noWatch: false, tagline: '不必匆忙，不必闪耀，不必成为别人' },
   liqingzhao: { key: 'liqingzhao', name: '李清照', seal: '易', inkColor: '#6a4a52', status: 'resident', field: 'poet', domains: ['loss', 'relationship', 'creation'], isPsych: false, noWatch: false, tagline: '才下眉头，却上心头' },
 
-  // ---------- 云游十四位（低概率路过出山，会员权益） ----------
+  // ---------- 云游十五位（低概率路过出山，会员权益） ----------
   huineng: { key: 'huineng', name: '慧能', seal: '慧', inkColor: '#4a4a52', status: 'roaming', field: 'enlightened', domains: ['meaning', 'self', 'loss'], isPsych: false, noWatch: false, tagline: '本来无一物，何处惹尘埃' },
   munger: { key: 'munger', name: '芒格', seal: '逆', inkColor: '#8a5a3c', status: 'roaming', field: 'management', domains: ['money', 'career', 'self'], isPsych: false, noWatch: false, tagline: '反过来想，总是反过来想' },
   aurelius: { key: 'aurelius', name: '马可·奥勒留', seal: '留', inkColor: '#4a5a4f', status: 'roaming', field: 'philosophy', domains: ['career', 'health', 'family', 'self'], isPsych: false, noWatch: false, tagline: '区分能控制与不能控制的，然后做事' },
@@ -80,6 +82,8 @@ export const NPC_DISPLAY: Record<string, NpcDisplay> = {
   // 扩充云游 · 女性心智（2026-10-17）
   beauvoir: { key: 'beauvoir', name: '波伏娃', seal: '成', inkColor: '#6e3a45', status: 'roaming', field: 'philosophy', domains: ['self', 'relationship', 'meaning'], isPsych: false, noWatch: false, tagline: '人不是生来就是什么，而是成为什么' },
   curie: { key: 'curie', name: '居里夫人', seal: '镭', inkColor: '#2e6a5e', status: 'roaming', field: 'science', domains: ['creation', 'career', 'health'], isPsych: false, noWatch: false, tagline: '生活中没有什么可怕的，只有需要理解的' },
+  // 书源脱敏改编（2026-10-26）：原型《如何去爱》——名字脱敏 + style 脱写（不直引原书例句），spec §6/§9.7
+  'love-expert': { key: 'love-expert', name: '爱情专家', seal: '安', inkColor: '#54626e', status: 'roaming', field: 'psychology', domains: ['relationship'], isPsych: true, noWatch: true, tagline: '安全感不是被保护，是能放心呼气' },
 };
 
 // 红线话术的伪 NPC（危机时产品层直接写入，不走模型）

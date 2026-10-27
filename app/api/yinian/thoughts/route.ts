@@ -3,6 +3,7 @@ import prisma from '@/lib/prisma';
 import { getWenxinUser } from '@/lib/wenxin-auth';
 import { tagThought } from '@/lib/yinian/tag';
 import { generateRepliesForThought } from '@/lib/yinian/reply';
+import { getBookNpcDisplayMap } from '@/lib/yinian/book-npc';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
@@ -11,7 +12,7 @@ const MAX_TEXT_LEN = 500;
 const DAILY_QUOTA = 20; // 每用户每日念头上限（防刷，二期接会员额度）
 const PAGE_SIZE = 20;
 
-function toClient(t: any) {
+function toClient(t: any, bookNpcs: Record<string, { name: string; seal: string; inkColor: string }> = {}) {
   return {
     id: t.id,
     text: t.text,
@@ -25,6 +26,8 @@ function toClient(t: any) {
     replies: (t.replies ?? []).map((r: any) => ({
       id: r.id,
       npcKey: r.npcKey,
+      // 书源 NPC 不在客户端静态名册里，展示数据由 API 附带（spec §9）；在册 NPC 走客户端兜底
+      ...(bookNpcs[r.npcKey] ? { npc: bookNpcs[r.npcKey] } : {}),
       content: r.status === 'done' ? r.content : '',
       status: r.status,
       createdAt: r.createdAt.getTime(),
@@ -43,14 +46,17 @@ export async function GET(req: Request) {
     const beforeRaw = Number(url.searchParams.get('before') ?? 0);
     const before = Number.isFinite(beforeRaw) && beforeRaw > 0 ? new Date(beforeRaw) : undefined;
 
-    const rows = await prisma.ynThought.findMany({
-      where: { userId, ...(before ? { createdAt: { lt: before } } : {}) },
-      orderBy: { createdAt: 'desc' },
-      take: PAGE_SIZE + 1,
-      include: { replies: { orderBy: { createdAt: 'asc' } } },
-    });
+    const [rows, bookNpcs] = await Promise.all([
+      prisma.ynThought.findMany({
+        where: { userId, ...(before ? { createdAt: { lt: before } } : {}) },
+        orderBy: { createdAt: 'desc' },
+        take: PAGE_SIZE + 1,
+        include: { replies: { orderBy: { createdAt: 'asc' } } },
+      }),
+      getBookNpcDisplayMap(), // 60s 缓存，零开销
+    ]);
     const hasMore = rows.length > PAGE_SIZE;
-    const thoughts = rows.slice(0, PAGE_SIZE).map(toClient);
+    const thoughts = rows.slice(0, PAGE_SIZE).map((t) => toClient(t, bookNpcs));
     return NextResponse.json({ success: true, data: { thoughts, hasMore } });
   } catch (error) {
     console.error('[yinian thoughts] GET error:', error);
@@ -104,11 +110,14 @@ export async function POST(req: Request) {
       }
     });
 
-    const fresh = await prisma.ynThought.findUnique({
-      where: { id: thought.id },
-      include: { replies: true },
-    });
-    return NextResponse.json({ success: true, data: { thought: toClient(fresh) } });
+    const [fresh, bookNpcs] = await Promise.all([
+      prisma.ynThought.findUnique({
+        where: { id: thought.id },
+        include: { replies: true },
+      }),
+      getBookNpcDisplayMap(),
+    ]);
+    return NextResponse.json({ success: true, data: { thought: toClient(fresh, bookNpcs) } });
   } catch (error) {
     console.error('[yinian thoughts] POST error:', error);
     return NextResponse.json({ success: false, error: '发布失败' }, { status: 500 });

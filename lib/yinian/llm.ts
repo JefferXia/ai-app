@@ -124,3 +124,131 @@ export async function chat(opts: LlmOptions): Promise<string | null> {
   }
   return null;
 }
+
+/* ================= Embedding（书源切片 RAG，spec §9） ================= */
+
+// gemini-embedding-001 支持 MRL 截断：768 维够用且省一半存储（JSON 列起步方案）
+const EMBED_MODEL = 'gemini-embedding-001';
+const EMBED_DIM = 768;
+const EMBED_BATCH = 50; // batchEmbedContents 单批条数取保守值
+
+// MiniMax embo-01：Gemini 在国内网络不可达时的备选（2026-10-26 本地实测可达，1536 维）。
+// EMBED_PROVIDER=minimax 显式启用，禁自动切换——语料向量必须整库同源，混 provider 的余弦不可比；
+// retrieveSlices 另按维度过滤兜底（lib/yinian/book-npc.ts）。
+const MINIMAX_EMBED_URL = 'https://api.minimax.chat/v1/embeddings';
+const MINIMAX_EMBED_MODEL = 'embo-01';
+const MINIMAX_EMBED_BATCH = 18; // 单批实测值（18 条 db/query 均通过）
+
+/**
+ * 批量向量化。默认 Gemini（env 已有 GEMINI_API_KEY）；EMBED_PROVIDER=minimax 或缺
+ * GEMINI key 时走 MiniMax（role: db=语料入库 / query=念头检索，仅 MiniMax 区分）。
+ * 失败返回 null，由调用方降级（与打标失败兜底同一哲学：不抛出）。
+ */
+export async function embed(
+  texts: string[],
+  opts?: { role?: 'db' | 'query' }
+): Promise<number[][] | null> {
+  if (texts.length === 0) return null;
+  if (process.env.EMBED_PROVIDER === 'minimax' || !process.env.GEMINI_API_KEY) {
+    if (process.env.EMBED_PROVIDER !== 'minimax' && !process.env.MINIMAX_API_KEY) return null;
+    return embedMinimax(texts, opts?.role === 'query' ? 'query' : 'db');
+  }
+  return embedGemini(texts);
+}
+
+async function embedGemini(texts: string[]): Promise<number[][] | null> {
+  const key = process.env.GEMINI_API_KEY;
+  if (!key) return null;
+
+  const out: number[][] = [];
+  for (let i = 0; i < texts.length; i += EMBED_BATCH) {
+    const batch = texts.slice(i, i + EMBED_BATCH);
+    try {
+      const res = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${EMBED_MODEL}:batchEmbedContents`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
+          body: JSON.stringify({
+            requests: batch.map((text) => ({
+              model: `models/${EMBED_MODEL}`,
+              content: { parts: [{ text }] },
+              outputDimensionality: EMBED_DIM,
+            })),
+          }),
+          signal: AbortSignal.timeout(30_000),
+        }
+      );
+      if (!res.ok) {
+        console.error(`[yinian/llm] embed HTTP ${res.status}: ${(await res.text()).slice(0, 200)}`);
+        return null;
+      }
+      const data = (await res.json()) as { embeddings?: Array<{ values?: number[] }> };
+      const vecs = data.embeddings?.map((e) => e.values ?? []);
+      if (!vecs || vecs.length !== batch.length || vecs.some((v) => v.length === 0)) return null;
+      out.push(...vecs);
+    } catch (e) {
+      console.error('[yinian/llm] embed 请求失败:', e);
+      return null;
+    }
+  }
+  return out;
+}
+
+async function embedMinimax(texts: string[], type: 'db' | 'query'): Promise<number[][] | null> {
+  const key = process.env.MINIMAX_API_KEY;
+  if (!key) {
+    console.error('[yinian/llm] embed(MiniMax): MINIMAX_API_KEY 未配置');
+    return null;
+  }
+
+  const out: number[][] = [];
+  for (let i = 0; i < texts.length; i += MINIMAX_EMBED_BATCH) {
+    const batch = texts.slice(i, i + MINIMAX_EMBED_BATCH);
+    try {
+      const res = await fetch(MINIMAX_EMBED_URL, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model: MINIMAX_EMBED_MODEL, texts: batch, type }),
+        signal: AbortSignal.timeout(30_000),
+      });
+      if (!res.ok) {
+        console.error(`[yinian/llm] embed(MiniMax) HTTP ${res.status}: ${(await res.text()).slice(0, 200)}`);
+        return null;
+      }
+      const data = (await res.json()) as {
+        vectors?: number[][];
+        base_resp?: { status_code?: number };
+      };
+      const vecs = data.vectors;
+      const bad =
+        data.base_resp?.status_code !== 0 ||
+        !vecs ||
+        vecs.length !== batch.length ||
+        vecs.some((v) => v.length === 0);
+      if (bad) {
+        console.error(`[yinian/llm] embed(MiniMax) 响应异常: ${JSON.stringify(data.base_resp)}`);
+        return null;
+      }
+      out.push(...vecs);
+    } catch (e) {
+      console.error('[yinian/llm] embed(MiniMax) 请求失败:', e);
+      return null;
+    }
+  }
+  return out;
+}
+
+/** 内存余弦相似度（书源切片起步方案：单 NPC ~200 片，无需 ANN） */
+export function cosine(a: number[], b: number[]): number {
+  let dot = 0;
+  let na = 0;
+  let nb = 0;
+  for (let i = 0; i < a.length && i < b.length; i++) {
+    dot += a[i] * b[i];
+    na += a[i] * a[i];
+    nb += b[i] * b[i];
+  }
+  if (na === 0 || nb === 0) return 0;
+  return dot / Math.sqrt(na * nb);
+}

@@ -15,12 +15,14 @@ export interface HallNpc {
   name: string;
   seal: string;
   inkColor: string;
-  status: 'resident' | 'roaming';
+  status: 'resident' | 'roaming' | 'book';
   field: NpcField;
   tagline: string;
   persona: string;
   mindModel: string;
   domains: string[];
+  bookTitle?: string | null; // 书源心智：来源书（spec §9）
+  author?: string | null;
 }
 
 export default function HallClient({ npcs }: { npcs: HallNpc[] }) {
@@ -54,7 +56,9 @@ export default function HallClient({ npcs }: { npcs: HallNpc[] }) {
   const visible = fieldSel === 'all' ? npcs : npcs.filter((n) => n.field === fieldSel);
   const residents = visible.filter((n) => n.status === 'resident');
   const roamings = visible.filter((n) => n.status === 'roaming');
+  const books = visible.filter((n) => n.status === 'book');
   const residentCount = npcs.filter((n) => n.status === 'resident').length;
+  const roamingCount = npcs.filter((n) => n.status === 'roaming').length;
 
   return (
     <div style={S.page}>
@@ -63,7 +67,7 @@ export default function HallClient({ npcs }: { npcs: HallNpc[] }) {
 
       <div style={S.board}>
         <p style={S.intro}>
-          {npcs.length} 位心智，{residentCount} 位常驻，{npcs.length - residentCount} 位云游。
+          {`${npcs.length} 位心智，${residentCount} 位常驻${roamingCount > 0 ? `，${roamingCount} 位云游` : ''}${books.length > 0 ? `，${books.length} 位书源` : ''}。`}
           <br />
           他们不讲道理，只给你看他们看世界的方式。
         </p>
@@ -120,15 +124,39 @@ export default function HallClient({ npcs }: { npcs: HallNpc[] }) {
             )}
           </section>
         )}
+
+        {books.length > 0 && (
+          <section style={residents.length > 0 || roamings.length > 0 ? { marginTop: 48 } : undefined}>
+            <div style={S.groupTitleRow}>
+              <h2 style={{ ...S.groupTitle, marginBottom: 0 }}>书 源</h2>
+              {!isMember && (
+                <Link href="/yinian/member" className="yn-lock-hint">
+                  <Lock size={11} strokeWidth={1.8} />
+                  <span>开通会员，遇见书中心智</span>
+                </Link>
+              )}
+            </div>
+            <div style={S.wall}>
+              {books.map((n) => (
+                <SealTile key={n.key} npc={n} locked={!isMember} onOpen={() => setOpen(n.key)} />
+              ))}
+            </div>
+            {isMember && (
+              <p style={S.roamNote}>一本书，铸一位心智。书源者不定期出山，来时自会落在你的念头旁。</p>
+            )}
+          </section>
+        )}
       </div>
 
       {/* NPC 详情 */}
       {current && (
         <div style={S.overlay} onClick={() => setOpen(null)}>
           <div className="yn-fade" style={S.detail} onClick={(e) => e.stopPropagation()}>
-            {current.status === 'roaming' && !isMember && (
+            {(current.status === 'roaming' || current.status === 'book') && !isMember && (
               <div style={S.lockBar}>
-                <span style={S.lockText}>开通会员后，解锁云游者。</span>
+                <span style={S.lockText}>
+                  {current.status === 'book' ? '开通会员后，解锁书中心智。' : '开通会员后，解锁云游者。'}
+                </span>
                 <Link href="/yinian/member" style={S.lockCta}>开通会员</Link>
               </div>
             )}
@@ -137,9 +165,16 @@ export default function HallClient({ npcs }: { npcs: HallNpc[] }) {
               <div>
                 <div style={S.detailName}>
                   {current.name}
-                  <span style={S.detailStatus}>{current.status === 'resident' ? '常驻' : '云游'}</span>
+                  <span style={S.detailStatus}>
+                    {current.status === 'resident' ? '常驻' : current.status === 'book' ? '书源' : '云游'}
+                  </span>
                   <span style={S.detailStatus}>{FIELD_LABEL[current.field]}</span>
                 </div>
+                {current.bookTitle && (
+                  <div style={S.detailBook}>
+                    《{current.bookTitle}》{current.author ? ` · ${current.author}` : ''}
+                  </div>
+                )}
                 <div style={S.detailPersona}>{current.persona}</div>
               </div>
             </div>
@@ -163,7 +198,8 @@ export default function HallClient({ npcs }: { npcs: HallNpc[] }) {
 }
 
 function SealTile({ npc, locked, onOpen }: { npc: HallNpc; locked: boolean; onOpen: () => void }) {
-  const roaming = npc.status === 'roaming';
+  // 云游/书源同为会员低频出山，同款半暗处理（书源不冲击常驻池，spec §9.1）
+  const roaming = npc.status === 'roaming' || npc.status === 'book';
   const dim = roaming && locked;
   return (
     <button
@@ -216,6 +252,7 @@ const S: Record<string, React.CSSProperties> = {
   detailName: { fontSize: 16, letterSpacing: '0.3em' },
   detailStatus: { marginLeft: 12, fontSize: 12, letterSpacing: '0.2em', color: '#d5d5d5', border: '1px solid #3a3a40', borderRadius: 999, padding: '3px 10px', verticalAlign: 'middle' },
   detailPersona: { fontSize: 12, letterSpacing: '0.15em', color: '#d5d5d5', marginTop: 6, lineHeight: 1.9 },
+  detailBook: { fontSize: 12, letterSpacing: '0.15em', color: '#8f8f95', marginTop: 6, lineHeight: 1.9 },
   detailTagline: { fontSize: 14.5, lineHeight: 2.1, letterSpacing: '0.05em', color: '#c9a86a', marginBottom: 24 },
   sectionLabel: { fontSize: 12, letterSpacing: '0.4em', color: '#d5d5d5', marginBottom: 10 },
   detailMind: { fontSize: 13, lineHeight: 2.2, letterSpacing: '0.03em', color: '#b8b5ac', marginBottom: 24 },

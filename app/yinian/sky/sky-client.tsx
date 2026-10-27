@@ -24,6 +24,7 @@ const UniverseScene = dynamic(() => import('./universe-scene'), {
 interface SkyReply {
   id: string;
   npcKey: string;
+  npc?: { name: string; seal: string; inkColor: string }; // 书源 NPC 展示数据（API 附带，spec §9）
   content: string;
   status: 'pending' | 'done' | 'failed';
   createdAt: number;
@@ -39,8 +40,9 @@ interface Star {
   replies: SkyReply[];
 }
 
-function npcOf(key: string) {
+function npcOf(key: string, book?: { name: string; seal: string; inkColor: string }) {
   if (key === CARE_REPLY.key) return CARE_REPLY;
+  if (book) return { key, ...book }; // 书源 NPC：API 附带的展示数据优先
   return NPC_DISPLAY[key] ?? { key, name: key, seal: '·', inkColor: '#4a4a52' };
 }
 
@@ -213,7 +215,7 @@ export default function SkyClient() {
                 {selected.replies
                   .filter((r) => r.status === 'done')
                   .map((r) => {
-                    const npc = npcOf(r.npcKey);
+                    const npc = npcOf(r.npcKey, r.npc);
                     const isCare = r.npcKey === CARE_REPLY.key;
                     return (
                       <div key={r.id} style={{ ...S.miniLetter, ...(isCare ? S.miniLetterCare : {}) }}>

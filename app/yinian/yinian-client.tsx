@@ -34,6 +34,7 @@ const DISC_CAP = 0.72;
 interface Reply {
   id: string;
   npcKey: string;
+  npc?: { name: string; seal: string; inkColor: string }; // 书源 NPC 展示数据（API 附带，spec §9）
   content: string;
   status: 'pending' | 'done' | 'failed';
   createdAt: number;
@@ -68,8 +69,9 @@ interface ClusterGroup {
   discDelay: number;  // 自转相位 s（负值=已转过）
 }
 
-function npcOf(key: string) {
+function npcOf(key: string, book?: { name: string; seal: string; inkColor: string }) {
   if (key === CARE_REPLY.key) return CARE_REPLY;
+  if (book) return { key, ...book }; // 书源 NPC：API 附带的展示数据优先
   return NPC_DISPLAY[key] ?? { key, name: key, seal: '·', inkColor: '#4a4a52' };
 }
 
@@ -591,10 +593,10 @@ export default function YinianClient() {
                       <span
                         key={r.id}
                         className="yn-seal"
-                        style={{ background: npcOf(r.npcKey).inkColor }}
-                        title={npcOf(r.npcKey).name}
+                        style={{ background: npcOf(r.npcKey, r.npc).inkColor }}
+                        title={npcOf(r.npcKey, r.npc).name}
                       >
-                        {npcOf(r.npcKey).seal}
+                        {npcOf(r.npcKey, r.npc).seal}
                       </span>
                     )
                   )}
@@ -605,7 +607,7 @@ export default function YinianClient() {
             {selected.replies
               .filter((r) => r.status === 'done')
               .map((r) => {
-                const npc = npcOf(r.npcKey);
+                const npc = npcOf(r.npcKey, r.npc);
                 const isCare = r.npcKey === CARE_REPLY.key;
                 return (
                   <div key={r.id} style={{ ...S.letter, ...(isCare ? S.letterCare : {}) }}>
