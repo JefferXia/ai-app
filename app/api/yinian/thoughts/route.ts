@@ -35,7 +35,9 @@ function toClient(t: any, bookNpcs: Record<string, { name: string; seal: string;
   };
 }
 
-// 念头流：?before=<毫秒> 游标分页，倒序
+// 念头流：?before=<毫秒> 游标分页（20/页，倒序）；
+// ?since=<毫秒>[&before=<毫秒>] 窗口模式（念簿按月回翻）——返回 [since, before) 区间全部
+// 念头（单月量级小，不设页上限），hasMore 指窗口起点之前是否还有更早的念头
 export async function GET(req: Request) {
   try {
     const userId = await getWenxinUser();
@@ -45,16 +47,35 @@ export async function GET(req: Request) {
     const url = new URL(req.url);
     const beforeRaw = Number(url.searchParams.get('before') ?? 0);
     const before = Number.isFinite(beforeRaw) && beforeRaw > 0 ? new Date(beforeRaw) : undefined;
+    const sinceRaw = Number(url.searchParams.get('since') ?? 0);
+    const since = Number.isFinite(sinceRaw) && sinceRaw > 0 ? new Date(sinceRaw) : undefined;
 
     const [rows, bookNpcs] = await Promise.all([
       prisma.ynThought.findMany({
-        where: { userId, ...(before ? { createdAt: { lt: before } } : {}) },
+        where: {
+          userId,
+          ...(before || since
+            ? { createdAt: { ...(before ? { lt: before } : {}), ...(since ? { gte: since } : {}) } }
+            : {}),
+        },
         orderBy: { createdAt: 'desc' },
-        take: PAGE_SIZE + 1,
+        ...(since ? {} : { take: PAGE_SIZE + 1 }),
         include: { replies: { orderBy: { createdAt: 'asc' } } },
       }),
       getBookNpcDisplayMap(), // 60s 缓存，零开销
     ]);
+
+    if (since) {
+      // hasMore = 窗口起点之前是否还有念头（供「翻出更早的念」逐月回翻）
+      const older = await prisma.ynThought.findFirst({
+        where: { userId, createdAt: { lt: since } },
+        select: { id: true },
+      });
+      return NextResponse.json({
+        success: true,
+        data: { thoughts: rows.map((t) => toClient(t, bookNpcs)), hasMore: !!older },
+      });
+    }
     const hasMore = rows.length > PAGE_SIZE;
     const thoughts = rows.slice(0, PAGE_SIZE).map((t) => toClient(t, bookNpcs));
     return NextResponse.json({ success: true, data: { thoughts, hasMore } });

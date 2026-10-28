@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import dynamic from 'next/dynamic';
+import { AudioLines } from 'lucide-react';
 import { SERIF, anchorLabel } from '../../wenxin/shared';
 import { NPC_DISPLAY, CARE_REPLY } from '@/lib/yinian/npc-display';
 import { STAR_CSS, Planet, Spinner, panelPlacement, DOMAIN_LABEL } from '../yinian-shared';
@@ -66,6 +67,9 @@ export default function SkyClient() {
   const [bannerFade, setBannerFade] = useState(false);
   const [bannerGone, setBannerGone] = useState(false);
   const sceneApi = useRef<SceneApi | null>(null);
+  // 背景音乐（右下圆钮）：默认静默，点击切换播放；离开页面随组件卸载自然停止
+  const [musicOn, setMusicOn] = useState(false);
+  const musicRef = useRef<HTMLAudioElement | null>(null);
 
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout>;
@@ -111,6 +115,18 @@ export default function SkyClient() {
     if (!p) return;
     setPlanetPos(clampAnchor(p.x, p.y));
     setSelectedId(id);
+  }
+
+  /* ---------- 背景音乐 ---------- */
+  function toggleMusic() {
+    const el = musicRef.current;
+    if (!el) return;
+    if (el.paused) {
+      el.play().then(() => setMusicOn(true)).catch(() => setMusicOn(false));
+    } else {
+      el.pause();
+      setMusicOn(false);
+    }
   }
 
   /* ---------- 数据 ---------- */
@@ -195,6 +211,19 @@ export default function SkyClient() {
         )}
       </main>
 
+      {/* 背景音乐：右下圆钮，透明底细环，点击切换播放；浮层打开时让位（zIndex 低于遮罩） */}
+      <button
+        className={`yn-musicbtn${musicOn ? ' yn-music-on' : ''}`}
+        style={{ ...S.musicBtn, opacity: musicOn ? 1 : 0.5 }}
+        onClick={toggleMusic}
+        aria-pressed={musicOn}
+        aria-label={musicOn ? '暂停背景音乐' : '播放背景音乐'}
+        title={musicOn ? '暂停背景音乐' : '播放背景音乐'}
+      >
+        <AudioLines size={16} strokeWidth={1.4} aria-hidden />
+      </button>
+      <audio ref={musicRef} src="/yinian/music/cosmic_dreams.mp3" loop preload="none" />
+
       {/* 点击星点：星球原地旋转放大，浮层锚定星球侧面（窄屏回退下方） */}
       {selected && planetPos && (
         <div style={S.overlay} onClick={closeAll}>
@@ -274,6 +303,12 @@ const S: Record<string, React.CSSProperties> = {
   },
   loadingWrap: { position: 'absolute', left: '50%', top: '38%', transform: 'translate(-50%, -50%)' },
   empty: { position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#d5d5d5', fontSize: 13, letterSpacing: '0.2em' },
+  musicBtn: {
+    position: 'fixed', right: 28, bottom: 28, zIndex: 20,
+    width: 40, height: 40, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
+    border: '1px solid #d5d5d5', color: '#d5d5d5', background: 'transparent',
+    cursor: 'pointer', padding: 0, transition: 'opacity .3s ease, border-color .3s ease, color .3s ease',
+  },
   banner: {
     position: 'fixed', bottom: 34, left: '50%', transform: 'translateX(-50%)', zIndex: 20,
     fontSize: 12, letterSpacing: '0.3em', color: '#d5d5d5', whiteSpace: 'nowrap',
@@ -317,7 +352,11 @@ const S: Record<string, React.CSSProperties> = {
 const CSS = `
   .yn-fade { animation: yn-fade .4s ease-out; }
   @keyframes yn-fade { from { opacity: 0; transform: translateY(12px) } to { opacity: 1; transform: none } }
+  /* 背景音乐钮：静默半透、悬停点亮；播放中图标轻缓脉动示「正在响」 */
+  .yn-musicbtn:hover { opacity: 1 !important; border-color: #ffffff !important; color: #ffffff !important; }
+  .yn-music-on svg { animation: yn-music-pulse 2.4s ease-in-out infinite; }
+  @keyframes yn-music-pulse { 0%, 100% { transform: scale(1) } 50% { transform: scale(1.12) } }
   @media (prefers-reduced-motion: reduce) {
-    .yn-fade { animation: none; }
+    .yn-fade, .yn-music-on svg { animation: none; }
   }
 `;

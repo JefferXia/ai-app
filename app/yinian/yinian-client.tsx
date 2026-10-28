@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { AudioLines } from 'lucide-react';
+import { BookOpen } from 'lucide-react';
 import { SERIF, anchorLabel, seeded } from '../wenxin/shared';
 import { NPC_DISPLAY, CARE_REPLY } from '@/lib/yinian/npc-display';
 import { EMOTION_DOT, STAR_CSS, Planet, Spinner, panelPlacement, starVisualOf } from './yinian-shared';
@@ -150,9 +150,6 @@ export default function YinianClient() {
   } | null>(null);
   const [confirmBurn, setConfirmBurn] = useState<string | null>(null);
   const burnTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  // 背景音乐（放大镜上方圆钮）：默认静默，点击切换播放；离开页面随组件卸载自然停止
-  const [musicOn, setMusicOn] = useState(false);
-  const musicRef = useRef<HTMLAudioElement | null>(null);
 
   const selected = thoughts?.find((t) => t.id === selectedId) ?? null;
 
@@ -168,18 +165,6 @@ export default function YinianClient() {
   function closeStar() {
     setSelectedId(null);
     setPlanetPos(null);
-  }
-
-  /* ---------- 背景音乐 ---------- */
-  function toggleMusic() {
-    const el = musicRef.current;
-    if (!el) return;
-    if (el.paused) {
-      el.play().then(() => setMusicOn(true)).catch(() => setMusicOn(false));
-    } else {
-      el.pause();
-      setMusicOn(false);
-    }
   }
 
   /* ---------- 数据 ---------- */
@@ -537,25 +522,19 @@ export default function YinianClient() {
             </div>
           ))}
           {groups.free.map((t) => renderStar(t))}
+          {/* 念簿：星团中央的入口——布局引擎把领域锚点环布在 (50,44) 周围，中心留空（universe.ts）；
+              不在顶部导航，入口只在此。空星空档（与空态文案重叠）时不显示 */}
+          {thoughts !== null && thoughts.length > 0 && (
+            <Link href="/yinian/list" className="yn-listbtn" style={S.listBtn} title="念头列表" aria-label="打开念头列表">
+              <BookOpen size={16} strokeWidth={1.4} aria-hidden />
+            </Link>
+          )}
           <EnergyScale />
           {thoughts !== null && thoughts.length === 0 && (
             <p style={S.empty}>夜空还没有星。写下第一个念头。</p>
           )}
         </main>
       </div>
-
-      {/* 背景音乐：放大镜（进入心念宇宙）上方的圆钮，透明底细环，点击切换播放 */}
-      <button
-        className={`yn-musicbtn${musicOn ? ' yn-music-on' : ''}`}
-        style={{ ...S.musicBtn, opacity: musicOn ? 1 : 0.5 }}
-        onClick={toggleMusic}
-        aria-pressed={musicOn}
-        aria-label={musicOn ? '暂停背景音乐' : '播放背景音乐'}
-        title={musicOn ? '暂停背景音乐' : '播放背景音乐'}
-      >
-        <AudioLines size={16} strokeWidth={1.4} aria-hidden />
-      </button>
-      <audio ref={musicRef} src="/yinian/music/cosmic_dreams.mp3" loop preload="none" />
 
       {/* 抬头看：进入 3D 心念宇宙（/yinian/sky） */}
       <Link href="/yinian/sky" className="yn-skybtn" style={S.skyBtn} title="心念宇宙" aria-label="进入心念宇宙">
@@ -613,10 +592,7 @@ export default function YinianClient() {
                   <div key={r.id} style={{ ...S.letter, ...(isCare ? S.letterCare : {}) }}>
                     <span style={{ ...S.letterSeal, background: npc.inkColor }}>{npc.seal}</span>
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={S.letterMeta}>
-                        {npc.name}
-                        <span style={S.letterAnchorInline}> · 于{anchorLabel(r.createdAt).split('的')[1] ?? ''}</span>
-                      </div>
+                      <div style={S.letterMeta}>{npc.name}</div>
                       <p style={S.letterBody}>{r.content}</p>
                     </div>
                   </div>
@@ -683,19 +659,20 @@ const S: Record<string, React.CSSProperties> = {
     alignItems: 'center', justifyContent: 'center', fontSize: 12, color: '#f3ece2', flexShrink: 0,
   },
   letterMeta: { fontSize: 12, letterSpacing: '0.2em', color: '#d5d5d5', marginBottom: 4 },
-  letterAnchorInline: { color: '#d5d5d5' },
   letterBody: { fontSize: 14, lineHeight: 1.9, letterSpacing: '0.02em', whiteSpace: 'pre-wrap' },
-  musicBtn: {
-    position: 'fixed', right: 28, bottom: 80, zIndex: 5,
-    width: 40, height: 40, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
-    border: '1px solid #d5d5d5', color: '#d5d5d5', background: 'transparent',
-    cursor: 'pointer', padding: 0, transition: 'opacity .3s ease, border-color .3s ease, color .3s ease',
-  },
   skyBtn: {
     position: 'fixed', right: 28, bottom: 28, zIndex: 5,
     width: 40, height: 40, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
     border: '1px solid #d5d5d5', color: '#d5d5d5', background: 'transparent',
     opacity: 0.5, cursor: 'pointer',
+    transition: 'opacity .3s ease, border-color .3s ease, color .3s ease',
+  },
+  /* 念簿钮：星团中央（布局锚点环布中心 50/44，universe.ts）；微暗底衬保证星空中可读 */
+  listBtn: {
+    position: 'absolute', left: '50%', top: '44%', transform: 'translate(-50%, -50%)', zIndex: 2,
+    width: 40, height: 40, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
+    border: '1px solid #d5d5d5', color: '#d5d5d5', background: 'rgba(11,11,12,.45)',
+    opacity: 0.6, cursor: 'pointer',
     transition: 'opacity .3s ease, border-color .3s ease, color .3s ease',
   },
   detailOps: { display: 'flex', justifyContent: 'flex-end', gap: 12, marginTop: 18, paddingTop: 14, borderTop: '1px solid #26262b' },
@@ -749,11 +726,7 @@ const CSS = `
   }
   @keyframes yn-stamp { 0% { transform: scale(1.4); opacity: 0 } 100% { transform: scale(1); opacity: 1 } }
   .yn-fade { animation: yn-fade .4s ease-out; }
-  .yn-skybtn:hover { opacity: 1 !important; border-color: #ffffff !important; color: #ffffff !important; }
-  /* 背景音乐钮：静默半透、悬停点亮；播放中图标轻缓脉动示「正在响」 */
-  .yn-musicbtn:hover { opacity: 1 !important; border-color: #ffffff !important; color: #ffffff !important; }
-  .yn-music-on svg { animation: yn-music-pulse 2.4s ease-in-out infinite; }
-  @keyframes yn-music-pulse { 0%, 100% { transform: scale(1) } 50% { transform: scale(1.12) } }
+  .yn-skybtn:hover, .yn-listbtn:hover { opacity: 1 !important; border-color: #ffffff !important; color: #ffffff !important; }
   @keyframes yn-fade { from { opacity: 0; transform: translateY(12px) } to { opacity: 1; transform: none } }
 
   /* ===== 星团 = 一个 3D 星系（参考 universe + galaxy） =====
@@ -841,9 +814,9 @@ const CSS = `
      色带由 EnergyScale 以 EMOTION_DOT 生成（--yn-scale-grad），分段仅作热区；
      tooltip 指向左侧，不拦截星点点击 */
   /* 固定在按钮列（right 28 + 40px 宽，中心线 48）正上方：bar 中心线同 48 → right 43；
-     底 132 = 音乐钮顶（80+40）+ 12px 间距 */
+     底 80 = 心念宇宙钮顶（28+40）+ 12px 间距 */
   .yn-scale {
-    position: fixed; right: 43px; bottom: 132px;
+    position: fixed; right: 43px; bottom: 80px;
     height: min(40vh, 320px);
     display: flex; align-items: stretch;
     z-index: 3;
@@ -878,6 +851,6 @@ const CSS = `
   .yn-scale-dot { width: 8px; height: 8px; border-radius: 50%; box-shadow: 0 0 0 1px rgba(255,255,255,.14); flex-shrink: 0; }
   .yn-scale-tip-meta { display: block; margin-top: 4px; font-size: 11px; letter-spacing: .08em; color: #d5d5d5; }
   @media (prefers-reduced-motion: reduce) {
-    .yn-star, .yn-star-deep, .yn-star-fly, .yn-seal-slot, .yn-seal, .yn-fade, .yn-wave span, .yn-galaxy-plane, .yn-music-on svg, .yn-scale-bar { animation: none; transition: none; }
+    .yn-star, .yn-star-deep, .yn-star-fly, .yn-seal-slot, .yn-seal, .yn-fade, .yn-wave span, .yn-galaxy-plane, .yn-scale-bar { animation: none; transition: none; }
   }
 `;
